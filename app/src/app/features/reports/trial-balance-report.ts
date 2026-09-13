@@ -1,0 +1,96 @@
+import { DecimalPipe } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatButtonModule } from '@angular/material/button';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { TrialBalanceRow } from '../../core/models';
+import { NotifyService } from '../../core/notify.service';
+import { must, SupabaseService } from '../../core/supabase.service';
+import { downloadCsv } from '../../shared/csv';
+import { isoDate } from '../../shared/dates';
+import { ReportShell } from '../../shared/report-shell';
+
+@Component({
+  selector: 'app-trial-balance-report',
+  imports: [DecimalPipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, ReportShell],
+  template: `
+    <div class="page">
+      <app-report-shell title="Trial Balance" [subtitle]="subtitle()" [loading]="loading()"
+                        [hasData]="rows().length > 0" (csv)="exportCsv()">
+        <form filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
+          <mat-form-field subscriptSizing="dynamic"><mat-label>As on</mat-label><input matInput type="date" formControlName="asOn" /></mat-form-field>
+          <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">Show</button>
+        </form>
+
+        @if (ran()) {
+          <table class="report-table">
+            <thead><tr><th class="num">Code</th><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
+            <tbody>
+              @for (row of rows(); track row.head_code) {
+                <tr>
+                  <td class="num">{{ row.head_code }}</td>
+                  <td>{{ row.head_name }}</td>
+                  <td class="num">{{ row.debit ? (row.debit | number: '1.2-2') : '' }}</td>
+                  <td class="num">{{ row.credit ? (row.credit | number: '1.2-2') : '' }}</td>
+                </tr>
+              } @empty {
+                <tr><td colspan="4" class="empty">No balances as on this date.</td></tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="2">Total</td>
+                <td class="num">{{ totals().debit | number: '1.2-2' }}</td>
+                <td class="num">{{ totals().credit | number: '1.2-2' }}</td>
+              </tr>
+              <tr>
+                <td colspan="2">Difference (cash balance)</td>
+                <td colspan="2" class="num">{{ totals().credit - totals().debit | number: '1.2-2' }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        }
+      </app-report-shell>
+    </div>
+  `,
+})
+export class TrialBalanceReport {
+  private readonly sb = inject(SupabaseService).client;
+  private readonly notify = inject(NotifyService);
+
+  protected readonly rows = signal<TrialBalanceRow[]>([]);
+  protected readonly loading = signal(false);
+  protected readonly ran = signal(false);
+  protected readonly subtitle = signal('');
+  protected readonly form = inject(FormBuilder).nonNullable.group({
+    asOn: [isoDate(), Validators.required],
+  });
+
+  protected readonly totals = computed(() => ({
+    debit: this.rows().reduce((sum, r) => sum + Number(r.debit), 0),
+    credit: this.rows().reduce((sum, r) => sum + Number(r.credit), 0),
+  }));
+
+  protected async run(): Promise<void> {
+    const { asOn } = this.form.getRawValue();
+    this.loading.set(true);
+    try {
+      this.rows.set(await must(this.sb.rpc('rpt_trial_balance', { p_as_on: asOn })));
+      this.subtitle.set(`As on ${asOn}`);
+      this.ran.set(true);
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  protected exportCsv(): void {
+    downloadCsv(
+      'trial-balance.csv',
+      ['Code', 'Account', 'Debit', 'Credit'],
+      this.rows().map((r) => [r.head_code, r.head_name, r.debit, r.credit]),
+    );
+  }
+}
