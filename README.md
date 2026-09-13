@@ -60,7 +60,16 @@ npm test             # unit tests (Vitest)
 npm run build        # production build in app/dist/app/browser
 ```
 
-The build output is a static site; host it on Netlify, Vercel, Cloudflare Pages or similar, with a rewrite from all paths to `index.html`. Add the site URL under Authentication → URL Configuration.
+### Hosting on GitHub Pages
+
+The app uses hash routing (`https://<user>.github.io/<repo>/#/reports/ledger`) and a relative base href, so it works under any repo name without a 404 fallback page.
+
+1. Push this repo to GitHub, on branch `main`.
+2. In the repo, go to Settings → Pages → Source and choose **GitHub Actions**.
+3. Every push to `main` that touches `app/` runs `.github/workflows/deploy-pages.yml`: install, unit tests, `npm run build:pages`, deploy. It can also be run by hand from the Actions tab.
+4. In Supabase, set Authentication → URL Configuration → Site URL to the Pages URL.
+
+`npm run build:pages` builds the same output locally, in `app/dist/app/browser`.
 
 The Angular CLI 21 used here runs on Node 22.12+. Newer Angular majors need Node 22.22+.
 

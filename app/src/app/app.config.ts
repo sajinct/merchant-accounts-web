@@ -1,7 +1,7 @@
 import { registerLocaleData } from '@angular/common';
 import localeEnIn from '@angular/common/locales/en-IN';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { provideRouter, withComponentInputBinding, withHashLocation } from '@angular/router';
 
 import { routes } from './app.routes';
 
@@ -11,7 +11,8 @@ registerLocaleData(localeEnIn);
 export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
-    provideRouter(routes, withComponentInputBinding()),
+    // Hash URLs (/#/reports/ledger) so static hosting such as GitHub Pages never needs server rewrites.
+    provideRouter(routes, withHashLocation(), withComponentInputBinding()),
     { provide: LOCALE_ID, useValue: 'en-IN' },
   ],
 };
