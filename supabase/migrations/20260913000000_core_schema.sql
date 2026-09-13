@@ -255,55 +255,55 @@ alter table public.profiles         enable row level security;
 
 -- company_settings: everyone active reads, admin updates
 create policy company_settings_select on public.company_settings
-  for select to authenticated using (public.app_role() is not null);
+  for select to authenticated using ((select public.app_role()) is not null);
 create policy company_settings_update on public.company_settings
-  for update to authenticated using (public.app_role() = 'admin') with check (public.app_role() = 'admin');
+  for update to authenticated using ((select public.app_role()) = 'admin') with check ((select public.app_role()) = 'admin');
 
 -- account_heads: no delete (matches legacy "Not Authorized!")
 create policy account_heads_select on public.account_heads
-  for select to authenticated using (public.app_role() is not null);
+  for select to authenticated using ((select public.app_role()) is not null);
 create policy account_heads_insert on public.account_heads
-  for insert to authenticated with check (public.app_role() in ('admin', 'accountant'));
+  for insert to authenticated with check ((select public.app_role()) in ('admin', 'accountant'));
 create policy account_heads_update on public.account_heads
   for update to authenticated
-  using (public.app_role() in ('admin', 'accountant'))
-  with check (public.app_role() in ('admin', 'accountant'));
+  using ((select public.app_role()) in ('admin', 'accountant'))
+  with check ((select public.app_role()) in ('admin', 'accountant'));
 
 -- customers
 create policy customers_select on public.customers
-  for select to authenticated using (public.app_role() is not null);
+  for select to authenticated using ((select public.app_role()) is not null);
 create policy customers_insert on public.customers
-  for insert to authenticated with check (public.app_role() in ('admin', 'accountant'));
+  for insert to authenticated with check ((select public.app_role()) in ('admin', 'accountant'));
 create policy customers_update on public.customers
   for update to authenticated
-  using (public.app_role() in ('admin', 'accountant'))
-  with check (public.app_role() in ('admin', 'accountant'));
+  using ((select public.app_role()) in ('admin', 'accountant'))
+  with check ((select public.app_role()) in ('admin', 'accountant'));
 create policy customers_delete on public.customers
-  for delete to authenticated using (public.app_role() = 'admin');
+  for delete to authenticated using ((select public.app_role()) = 'admin');
 
 -- vouchers: read only; writes go through create_voucher / cancel_voucher
 create policy vouchers_select on public.vouchers
-  for select to authenticated using (public.app_role() is not null);
+  for select to authenticated using ((select public.app_role()) is not null);
 
 -- voucher_counters: no policies -> not reachable by clients
 
 -- daybook: read all; accountants maintain manual (non-auto) rows only
 create policy daybook_select on public.daybook
-  for select to authenticated using (public.app_role() is not null);
+  for select to authenticated using ((select public.app_role()) is not null);
 create policy daybook_insert on public.daybook
-  for insert to authenticated with check (public.app_role() in ('admin', 'accountant') and not is_auto);
+  for insert to authenticated with check ((select public.app_role()) in ('admin', 'accountant') and not is_auto);
 create policy daybook_update on public.daybook
   for update to authenticated
-  using (public.app_role() in ('admin', 'accountant') and not is_auto)
-  with check (public.app_role() in ('admin', 'accountant') and not is_auto);
+  using ((select public.app_role()) in ('admin', 'accountant') and not is_auto)
+  with check ((select public.app_role()) in ('admin', 'accountant') and not is_auto);
 create policy daybook_delete on public.daybook
-  for delete to authenticated using (public.app_role() in ('admin', 'accountant') and not is_auto);
+  for delete to authenticated using ((select public.app_role()) in ('admin', 'accountant') and not is_auto);
 
 -- profiles: users see their own; admins see and manage all
 create policy profiles_select on public.profiles
-  for select to authenticated using (user_id = auth.uid() or public.app_role() = 'admin');
+  for select to authenticated using (user_id = auth.uid() or (select public.app_role()) = 'admin');
 create policy profiles_update on public.profiles
-  for update to authenticated using (public.app_role() = 'admin') with check (public.app_role() = 'admin');
+  for update to authenticated using ((select public.app_role()) = 'admin') with check ((select public.app_role()) = 'admin');
 
 -- ---------------------------------------------------------------------------
 -- Storage: private bucket for customer photos
@@ -314,13 +314,13 @@ values ('customer-photos', 'customer-photos', false, 2097152, array['image/jpeg'
 
 create policy customer_photos_select on storage.objects
   for select to authenticated
-  using (bucket_id = 'customer-photos' and public.app_role() is not null);
+  using (bucket_id = 'customer-photos' and (select public.app_role()) is not null);
 create policy customer_photos_insert on storage.objects
   for insert to authenticated
-  with check (bucket_id = 'customer-photos' and public.app_role() in ('admin', 'accountant'));
+  with check (bucket_id = 'customer-photos' and (select public.app_role()) in ('admin', 'accountant'));
 create policy customer_photos_update on storage.objects
   for update to authenticated
-  using (bucket_id = 'customer-photos' and public.app_role() in ('admin', 'accountant'));
+  using (bucket_id = 'customer-photos' and (select public.app_role()) in ('admin', 'accountant'));
 create policy customer_photos_delete on storage.objects
   for delete to authenticated
-  using (bucket_id = 'customer-photos' and public.app_role() = 'admin');
+  using (bucket_id = 'customer-photos' and (select public.app_role()) = 'admin');
