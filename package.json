@@ -1,0 +1,15 @@
+{
+  "name": "merchant-accounts-web",
+  "private": true,
+  "description": "Merchant Accounts rebuilt on Supabase + Angular",
+  "scripts": {
+    "db:link": "supabase link --project-ref",
+    "db:push": "supabase db push",
+    "db:push:dry": "supabase db push --dry-run",
+    "db:test": "supabase test db --linked",
+    "db:types": "supabase gen types typescript --linked --schema public > app/src/app/core/database.types.ts"
+  },
+  "devDependencies": {
+    "supabase": "2.117.0"
+  }
+}
