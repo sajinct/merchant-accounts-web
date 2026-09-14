@@ -20,14 +20,10 @@
   text-decoration: none;
 }
 .brand-mark {
-  display: grid;
-  place-items: center;
-  width: 37px;
+  display: block;
+  flex: 0 0 auto;
+  width: 39px;
   height: 39px;
-  border: 1px solid #477477;
-  border-radius: 10px;
-  background: #24464e;
-  color: #a0e4d5;
 }
 .brand-name {
   font-size: 21px;

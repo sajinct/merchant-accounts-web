@@ -34,6 +34,7 @@ jobs:
       - run: npx ng test --watch=false
       # Relative base href + hash routing: works at https://<user>.github.io/<repo>/ without a 404.html fallback.
       - run: npm run build:pages
+      - run: npm run check:pwa
 
       - uses: actions/upload-pages-artifact@v3
         with:

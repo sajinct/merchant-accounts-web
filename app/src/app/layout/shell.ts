@@ -7,9 +7,11 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatDividerModule } from '@angular/material/divider';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
+import { SUPPORT } from '../core/support';
 
 interface NavItem {
   label: string;
@@ -68,6 +70,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
     MatIconModule,
     MatMenuModule,
     MatSidenavModule,
+    MatDividerModule,
   ],
   styleUrl: './shell.scss',
   template: `
@@ -91,7 +94,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
           (click)="closeMobileNav()"
           aria-label="Merchant Accounts home"
         >
-          <span class="brand-mark"><mat-icon>account_balance</mat-icon></span>
+          <img class="brand-mark" src="favicon.svg" alt="" width="39" height="39" />
           <span class="brand-name">Merchant<span>ACCOUNTS</span></span>
         </a>
         <nav class="sidebar-links" aria-label="Main navigation">
@@ -149,6 +152,30 @@ const NAV: { heading: string; items: NavItem[] }[] = [
             <a mat-menu-item routerLink="/account/password"
               ><mat-icon>lock_outline</mat-icon> Change password</a
             >
+            <mat-divider />
+            <div mat-menu-item disabled>Inzoft support</div>
+            <a
+              mat-menu-item
+              [href]="support.website"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Visit inzoft.com (opens in a new tab)"
+            >
+              <mat-icon>language</mat-icon>{{ support.websiteLabel }}
+            </a>
+            <a mat-menu-item [href]="'mailto:' + support.email">
+              <mat-icon>mail_outline</mat-icon>{{ support.email }}
+            </a>
+            <a
+              mat-menu-item
+              [href]="support.whatsapp"
+              target="_blank"
+              rel="noopener noreferrer"
+              [attr.aria-label]="'WhatsApp support at ' + support.phone + ' (opens in a new tab)'"
+            >
+              <mat-icon>chat_bubble_outline</mat-icon>WhatsApp · {{ support.phone }}
+            </a>
+            <mat-divider />
             <button mat-menu-item type="button" (click)="signOut()">
               <mat-icon>logout</mat-icon> Sign out
             </button>
@@ -165,6 +192,7 @@ const NAV: { heading: string; items: NavItem[] }[] = [
   `,
 })
 export class Shell implements OnInit {
+  protected readonly support = SUPPORT;
   protected readonly auth = inject(AuthService);
   protected readonly company = inject(CompanyService);
   private readonly notify = inject(NotifyService);

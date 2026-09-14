@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../core/auth.service';
 import { errorMessage } from '../../core/notify.service';
+import { SUPPORT } from '../../core/support';
 
 @Component({
   selector: 'app-login',
@@ -22,8 +23,8 @@ import { errorMessage } from '../../core/notify.service';
     <main class="login-page">
       <section class="login-brand" aria-label="Merchant Accounts">
         <div class="login-wordmark">
-          <span class="login-mark"><mat-icon>account_balance</mat-icon></span
-          ><span>Merchant<small>ACCOUNTS</small></span>
+          <img class="login-mark" src="favicon.svg" alt="" width="46" height="46" />
+          <span>Merchant<small>ACCOUNTS</small></span>
         </div>
         <div class="brand-message">
           <div class="brand-eyebrow">YOUR ACCOUNTING WORKSPACE</div>
@@ -97,18 +98,37 @@ import { errorMessage } from '../../core/notify.service';
               <mat-icon iconPositionEnd>arrow_forward</mat-icon>
             </button>
           </form>
-          <p class="login-help">
-            Need access or help signing in?<br /><span>Contact your account administrator.</span>
-          </p>
+          <div class="login-help">
+            <p>Need help? Contact Inzoft support.</p>
+            <a [href]="'mailto:' + support.email">
+              <mat-icon>mail_outline</mat-icon>{{ support.email }}
+            </a>
+            <a
+              [href]="support.whatsapp"
+              target="_blank"
+              rel="noopener noreferrer"
+              [attr.aria-label]="'WhatsApp support at ' + support.phone + ' (opens in a new tab)'"
+            >
+              <mat-icon>chat_bubble_outline</mat-icon>WhatsApp · {{ support.phone }}
+            </a>
+          </div>
         </div>
         <div class="login-footer">
-          <mat-icon>lock_outline</mat-icon> Your workspace. Your business.
+          Powered by
+          <a
+            [href]="support.website"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Visit inzoft.com (opens in a new tab)"
+            >{{ support.websiteLabel }}</a
+          >
         </div>
       </section>
     </main>
   `,
 })
 export class Login {
+  protected readonly support = SUPPORT;
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
 

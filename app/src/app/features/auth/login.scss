@@ -25,19 +25,10 @@
   line-height: 1.1;
 }
 .login-mark {
-  display: grid;
-  place-items: center;
-  width: 43px;
+  display: block;
+  flex: 0 0 auto;
+  width: 46px;
   height: 46px;
-  border-radius: 11px;
-  border: 1px solid #477477;
-  color: #a0e4d5;
-  background: #24464e;
-}
-.login-mark mat-icon {
-  width: 27px;
-  height: 27px;
-  font-size: 27px;
 }
 .login-wordmark small {
   display: block;
@@ -156,15 +147,35 @@
 }
 .login-help {
   margin-top: 25px;
-  padding-top: 22px;
+  padding-top: 16px;
   border-top: 1px solid var(--app-border);
   text-align: center;
   color: var(--app-muted);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.9;
 }
-.login-help span {
-  color: #4f646f;
+.login-help p {
+  margin: 0 0 6px;
+}
+.login-help a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--app-accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+.login-help mat-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+.login-help a:hover,
+.login-footer a:hover {
+  text-decoration: underline;
 }
 .login-footer {
   position: absolute;
@@ -175,10 +186,12 @@
   font-size: 9px;
   color: #7b8c96;
 }
-.login-footer mat-icon {
-  width: 13px;
-  height: 13px;
-  font-size: 13px;
+.login-footer a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-weight: 600;
+  text-decoration: none;
 }
 @media (max-width: 799px) {
   .login-page {
@@ -195,7 +208,7 @@
     font-size: 20px;
   }
   .login-mark {
-    width: 37px;
+    width: 39px;
     height: 39px;
   }
   .login-form-area {

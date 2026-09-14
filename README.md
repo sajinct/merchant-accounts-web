@@ -73,6 +73,16 @@ The app uses hash routing (`https://<user>.github.io/<repo>/#/reports/ledger`) a
 
 The Angular CLI 21 used here runs on Node 22.12+. Newer Angular majors need Node 22.22+.
 
+### Install as an app (PWA)
+
+Production builds include an install manifest and Angular service worker. Open the HTTPS deployment and use the browser's **Install app** option; on iPhone or iPad, use Safari's **Share → Add to Home Screen**. Installation availability depends on the browser. The manifest, app shortcuts and worker use the app directory, including a GitHub Pages repository subpath.
+
+The service worker caches the application files and icons. Sign-in, account data, reports and saving changes still require a connection to Supabase; financial records and API responses are not cached by the worker. App updates are downloaded in the background and applied on a subsequent load, without interrupting an open form.
+
+The icon set includes an SVG favicon, 16/32/48px ICO, 192/512px install icons, separate maskable icons, and a 180px Apple touch icon. Regenerate the assets with `npm run icons:generate` inside `app/`. After `npm run build` or `npm run build:pages`, run `npm run check:pwa` to validate the built manifest, icon sizes, cached assets and deployment paths. CI runs this check before deploying.
+
+Service workers are disabled during normal `npm start` development. To check the installed experience locally, run `npm start -- --configuration production` and open localhost. See [Angular's service-worker guide](https://angular.dev/ecosystem/service-workers/getting-started) and [browser installation requirements](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
+
 ## Roles
 
 | Role | Can |
