@@ -12,21 +12,31 @@ import { CompanyService } from '../core/company.service';
     <div class="report-toolbar no-print">
       <div class="report-filters"><ng-content select="[filters]" /></div>
       <div class="report-actions">
-        <button mat-stroked-button type="button" (click)="print()" [disabled]="!hasData()">
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="print()"
+          [disabled]="!hasData() || loading()"
+        >
           <mat-icon>print</mat-icon> Print / PDF
         </button>
-        <button mat-stroked-button type="button" (click)="csv.emit()" [disabled]="!hasData()">
-          <mat-icon>download</mat-icon> CSV
+        <button
+          mat-stroked-button
+          type="button"
+          (click)="csv.emit()"
+          [disabled]="!hasData() || loading()"
+        >
+          <mat-icon>download</mat-icon> Export CSV
         </button>
       </div>
     </div>
     @if (loading()) {
-      <mat-progress-bar mode="indeterminate" class="no-print" />
+      <mat-progress-bar mode="indeterminate" class="no-print" aria-label="Loading report" />
     }
-    <section class="report-page">
+    <section class="report-page" [attr.aria-busy]="loading()">
       <header class="report-header">
-        <div class="report-company">{{ company.settings()?.name }}</div>
-        <div>{{ company.settings()?.place }}</div>
+        <div class="report-company">{{ company.settings()?.name || 'Merchant Accounts' }}</div>
+        <div class="report-place">{{ company.settings()?.place }}</div>
         <h2>{{ title() }}</h2>
         @if (subtitle()) {
           <div class="report-subtitle">{{ subtitle() }}</div>

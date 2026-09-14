@@ -1,11 +1,12 @@
-import { Component, inject, OnInit } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
+import { BreakpointObserver } from '@angular/cdk/layout';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
-import { MatToolbarModule } from '@angular/material/toolbar';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
@@ -23,7 +24,12 @@ const NAV: { heading: string; items: NavItem[] }[] = [
     heading: 'Transactions',
     items: [
       { label: 'Payments / Receipts', link: '/transactions/vouchers', icon: 'receipt_long' },
-      { label: 'Day Book Posting', link: '/transactions/daybook-posting', icon: 'publish', editorsOnly: true },
+      {
+        label: 'Day Book Posting',
+        link: '/transactions/daybook-posting',
+        icon: 'publish',
+        editorsOnly: true,
+      },
       { label: 'Day Closing Balance', link: '/transactions/day-closing', icon: 'event_available' },
     ],
   },
@@ -60,50 +66,100 @@ const NAV: { heading: string; items: NavItem[] }[] = [
     RouterLinkActive,
     MatButtonModule,
     MatIconModule,
-    MatListModule,
     MatMenuModule,
     MatSidenavModule,
-    MatToolbarModule,
   ],
+  styleUrl: './shell.scss',
   template: `
-    <mat-toolbar class="app-toolbar no-print">
-      <button mat-icon-button type="button" (click)="drawer.toggle()" aria-label="Toggle menu">
-        <mat-icon>menu</mat-icon>
-      </button>
-      <div class="app-title">
-        <span class="app-company">{{ company.settings()?.name || 'Merchant Accounts' }}</span>
-        <span class="app-place">{{ company.settings()?.place }}</span>
-      </div>
-      <span class="spacer"></span>
-      <button mat-button type="button" [matMenuTriggerFor]="userMenu">
-        <mat-icon>account_circle</mat-icon>
-        {{ auth.profile()?.full_name || auth.profile()?.username }}
-      </button>
-      <mat-menu #userMenu="matMenu">
-        <div class="menu-role" mat-menu-item disabled>Role: {{ auth.role() }}</div>
-        <a mat-menu-item routerLink="/account/password"><mat-icon>lock</mat-icon> Change password</a>
-        <button mat-menu-item type="button" (click)="signOut()"><mat-icon>logout</mat-icon> Sign out</button>
-      </mat-menu>
-    </mat-toolbar>
-
-    <mat-sidenav-container class="app-container">
-      <mat-sidenav #drawer mode="side" opened class="app-sidenav no-print">
-        <mat-nav-list>
+    <a
+      class="skip-link no-print"
+      href="#main-content"
+      (click)="$event.preventDefault(); main.focus()"
+      >Skip to main content</a
+    >
+    <mat-sidenav-container class="workspace-shell">
+      <mat-sidenav
+        id="workspace-navigation"
+        [mode]="isMobile() ? 'over' : 'side'"
+        [opened]="drawerOpen()"
+        (openedChange)="drawerOpen.set($event)"
+        class="workspace-nav no-print"
+      >
+        <a
+          class="brand"
+          routerLink="/"
+          (click)="closeMobileNav()"
+          aria-label="Merchant Accounts home"
+        >
+          <span class="brand-mark"><mat-icon>account_balance</mat-icon></span>
+          <span class="brand-name">Merchant<span>ACCOUNTS</span></span>
+        </a>
+        <nav class="sidebar-links" aria-label="Main navigation">
           @for (group of nav; track group.heading) {
-            <div mat-subheader>{{ group.heading }}</div>
+            <div class="nav-heading">{{ group.heading }}</div>
             @for (item of group.items; track item.link) {
               @if (visible(item)) {
-                <a mat-list-item [routerLink]="item.link" routerLinkActive #rla="routerLinkActive" [activated]="rla.isActive">
-                  <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
-                  <span matListItemTitle>{{ item.label }}</span>
+                <a
+                  class="nav-link"
+                  [routerLink]="item.link"
+                  routerLinkActive="is-active"
+                  ariaCurrentWhenActive="page"
+                  (click)="closeMobileNav()"
+                >
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                  <span>{{ item.label }}</span>
                 </a>
               }
             }
           }
-        </mat-nav-list>
+        </nav>
       </mat-sidenav>
-      <mat-sidenav-content class="app-content">
-        <router-outlet />
+      <mat-sidenav-content class="workspace-content">
+        <header class="workspace-topbar no-print">
+          <button
+            mat-icon-button
+            type="button"
+            (click)="drawerOpen.set(!drawerOpen())"
+            [attr.aria-label]="drawerOpen() ? 'Close navigation' : 'Open navigation'"
+            [attr.aria-expanded]="drawerOpen()"
+            aria-controls="workspace-navigation"
+          >
+            <mat-icon>menu</mat-icon>
+          </button>
+          <div class="topbar-company">
+            <strong>{{ company.settings()?.name || 'Merchant Accounts' }}</strong>
+            <span>{{ company.settings()?.place || 'Accounting workspace' }}</span>
+          </div>
+          <span class="spacer"></span>
+          <button
+            class="user-control"
+            type="button"
+            [matMenuTriggerFor]="userMenu"
+            aria-label="Open account menu"
+          >
+            <span class="user-avatar">{{ initials() }}</span>
+            <span class="user-details"
+              ><strong>{{ userName() }}</strong
+              ><span>{{ auth.role() || 'Account' }}</span></span
+            >
+            <mat-icon class="user-chevron">expand_more</mat-icon>
+          </button>
+          <mat-menu #userMenu="matMenu">
+            <div mat-menu-item disabled>Signed in as {{ auth.role() }}</div>
+            <a mat-menu-item routerLink="/account/password"
+              ><mat-icon>lock_outline</mat-icon> Change password</a
+            >
+            <button mat-menu-item type="button" (click)="signOut()">
+              <mat-icon>logout</mat-icon> Sign out
+            </button>
+          </mat-menu>
+        </header>
+        <div class="workspace-breadcrumb no-print" aria-label="Current location">
+          <mat-icon>grid_view</mat-icon><span>{{ context().heading }}</span
+          ><mat-icon>chevron_right</mat-icon>
+          <strong>{{ context().label }}</strong>
+        </div>
+        <main #main id="main-content" tabindex="-1"><router-outlet /></main>
       </mat-sidenav-content>
     </mat-sidenav-container>
   `,
@@ -113,8 +169,60 @@ export class Shell implements OnInit {
   protected readonly company = inject(CompanyService);
   private readonly notify = inject(NotifyService);
   private readonly router = inject(Router);
+  private readonly breakpoints = inject(BreakpointObserver);
 
   protected readonly nav = NAV;
+  protected readonly isMobile = signal(this.breakpoints.isMatched('(max-width: 959px)'));
+  protected readonly drawerOpen = signal(!this.isMobile());
+  protected readonly userName = computed(
+    () => this.auth.profile()?.full_name || this.auth.profile()?.username || 'My account',
+  );
+  protected readonly initials = computed(() =>
+    this.userName()
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part[0])
+      .join('')
+      .toUpperCase(),
+  );
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+  protected readonly context = computed(() => {
+    const url = this.currentUrl().split('?')[0];
+    for (const group of NAV) {
+      const item = group.items.find(
+        (entry) => url === entry.link || url.startsWith(entry.link + '/'),
+      );
+      if (item) return { heading: group.heading, label: item.label };
+    }
+    return { heading: 'Workspace', label: 'Overview' };
+  });
+
+  constructor() {
+    this.breakpoints
+      .observe('(max-width: 959px)')
+      .pipe(takeUntilDestroyed())
+      .subscribe(({ matches }) => {
+        this.isMobile.set(matches);
+        this.drawerOpen.set(!matches);
+      });
+    this.router.events
+      .pipe(
+        filter((event) => event instanceof NavigationEnd),
+        takeUntilDestroyed(),
+      )
+      .subscribe(() => this.closeMobileNav());
+  }
+
+  protected closeMobileNav(): void {
+    if (this.isMobile()) this.drawerOpen.set(false);
+  }
 
   ngOnInit(): void {
     this.company.load().catch((err) => this.notify.error(err));

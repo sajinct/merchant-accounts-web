@@ -29,67 +29,193 @@ const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
   template: `
     <div class="page">
       <div class="page-header">
-        <h1>Users</h1>
+        <div class="page-heading">
+          <span class="eyebrow">Administration</span>
+          <h1>Users & access</h1>
+          <p class="page-description">
+            Manage your team’s accounts, roles and access to the workspace.
+          </p>
+        </div>
         <button mat-flat-button type="button" (click)="showForm.set(!showForm())">
-          <mat-icon>person_add</mat-icon> Add user
+          <mat-icon>{{ showForm() ? 'close' : 'person_add' }}</mat-icon>
+          {{ showForm() ? 'Close form' : 'Add user' }}
         </button>
       </div>
 
       @if (showForm()) {
-        <form class="inline-form" [formGroup]="form" (ngSubmit)="create()">
-          <mat-form-field><mat-label>Email</mat-label><input matInput type="email" formControlName="email" autocomplete="off" /></mat-form-field>
-          <mat-form-field><mat-label>Full name</mat-label><input matInput formControlName="full_name" /></mat-form-field>
-          <mat-form-field>
-            <mat-label>Initial password</mat-label>
-            <input matInput type="password" formControlName="password" autocomplete="new-password" />
-            <mat-hint>At least 8 characters</mat-hint>
-          </mat-form-field>
-          <mat-form-field>
-            <mat-label>Role</mat-label>
-            <mat-select formControlName="role">
-              @for (role of roles; track role) { <mat-option [value]="role">{{ role }}</mat-option> }
-            </mat-select>
-          </mat-form-field>
-          <div class="form-actions">
-            <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">Create</button>
-            <button mat-button type="button" (click)="showForm.set(false)">Cancel</button>
+        <form
+          class="panel new-user-panel"
+          [formGroup]="form"
+          (ngSubmit)="create()"
+          aria-labelledby="new-user-heading"
+        >
+          <div class="panel-header">
+            <h2 id="new-user-heading">Add a team member</h2>
+            <span class="hint">Account details</span>
+          </div>
+          <div class="panel-body">
+            <div class="form-grid">
+              <mat-form-field
+                ><mat-label>Email address</mat-label
+                ><input
+                  matInput
+                  type="email"
+                  formControlName="email"
+                  autocomplete="off"
+                /><mat-error>Enter a valid email address.</mat-error></mat-form-field
+              >
+              <mat-form-field
+                ><mat-label>Full name</mat-label><input matInput formControlName="full_name"
+              /></mat-form-field>
+              <mat-form-field>
+                <mat-label>Initial password</mat-label>
+                <input
+                  matInput
+                  type="password"
+                  formControlName="password"
+                  autocomplete="new-password"
+                />
+                <mat-hint>At least 8 characters</mat-hint>
+                <mat-error>Use at least 8 characters.</mat-error>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Access role</mat-label>
+                <mat-select formControlName="role">
+                  @for (role of roles; track role) {
+                    <mat-option [value]="role">{{ roleLabels[role] }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+            </div>
+            <div class="form-actions">
+              <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">
+                <mat-icon>check</mat-icon> {{ busy() ? 'Creating…' : 'Create user' }}
+              </button>
+              <button mat-button type="button" (click)="showForm.set(false)">Cancel</button>
+            </div>
           </div>
         </form>
       }
 
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th>User</th><th>Full name</th><th>Role</th><th>Active</th><th></th></tr></thead>
-          <tbody>
-            @for (user of users(); track user.user_id) {
+      <section class="panel" aria-labelledby="team-access-heading">
+        <div class="panel-header">
+          <h2 id="team-access-heading">Team access</h2>
+          <span class="status-badge neutral" aria-live="polite">{{
+            loading() ? 'Loading…' : users().length + ' users'
+          }}</span>
+        </div>
+        <div
+          class="table-wrap"
+          tabindex="0"
+          role="region"
+          aria-label="Users table"
+          [attr.aria-busy]="loading()"
+        >
+          <table class="data-table">
+            <thead>
               <tr>
-                <td>{{ user.username }}</td>
-                <td>{{ user.full_name }}</td>
-                <td>
-                  <mat-form-field subscriptSizing="dynamic" class="compact">
-                    <mat-select [value]="user.role" (selectionChange)="update(user, { role: $event.value })"
-                                [disabled]="isSelf(user)">
-                      @for (role of roles; track role) { <mat-option [value]="role">{{ role }}</mat-option> }
-                    </mat-select>
-                  </mat-form-field>
-                </td>
-                <td>
-                  <mat-slide-toggle [checked]="user.is_active" [disabled]="isSelf(user)"
-                                    (change)="update(user, { is_active: $event.checked })" />
-                </td>
-                <td class="row-actions">
-                  <button mat-icon-button type="button" (click)="resetPassword(user)" matTooltip="Set a new password"
-                          aria-label="Set a new password">
-                    <mat-icon>key</mat-icon>
-                  </button>
-                </td>
+                <th scope="col">User account</th>
+                <th scope="col">Full name</th>
+                <th scope="col">Access role</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span class="sr-only">Actions</span></th>
               </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      <p class="hint">You cannot change your own role or deactivate yourself, so there is always an admin.</p>
+            </thead>
+            <tbody>
+              @for (user of users(); track user.user_id) {
+                <tr>
+                  <td>
+                    <span class="table-primary">{{ user.username }}</span>
+                    @if (isSelf(user)) {
+                      <span class="status-badge neutral self-badge">You</span>
+                    }
+                  </td>
+                  <td class="table-secondary">{{ user.full_name || '—' }}</td>
+                  <td>
+                    <mat-form-field subscriptSizing="dynamic" class="compact">
+                      <mat-select
+                        [value]="user.role"
+                        (selectionChange)="update(user, { role: $event.value })"
+                        [disabled]="isSelf(user)"
+                        [aria-label]="'Access role for ' + user.username"
+                      >
+                        <mat-select-trigger
+                          ><span
+                            class="status-badge"
+                            [class.success]="user.role === 'admin'"
+                            [class.neutral]="user.role !== 'admin'"
+                            >{{ roleLabels[user.role] }}</span
+                          ></mat-select-trigger
+                        >
+                        @for (role of roles; track role) {
+                          <mat-option [value]="role">{{ roleLabels[role] }}</mat-option>
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  </td>
+                  <td>
+                    <div class="status-control">
+                      <mat-slide-toggle
+                        [checked]="user.is_active"
+                        [disabled]="isSelf(user)"
+                        [aria-label]="'Active account for ' + user.username"
+                        (change)="update(user, { is_active: $event.checked })"
+                      />
+                      <span
+                        class="status-badge"
+                        [class.success]="user.is_active"
+                        [class.neutral]="!user.is_active"
+                        >{{ user.is_active ? 'Active' : 'Inactive' }}</span
+                      >
+                    </div>
+                  </td>
+                  <td class="row-actions">
+                    <button
+                      mat-icon-button
+                      type="button"
+                      (click)="resetPassword(user)"
+                      matTooltip="Set a new password"
+                      [attr.aria-label]="'Set a new password for ' + user.username"
+                    >
+                      <mat-icon>key</mat-icon>
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">
+                    <div class="empty-state" role="status">
+                      <mat-icon class="empty-icon">{{
+                        loading() ? 'hourglass_empty' : 'manage_accounts'
+                      }}</mat-icon>
+                      <h3>{{ loading() ? 'Loading your team' : 'No users found' }}</h3>
+                      <p>
+                        {{
+                          loading()
+                            ? 'User accounts and access roles will appear here.'
+                            : 'Add a user to give your team access to the workspace.'
+                        }}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+      <p class="hint">
+        You cannot change your own role or deactivate yourself, so there is always an admin.
+      </p>
     </div>
+  `,
+  styles: `
+    .new-user-panel {
+      margin-bottom: 20px;
+    }
+    .self-badge {
+      margin-left: 6px;
+    }
   `,
 })
 export class Users implements OnInit {
@@ -98,7 +224,13 @@ export class Users implements OnInit {
   private readonly notify = inject(NotifyService);
 
   protected readonly roles = ROLES;
+  protected readonly roleLabels: Record<Role, string> = {
+    admin: 'Admin',
+    accountant: 'Accountant',
+    viewer: 'Viewer',
+  };
   protected readonly users = signal<Profile[]>([]);
+  protected readonly loading = signal(true);
   protected readonly showForm = signal(false);
   protected readonly busy = signal(false);
   protected readonly form = inject(FormBuilder).nonNullable.group({
@@ -132,7 +264,10 @@ export class Users implements OnInit {
     }
   }
 
-  protected async update(user: Profile, change: Partial<Pick<Profile, 'role' | 'is_active'>>): Promise<void> {
+  protected async update(
+    user: Profile,
+    change: Partial<Pick<Profile, 'role' | 'is_active'>>,
+  ): Promise<void> {
     try {
       await must(this.sb.from('profiles').update(change).eq('user_id', user.user_id));
       this.notify.success(`Updated ${user.username}`);
@@ -173,12 +308,20 @@ export class Users implements OnInit {
   }
 
   private async load(): Promise<void> {
+    this.loading.set(true);
     try {
       this.users.set(
-        await must(this.sb.from('profiles').select('user_id, username, full_name, role, is_active').order('username')),
+        await must(
+          this.sb
+            .from('profiles')
+            .select('user_id, username, full_name, role, is_active')
+            .order('username'),
+        ),
       );
     } catch (err) {
       this.notify.error(err);
+    } finally {
+      this.loading.set(false);
     }
   }
 }

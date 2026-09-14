@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { TrialBalanceRow } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
@@ -13,43 +14,90 @@ import { ReportShell } from '../../shared/report-shell';
 
 @Component({
   selector: 'app-trial-balance-report',
-  imports: [DecimalPipe, ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule, ReportShell],
+  imports: [
+    DecimalPipe,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatIconModule,
+    ReportShell,
+  ],
   template: `
     <div class="page">
-      <app-report-shell title="Trial Balance" [subtitle]="subtitle()" [loading]="loading()"
-                        [hasData]="rows().length > 0" (csv)="exportCsv()">
+      <div class="page-header no-print">
+        <div class="page-heading">
+          <span class="eyebrow">Reports</span>
+          <h1>Trial balance</h1>
+          <p class="page-description">Review debit and credit balances across your accounts.</p>
+        </div>
+      </div>
+      <app-report-shell
+        title="Trial Balance"
+        [subtitle]="subtitle()"
+        [loading]="loading()"
+        [hasData]="rows().length > 0"
+        (csv)="exportCsv()"
+      >
         <form filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
-          <mat-form-field subscriptSizing="dynamic"><mat-label>As on</mat-label><input matInput type="date" formControlName="asOn" /></mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">Show</button>
+          <mat-form-field subscriptSizing="dynamic"
+            ><mat-label>As of date</mat-label><input matInput type="date" formControlName="asOn"
+          /></mat-form-field>
+          <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
+            <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}
+          </button>
         </form>
 
-        @if (ran()) {
-          <table class="report-table">
-            <thead><tr><th class="num">Code</th><th>Account</th><th class="num">Debit</th><th class="num">Credit</th></tr></thead>
-            <tbody>
-              @for (row of rows(); track row.head_code) {
+        @if (ran() && !loading()) {
+          <div class="table-wrap" role="region" tabindex="0" aria-label="Trial balance entries">
+            <table class="report-table">
+              <thead>
                 <tr>
-                  <td class="num">{{ row.head_code }}</td>
-                  <td>{{ row.head_name }}</td>
-                  <td class="num">{{ row.debit ? (row.debit | number: '1.2-2') : '' }}</td>
-                  <td class="num">{{ row.credit ? (row.credit | number: '1.2-2') : '' }}</td>
+                  <th class="num">Code</th>
+                  <th>Account</th>
+                  <th class="num">Debit</th>
+                  <th class="num">Credit</th>
                 </tr>
-              } @empty {
-                <tr><td colspan="4" class="empty">No balances as on this date.</td></tr>
-              }
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colspan="2">Total</td>
-                <td class="num">{{ totals().debit | number: '1.2-2' }}</td>
-                <td class="num">{{ totals().credit | number: '1.2-2' }}</td>
-              </tr>
-              <tr>
-                <td colspan="2">Difference (cash balance)</td>
-                <td colspan="2" class="num">{{ totals().credit - totals().debit | number: '1.2-2' }}</td>
-              </tr>
-            </tfoot>
-          </table>
+              </thead>
+              <tbody>
+                @for (row of rows(); track row.head_code) {
+                  <tr>
+                    <td class="num">{{ row.head_code }}</td>
+                    <td>{{ row.head_name }}</td>
+                    <td class="num">{{ row.debit ? (row.debit | number: '1.2-2') : '' }}</td>
+                    <td class="num">{{ row.credit ? (row.credit | number: '1.2-2') : '' }}</td>
+                  </tr>
+                } @empty {
+                  <tr>
+                    <td colspan="4" class="empty">No balances as on this date.</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2">Total</td>
+                  <td class="num">{{ totals().debit | number: '1.2-2' }}</td>
+                  <td class="num">{{ totals().credit | number: '1.2-2' }}</td>
+                </tr>
+                <tr>
+                  <td colspan="2">Difference (cash balance)</td>
+                  <td colspan="2" class="num">
+                    {{ totals().credit - totals().debit | number: '1.2-2' }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        }
+
+        @if (loading()) {
+          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+        } @else if (!ran()) {
+          <div class="empty-state no-print">
+            <div class="empty-icon"><mat-icon>balance</mat-icon></div>
+            <h3>Your report starts here</h3>
+            <p>Choose your filters and run the report to review your account data.</p>
+          </div>
         }
       </app-report-shell>
     </div>

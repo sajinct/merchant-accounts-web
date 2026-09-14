@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { AccountHead, LedgerRow } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
@@ -33,13 +34,28 @@ const ALL = 0;
     MatButtonModule,
     MatFormFieldModule,
     MatInputModule,
+    MatIconModule,
     MatSelectModule,
     ReportShell,
   ],
   template: `
     <div class="page">
-      <app-report-shell title="General Ledger" [subtitle]="subtitle()" [loading]="loading()"
-                        [hasData]="rows().length > 0" (csv)="exportCsv()">
+      <div class="page-header no-print">
+        <div class="page-heading">
+          <span class="eyebrow">Reports</span>
+          <h1>General ledger</h1>
+          <p class="page-description">
+            Explore account activity with opening and closing balances.
+          </p>
+        </div>
+      </div>
+      <app-report-shell
+        title="General Ledger"
+        [subtitle]="subtitle()"
+        [loading]="loading()"
+        [hasData]="rows().length > 0"
+        (csv)="exportCsv()"
+      >
         <form filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
           <mat-form-field subscriptSizing="dynamic" class="account-select">
             <mat-label>Account</mat-label>
@@ -50,45 +66,75 @@ const ALL = 0;
               }
             </mat-select>
           </mat-form-field>
-          <mat-form-field subscriptSizing="dynamic"><mat-label>From</mat-label><input matInput type="date" formControlName="from" /></mat-form-field>
-          <mat-form-field subscriptSizing="dynamic"><mat-label>To</mat-label><input matInput type="date" formControlName="to" /></mat-form-field>
-          <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">Show</button>
+          <mat-form-field subscriptSizing="dynamic"
+            ><mat-label>From date</mat-label><input matInput type="date" formControlName="from"
+          /></mat-form-field>
+          <mat-form-field subscriptSizing="dynamic"
+            ><mat-label>To date</mat-label><input matInput type="date" formControlName="to"
+          /></mat-form-field>
+          <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
+            <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}
+          </button>
         </form>
 
-        @if (ran() && !groups().length) {
-          <p class="empty">No ledger entries for this selection.</p>
+        @if (ran() && !loading() && !groups().length) {
+          <div class="empty-state">
+            <div class="empty-icon"><mat-icon>search_off</mat-icon></div>
+            <h3>No matching entries</h3>
+            <p>Try another account or date range to find ledger activity.</p>
+          </div>
         }
-        @for (group of groups(); track group.code) {
+        @for (group of loading() ? [] : groups(); track group.code) {
           <div class="ledger-group">
             <h3>{{ group.code }} – {{ group.name }}</h3>
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th>Date</th><th>Voucher</th><th>Narration</th>
-                  <th class="num">Receipt</th><th class="num">Payment</th><th class="num">Balance</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of group.rows; track row.seq) {
-                  <tr [class.opening]="row.row_kind === 'opening'">
-                    <td>{{ row.tran_date | date: 'dd-MMM-yyyy' }}</td>
-                    <td>{{ row.voucher_ref }}</td>
-                    <td>{{ row.narration }}</td>
-                    <td class="num">{{ row.row_kind === 'entry' ? (row.credit | number: '1.2-2') : '' }}</td>
-                    <td class="num">{{ row.row_kind === 'entry' ? (row.debit | number: '1.2-2') : '' }}</td>
-                    <td class="num">{{ row.balance | number: '1.2-2' }}</td>
+            <div class="table-wrap" role="region" tabindex="0" aria-label="General ledger entries">
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Voucher</th>
+                    <th>Narration</th>
+                    <th class="num">Receipt</th>
+                    <th class="num">Payment</th>
+                    <th class="num">Balance</th>
                   </tr>
-                }
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td colspan="3">Total / closing balance</td>
-                  <td class="num">{{ group.credit | number: '1.2-2' }}</td>
-                  <td class="num">{{ group.debit | number: '1.2-2' }}</td>
-                  <td class="num">{{ group.closing | number: '1.2-2' }}</td>
-                </tr>
-              </tfoot>
-            </table>
+                </thead>
+                <tbody>
+                  @for (row of group.rows; track row.seq) {
+                    <tr [class.opening]="row.row_kind === 'opening'">
+                      <td>{{ row.tran_date | date: 'dd-MMM-yyyy' }}</td>
+                      <td>{{ row.voucher_ref }}</td>
+                      <td>{{ row.narration }}</td>
+                      <td class="num">
+                        {{ row.row_kind === 'entry' ? (row.credit | number: '1.2-2') : '' }}
+                      </td>
+                      <td class="num">
+                        {{ row.row_kind === 'entry' ? (row.debit | number: '1.2-2') : '' }}
+                      </td>
+                      <td class="num">{{ row.balance | number: '1.2-2' }}</td>
+                    </tr>
+                  }
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="3">Total / closing balance</td>
+                    <td class="num">{{ group.credit | number: '1.2-2' }}</td>
+                    <td class="num">{{ group.debit | number: '1.2-2' }}</td>
+                    <td class="num">{{ group.closing | number: '1.2-2' }}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        }
+
+        @if (loading()) {
+          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+        } @else if (!ran()) {
+          <div class="empty-state no-print">
+            <div class="empty-icon"><mat-icon>menu_book</mat-icon></div>
+            <h3>Your report starts here</h3>
+            <p>Choose your filters and run the report to review your account data.</p>
           </div>
         }
       </app-report-shell>
@@ -116,7 +162,14 @@ export class LedgerReport implements OnInit {
     for (const row of this.rows()) {
       let group = groups.get(row.head_code);
       if (!group) {
-        group = { code: row.head_code, name: row.head_name, rows: [], debit: 0, credit: 0, closing: 0 };
+        group = {
+          code: row.head_code,
+          name: row.head_name,
+          rows: [],
+          debit: 0,
+          credit: 0,
+          closing: 0,
+        };
         groups.set(row.head_code, group);
       }
       group.rows.push(row);
@@ -131,7 +184,11 @@ export class LedgerReport implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      this.heads.set(await must(this.sb.from('account_heads').select('code, name').gt('code', 1000).order('name')));
+      this.heads.set(
+        await must(
+          this.sb.from('account_heads').select('code, name').gt('code', 1000).order('name'),
+        ),
+      );
     } catch (err) {
       this.notify.error(err);
     }
@@ -142,7 +199,13 @@ export class LedgerReport implements OnInit {
     this.loading.set(true);
     try {
       this.rows.set(
-        await must(this.sb.rpc('rpt_ledger', { p_head_code: account === ALL ? null : account, p_from: from, p_to: to })),
+        await must(
+          this.sb.rpc('rpt_ledger', {
+            p_head_code: account === ALL ? null : account,
+            p_from: from,
+            p_to: to,
+          }),
+        ),
       );
       this.subtitle.set(`For the period ${from} to ${to}`);
       this.ran.set(true);
@@ -157,7 +220,16 @@ export class LedgerReport implements OnInit {
     downloadCsv(
       'ledger.csv',
       ['Account code', 'Account', 'Date', 'Voucher', 'Narration', 'Receipt', 'Payment', 'Balance'],
-      this.rows().map((r) => [r.head_code, r.head_name, r.tran_date, r.voucher_ref, r.narration, r.credit, r.debit, r.balance]),
+      this.rows().map((r) => [
+        r.head_code,
+        r.head_name,
+        r.tran_date,
+        r.voucher_ref,
+        r.narration,
+        r.credit,
+        r.debit,
+        r.balance,
+      ]),
     );
   }
 }

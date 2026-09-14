@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -10,35 +11,176 @@ import { addDays, isoDate } from '../../shared/dates';
 
 @Component({
   selector: 'app-daybook-posting',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule],
+  imports: [
+    DatePipe,
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+  ],
   template: `
-    <div class="page narrow-page">
-      <div class="page-header"><h1>Day Book Posting</h1></div>
-      <p>
-        Copies vouchers into the day book for the chosen dates. Automatic entries already in the range are
-        replaced, so posting the same dates again is safe. Manual day book entries are not touched.
-      </p>
-      <form [formGroup]="form" (ngSubmit)="post()">
-        <div class="form-grid">
-          <mat-form-field>
-            <mat-label>From</mat-label>
-            <input matInput type="date" formControlName="from" />
-          </mat-form-field>
-          <mat-form-field>
-            <mat-label>To</mat-label>
-            <input matInput type="date" formControlName="to" />
-          </mat-form-field>
+    <div class="page narrow-page posting-page">
+      <div class="page-header">
+        <div class="page-heading">
+          <span class="eyebrow">Transactions</span>
+          <h1>Day book posting</h1>
+          <p class="page-description">
+            Bring your vouchers into the day book for a selected period.
+          </p>
+        </div>
+      </div>
+
+      <div class="panel posting-status">
+        <div class="summary-icon"><mat-icon>event_available</mat-icon></div>
+        <div>
+          <span class="summary-label">Latest day book date</span>
+          <strong>{{
+            loading()
+              ? 'Loading…'
+              : dateUnavailable()
+                ? 'Unavailable'
+                : lastDate()
+                  ? (lastDate() | date: 'dd MMM yyyy')
+                  : 'No entries yet'
+          }}</strong>
         </div>
         @if (lastDate()) {
-          <p class="hint">Day book currently runs to {{ lastDate() }}.</p>
+          <span class="status-badge neutral">Recorded</span>
         }
-        <div class="form-actions">
-          <button mat-flat-button type="submit" [disabled]="form.invalid || busy()">
-            <mat-icon>publish</mat-icon> {{ busy() ? 'Posting…' : 'Post' }}
-          </button>
+      </div>
+
+      <form class="panel" [formGroup]="form" (ngSubmit)="post()">
+        <div class="panel-header">
+          <div>
+            <h2>Select posting period</h2>
+            <p class="hint">Include the dates you want to update.</p>
+          </div>
+          <mat-icon class="panel-symbol">date_range</mat-icon>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <mat-form-field>
+              <mat-label>From date</mat-label>
+              <input matInput type="date" formControlName="from" />
+            </mat-form-field>
+            <mat-form-field>
+              <mat-label>To date</mat-label>
+              <input matInput type="date" formControlName="to" />
+            </mat-form-field>
+          </div>
+          <div class="posting-note">
+            <mat-icon>info_outline</mat-icon>
+            <p>
+              Posting refreshes automatic entries for these dates. You can post the same period
+              again; manual day book entries are kept.
+            </p>
+          </div>
+          <div class="form-actions">
+            <button mat-flat-button type="submit" [disabled]="form.invalid || busy() || loading()">
+              <mat-icon>publish</mat-icon> {{ busy() ? 'Posting entries…' : 'Post to day book' }}
+            </button>
+          </div>
         </div>
       </form>
+
+      @if (lastPosting(); as result) {
+        <div class="posting-result" role="status">
+          <mat-icon>check_circle</mat-icon>
+          <div>
+            <strong
+              >Posting complete · {{ result.count }}
+              {{ result.count === 1 ? 'entry' : 'entries' }}</strong
+            >
+            <p>{{ result.from | date: 'dd MMM yyyy' }} – {{ result.to | date: 'dd MMM yyyy' }}</p>
+          </div>
+        </div>
+      }
     </div>
+  `,
+  styles: `
+    .posting-page {
+      max-width: 780px;
+    }
+    .posting-status {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 18px 20px;
+      margin-bottom: 20px;
+    }
+    .posting-status strong {
+      display: block;
+      font-size: 17px;
+      font-weight: 650;
+      margin-top: 4px;
+    }
+    .posting-status .status-badge {
+      margin-left: auto;
+    }
+    .panel-header .hint {
+      margin: 4px 0 0;
+    }
+    .panel-symbol {
+      color: #80908e;
+    }
+    .posting-note {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 13px 15px;
+      background: #f5f8fa;
+      border: 1px solid #e5eaef;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    .posting-note mat-icon {
+      flex: 0 0 19px;
+      font-size: 19px;
+      height: 19px;
+      color: #64748b;
+      margin-top: 1px;
+    }
+    .posting-note p {
+      margin: 0;
+      color: #617083;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+    .form-actions {
+      margin: 0;
+    }
+    .posting-result {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      padding: 16px 18px;
+      margin-top: 18px;
+      border: 1px solid #cde8df;
+      background: #edf8f3;
+      border-radius: 10px;
+      color: #17644c;
+      font-size: 13px;
+    }
+    .posting-result p {
+      margin: 5px 0 0;
+      font-size: 12px;
+    }
+    @media (max-width: 480px) {
+      .posting-status {
+        padding: 16px;
+        gap: 10px;
+      }
+      .posting-status .status-badge {
+        display: none;
+      }
+      .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .form-actions button {
+        width: 100%;
+      }
+    }
   `,
 })
 export class DaybookPosting implements OnInit {
@@ -46,7 +188,10 @@ export class DaybookPosting implements OnInit {
   private readonly notify = inject(NotifyService);
 
   protected readonly busy = signal(false);
+  protected readonly loading = signal(true);
+  protected readonly dateUnavailable = signal(false);
   protected readonly lastDate = signal<string | null>(null);
+  protected readonly lastPosting = signal<{ count: number; from: string; to: string } | null>(null);
   protected readonly form = inject(FormBuilder).nonNullable.group({
     from: [isoDate(), Validators.required],
     to: [isoDate(), Validators.required],
@@ -61,7 +206,10 @@ export class DaybookPosting implements OnInit {
         this.form.patchValue({ from: next <= isoDate() ? next : isoDate() });
       }
     } catch (err) {
+      this.dateUnavailable.set(true);
       this.notify.error(err);
+    } finally {
+      this.loading.set(false);
     }
   }
 
@@ -74,8 +222,10 @@ export class DaybookPosting implements OnInit {
     this.busy.set(true);
     try {
       const count = await must(this.sb.rpc('post_daybook', { p_from: from, p_to: to }));
+      this.lastPosting.set({ count: Number(count), from, to });
       this.notify.success(`Day book posting completed: ${count} entries.`);
       this.lastDate.set((await must(this.sb.rpc('daybook_last_date'))) as string | null);
+      this.dateUnavailable.set(false);
     } catch (err) {
       this.notify.error(err);
     } finally {

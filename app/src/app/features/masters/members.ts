@@ -9,7 +9,10 @@ import { Customer } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 
-type MemberSummary = Pick<Customer, 'code' | 'name' | 'addr1' | 'addr2' | 'addr3' | 'addr4' | 'phone'>;
+type MemberSummary = Pick<
+  Customer,
+  'code' | 'name' | 'addr1' | 'addr2' | 'addr3' | 'addr4' | 'phone'
+>;
 
 @Component({
   selector: 'app-members',
@@ -17,35 +20,102 @@ type MemberSummary = Pick<Customer, 'code' | 'name' | 'addr1' | 'addr2' | 'addr3
   template: `
     <div class="page">
       <div class="page-header">
-        <h1>Members</h1>
+        <div class="page-heading">
+          <span class="eyebrow">Member directory</span>
+          <h1>Members</h1>
+          <p class="page-description">
+            Manage member details, contact information and identification.
+          </p>
+        </div>
         @if (auth.canEdit()) {
-          <a mat-flat-button routerLink="/masters/members/new"><mat-icon>person_add</mat-icon> New member</a>
+          <a mat-flat-button routerLink="/masters/members/new"
+            ><mat-icon>person_add</mat-icon> New member</a
+          >
         }
       </div>
 
-      <mat-form-field class="search-field" subscriptSizing="dynamic">
-        <mat-label>Search by name, code or phone</mat-label>
-        <input matInput [value]="query()" (input)="onQuery($any($event.target).value)" />
-        <mat-icon matSuffix>search</mat-icon>
-      </mat-form-field>
-
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr><th class="num">Code</th><th>Name</th><th>Address</th><th>Phone</th></tr></thead>
-          <tbody>
-            @for (m of members(); track m.code) {
-              <tr class="clickable" (click)="open(m.code)">
-                <td class="num">{{ m.code }}</td>
-                <td>{{ m.name }}</td>
-                <td>{{ address(m) }}</td>
-                <td>{{ m.phone }}</td>
+      <section class="panel" aria-label="Member directory">
+        <div class="toolbar-panel">
+          <mat-form-field class="search-field" subscriptSizing="dynamic">
+            <mat-label>Search members</mat-label>
+            <mat-icon matPrefix>search</mat-icon>
+            <input
+              matInput
+              placeholder="Name, code or phone"
+              [value]="query()"
+              (input)="onQuery($any($event.target).value)"
+            />
+          </mat-form-field>
+          <span class="toolbar-count" aria-live="polite">{{
+            loading() ? 'Loading members…' : members().length + ' members shown'
+          }}</span>
+        </div>
+        <div
+          class="table-wrap"
+          tabindex="0"
+          role="region"
+          aria-label="Members table"
+          [attr.aria-busy]="loading()"
+        >
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col" class="num">Member code</th>
+                <th scope="col">Member name</th>
+                <th scope="col">Address</th>
+                <th scope="col">Phone</th>
+                <th scope="col"><span class="sr-only">Open member</span></th>
               </tr>
-            } @empty {
-              <tr><td colspan="4" class="empty">{{ loading() ? 'Loading…' : 'No members found.' }}</td></tr>
-            }
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              @for (m of members(); track m.code) {
+                <tr class="clickable" (click)="open(m.code)">
+                  <td class="num">{{ m.code }}</td>
+                  <td>
+                    <a
+                      class="table-link"
+                      [routerLink]="['/masters/members', m.code]"
+                      (click)="$event.stopPropagation()"
+                      >{{ m.name }}</a
+                    >
+                  </td>
+                  <td class="table-secondary">{{ address(m) || '—' }}</td>
+                  <td>{{ m.phone || '—' }}</td>
+                  <td class="row-actions">
+                    <a
+                      mat-icon-button
+                      [routerLink]="['/masters/members', m.code]"
+                      (click)="$event.stopPropagation()"
+                      [attr.aria-label]="'View ' + m.name"
+                      ><mat-icon>chevron_right</mat-icon></a
+                    >
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="5">
+                    <div class="empty-state" role="status">
+                      <mat-icon class="empty-icon">{{
+                        loading() ? 'hourglass_empty' : 'group'
+                      }}</mat-icon>
+                      <h3>{{ loading() ? 'Loading members' : 'No members found' }}</h3>
+                      <p>
+                        {{
+                          loading()
+                            ? 'Your member directory will appear here.'
+                            : query()
+                              ? 'Try a different name, member code or phone number.'
+                              : 'Add your first member to start building your directory.'
+                        }}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
       @if (members().length === limit) {
         <p class="hint">Showing the first {{ limit }} matches. Refine the search to see more.</p>
       }

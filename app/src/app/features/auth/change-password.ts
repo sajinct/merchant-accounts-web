@@ -1,8 +1,15 @@
 import { Component, inject, signal } from '@angular/core';
-import { AbstractControl, FormBuilder, ReactiveFormsModule, ValidationErrors, Validators } from '@angular/forms';
+import {
+  AbstractControl,
+  FormBuilder,
+  ReactiveFormsModule,
+  ValidationErrors,
+  Validators,
+} from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
 
@@ -12,27 +19,65 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
 
 @Component({
   selector: 'app-change-password',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatInputModule],
+  imports: [
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatInputModule,
+    MatIconModule,
+  ],
   template: `
     <div class="page narrow-page">
-      <div class="page-header"><h1>Change Password</h1></div>
-      <form [formGroup]="form" (ngSubmit)="save()">
-        <mat-form-field class="full">
-          <mat-label>New password</mat-label>
-          <input matInput type="password" formControlName="password" autocomplete="new-password" />
-          <mat-hint>At least 8 characters</mat-hint>
-        </mat-form-field>
-        <mat-form-field class="full">
-          <mat-label>Confirm new password</mat-label>
-          <input matInput type="password" formControlName="confirm" autocomplete="new-password" />
-        </mat-form-field>
-        @if (form.hasError('mismatch') && form.controls.confirm.touched) {
-          <p class="form-error" role="alert">The passwords do not match.</p>
-        }
-        <div class="form-actions">
-          <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">Change password</button>
+      <div class="page-header">
+        <div>
+          <span class="eyebrow">YOUR ACCOUNT</span>
+          <h1>Change password</h1>
+          <p class="page-description">Keep your account secure with a strong password.</p>
         </div>
-      </form>
+      </div>
+      <section class="panel">
+        <div class="panel-body">
+          <form [formGroup]="form" (ngSubmit)="save()">
+            <mat-form-field class="full">
+              <mat-label>New password</mat-label>
+              <input
+                matInput
+                [type]="showPassword() ? 'text' : 'password'"
+                formControlName="password"
+                autocomplete="new-password"
+              />
+              <button
+                mat-icon-button
+                matSuffix
+                type="button"
+                (click)="showPassword.set(!showPassword())"
+                [attr.aria-label]="showPassword() ? 'Hide new password' : 'Show new password'"
+                [attr.aria-pressed]="showPassword()"
+              >
+                <mat-icon>{{ showPassword() ? 'visibility_off' : 'visibility' }}</mat-icon>
+              </button>
+              <mat-hint>At least 8 characters</mat-hint>
+            </mat-form-field>
+            <mat-form-field class="full">
+              <mat-label>Confirm new password</mat-label>
+              <input
+                matInput
+                type="password"
+                formControlName="confirm"
+                autocomplete="new-password"
+              />
+            </mat-form-field>
+            @if (form.hasError('mismatch') && form.controls.confirm.touched) {
+              <p class="form-error" role="alert">The passwords do not match.</p>
+            }
+            <div class="form-actions">
+              <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">
+                {{ saving() ? 'Updating…' : 'Update password' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
     </div>
   `,
 })
@@ -41,6 +86,7 @@ export class ChangePassword {
   private readonly notify = inject(NotifyService);
 
   protected readonly saving = signal(false);
+  protected readonly showPassword = signal(false);
   protected readonly form = inject(FormBuilder).nonNullable.group(
     {
       password: ['', [Validators.required, Validators.minLength(8)]],
@@ -50,6 +96,7 @@ export class ChangePassword {
   );
 
   protected async save(): Promise<void> {
+    if (this.form.invalid || this.saving()) return;
     this.saving.set(true);
     try {
       await this.auth.changePassword(this.form.controls.password.value);

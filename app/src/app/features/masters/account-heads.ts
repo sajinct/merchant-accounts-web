@@ -1,4 +1,14 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -15,68 +25,182 @@ const SYSTEM_CODE_START = 9000;
 
 @Component({
   selector: 'app-account-heads',
-  imports: [ReactiveFormsModule, MatButtonModule, MatFormFieldModule, MatIconModule, MatInputModule, EnterToNext],
+  imports: [
+    ReactiveFormsModule,
+    MatButtonModule,
+    MatFormFieldModule,
+    MatIconModule,
+    MatInputModule,
+    EnterToNext,
+  ],
   template: `
     <div class="page">
       <div class="page-header">
-        <h1>Account Heads</h1>
+        <div class="page-heading">
+          <span class="eyebrow">Accounting setup</span>
+          <h1>Account heads</h1>
+          <p class="page-description">
+            Organize the accounts used across your transactions and reports.
+          </p>
+        </div>
         @if (auth.canEdit()) {
-          <button mat-flat-button type="button" (click)="startNew()"><mat-icon>add</mat-icon> New head</button>
+          <button mat-flat-button type="button" (click)="startNew()">
+            <mat-icon>add</mat-icon> New head
+          </button>
         }
       </div>
 
       <div class="split">
-        <div class="split-main">
-          <mat-form-field class="search-field" subscriptSizing="dynamic">
-            <mat-label>Search by code or name</mat-label>
-            <input matInput [value]="filter()" (input)="filter.set($any($event.target).value)" />
-            <mat-icon matSuffix>search</mat-icon>
-          </mat-form-field>
+        <section class="split-main panel" aria-label="Account heads">
+          <div class="toolbar-panel">
+            <mat-form-field class="search-field" subscriptSizing="dynamic">
+              <mat-label>Search account heads</mat-label>
+              <mat-icon matPrefix>search</mat-icon>
+              <input
+                matInput
+                placeholder="Code or account name"
+                [value]="filter()"
+                (input)="filter.set($any($event.target).value)"
+              />
+            </mat-form-field>
+            <span class="toolbar-count" aria-live="polite">{{
+              loading() ? 'Loading accounts…' : filtered().length + ' accounts'
+            }}</span>
+          </div>
 
-          <div class="table-wrap">
+          <div
+            class="table-wrap"
+            tabindex="0"
+            role="region"
+            aria-label="Account heads table"
+            [attr.aria-busy]="loading()"
+          >
             <table class="data-table">
-              <thead><tr><th class="num">Code</th><th>Name</th></tr></thead>
+              <thead>
+                <tr>
+                  <th scope="col" class="num">Code</th>
+                  <th scope="col">Account name</th>
+                  <th scope="col">Type</th>
+                </tr>
+              </thead>
               <tbody>
                 @for (head of filtered(); track head.code) {
-                  <tr class="clickable" [class.selected]="editingCode() === head.code" (click)="edit(head)">
+                  <tr
+                    class="clickable"
+                    [class.selected]="editingCode() === head.code"
+                    (click)="edit(head)"
+                  >
                     <td class="num">{{ head.code }}</td>
-                    <td>{{ head.name }}</td>
+                    <td>
+                      <button
+                        class="table-link"
+                        type="button"
+                        (click)="$event.stopPropagation(); edit(head)"
+                        [attr.aria-pressed]="editingCode() === head.code"
+                      >
+                        {{ head.name }}
+                      </button>
+                    </td>
+                    <td>
+                      <span
+                        class="status-badge"
+                        [class.neutral]="head.code >= systemCodeStart"
+                        [class.success]="head.code < systemCodeStart"
+                        >{{ head.code >= systemCodeStart ? 'System' : 'Custom' }}</span
+                      >
+                    </td>
                   </tr>
                 } @empty {
-                  <tr><td colspan="2" class="empty">{{ loading() ? 'Loading…' : 'No account heads found.' }}</td></tr>
+                  <tr>
+                    <td colspan="3">
+                      <div class="empty-state" role="status">
+                        <mat-icon class="empty-icon">{{
+                          loading() ? 'hourglass_empty' : 'account_tree'
+                        }}</mat-icon>
+                        <h3>
+                          {{ loading() ? 'Loading account heads' : 'No account heads found' }}
+                        </h3>
+                        <p>
+                          {{
+                            loading()
+                              ? 'Your accounts will appear here.'
+                              : filter()
+                                ? 'Try another account name or code.'
+                                : 'Create an account head to organize your transactions.'
+                          }}
+                        </p>
+                      </div>
+                    </td>
+                  </tr>
                 }
               </tbody>
             </table>
           </div>
-        </div>
+        </section>
 
         @if (formOpen()) {
-          <form class="side-form" [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
-            <h2>{{ editingCode() ? 'Edit head ' + editingCode() : 'New head' }}</h2>
-            <mat-form-field>
-              <mat-label>Code</mat-label>
-              <input matInput type="number" formControlName="code" [readonly]="!!editingCode()" />
-            </mat-form-field>
-            <mat-form-field>
-              <mat-label>Name</mat-label>
-              <input matInput formControlName="name" maxlength="100" />
-            </mat-form-field>
-            <div class="form-actions">
-              <button mat-flat-button type="submit" [disabled]="form.invalid || saving() || !auth.canEdit()">
-                {{ editingCode() ? 'Update' : 'Save' }}
+          <form
+            #headForm
+            class="side-form panel"
+            [formGroup]="form"
+            (ngSubmit)="save()"
+            appEnterToNext
+            aria-labelledby="account-head-form-heading"
+          >
+            <div class="panel-header">
+              <h2 id="account-head-form-heading">
+                {{ editingCode() ? 'Account details' : 'New account head' }}
+              </h2>
+              <button
+                mat-icon-button
+                type="button"
+                (click)="close()"
+                aria-label="Close account details"
+              >
+                <mat-icon>close</mat-icon>
               </button>
-              <button mat-button type="button" (click)="close()">Close</button>
+            </div>
+            <div class="panel-body field-stack">
+              <mat-form-field>
+                <mat-label>Account code</mat-label>
+                <input matInput type="number" formControlName="code" [readonly]="!!editingCode()" />
+                <mat-error>Enter a code greater than zero.</mat-error>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Account name</mat-label>
+                <input matInput formControlName="name" maxlength="100" />
+                <mat-error>Enter an account name.</mat-error>
+              </mat-form-field>
+              <div class="form-actions">
+                <button
+                  mat-flat-button
+                  type="submit"
+                  [disabled]="form.invalid || saving() || !auth.canEdit()"
+                >
+                  <mat-icon>check</mat-icon>
+                  {{ saving() ? 'Saving…' : editingCode() ? 'Save changes' : 'Create account' }}
+                </button>
+                <button mat-button type="button" (click)="close()">Cancel</button>
+              </div>
             </div>
           </form>
         }
       </div>
     </div>
   `,
+  styles: `
+    .data-table {
+      min-width: 340px;
+    }
+  `,
 })
 export class AccountHeads implements OnInit {
+  protected readonly systemCodeStart = SYSTEM_CODE_START;
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly injector = inject(Injector);
+  private readonly headForm = viewChild<ElementRef<HTMLFormElement>>('headForm');
 
   protected readonly heads = signal<AccountHead[]>([]);
   protected readonly filter = signal('');
@@ -102,16 +226,33 @@ export class AccountHeads implements OnInit {
   }
 
   protected startNew(): void {
-    const userCodes = this.heads().map((h) => h.code).filter((c) => c < SYSTEM_CODE_START);
+    const userCodes = this.heads()
+      .map((h) => h.code)
+      .filter((c) => c < SYSTEM_CODE_START);
     this.editingCode.set(null);
     this.form.reset({ code: userCodes.length ? Math.max(...userCodes) + 1 : 1001, name: '' });
     this.formOpen.set(true);
+    this.focusForm();
   }
 
   protected edit(head: AccountHead): void {
     this.editingCode.set(head.code);
     this.form.reset({ code: head.code, name: head.name });
     this.formOpen.set(true);
+    this.focusForm();
+  }
+
+  private focusForm(): void {
+    afterNextRender(
+      () => {
+        const form = this.headForm()?.nativeElement;
+        form?.scrollIntoView({ block: 'nearest' });
+        form
+          ?.querySelector<HTMLInputElement>('input:not([readonly])')
+          ?.focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
   }
 
   protected close(): void {

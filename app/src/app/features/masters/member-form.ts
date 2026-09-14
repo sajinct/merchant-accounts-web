@@ -13,7 +13,18 @@ import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { WebcamCapture } from '../../shared/webcam-capture';
 
 const PHOTO_BUCKET = 'customer-photos';
-const TEXT_FIELDS = ['salutation', 'addr1', 'addr2', 'addr3', 'addr4', 'phone', 'aadhaar', 'pan', 'id_type', 'id_no'] as const;
+const TEXT_FIELDS = [
+  'salutation',
+  'addr1',
+  'addr2',
+  'addr3',
+  'addr4',
+  'phone',
+  'aadhaar',
+  'pan',
+  'id_type',
+  'id_no',
+] as const;
 
 @Component({
   selector: 'app-member-form',
@@ -30,46 +41,143 @@ const TEXT_FIELDS = ['salutation', 'addr1', 'addr2', 'addr3', 'addr4', 'phone', 
   template: `
     <div class="page">
       <div class="page-header">
-        <h1>{{ isNew() ? 'New member' : 'Member ' + form.controls.code.value }}</h1>
-        <a mat-button routerLink="/masters/members"><mat-icon>arrow_back</mat-icon> Back to list</a>
+        <div class="page-heading">
+          <span class="eyebrow">Member directory</span>
+          <h1>
+            {{
+              isNew()
+                ? 'New member'
+                : form.controls.name.value || 'Member ' + form.controls.code.value
+            }}
+          </h1>
+          <p class="page-description">
+            {{
+              isNew()
+                ? 'Create a member profile with contact and identity details.'
+                : 'View and maintain this member’s profile.'
+            }}
+          </p>
+        </div>
+        <a mat-stroked-button routerLink="/masters/members"
+          ><mat-icon>arrow_back</mat-icon> All members</a
+        >
       </div>
 
       <form class="member-form" [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
-        <div class="form-grid">
-          <mat-form-field>
-            <mat-label>Code</mat-label>
-            <input matInput type="number" formControlName="code" [readonly]="!isNew()" />
-          </mat-form-field>
-          <mat-form-field class="narrow">
-            <mat-label>Salutation</mat-label>
-            <input matInput formControlName="salutation" maxlength="10" />
-          </mat-form-field>
-          <mat-form-field class="wide">
-            <mat-label>Name</mat-label>
-            <input matInput formControlName="name" maxlength="100" />
-          </mat-form-field>
-          <mat-form-field class="wide"><mat-label>Address line 1</mat-label><input matInput formControlName="addr1" /></mat-form-field>
-          <mat-form-field class="wide"><mat-label>Address line 2</mat-label><input matInput formControlName="addr2" /></mat-form-field>
-          <mat-form-field class="wide"><mat-label>Address line 3</mat-label><input matInput formControlName="addr3" /></mat-form-field>
-          <mat-form-field class="wide"><mat-label>Address line 4</mat-label><input matInput formControlName="addr4" /></mat-form-field>
-          <mat-form-field><mat-label>Phone</mat-label><input matInput type="tel" formControlName="phone" /></mat-form-field>
-          <mat-form-field><mat-label>Aadhaar</mat-label><input matInput formControlName="aadhaar" maxlength="14" /></mat-form-field>
-          <mat-form-field><mat-label>PAN</mat-label><input matInput formControlName="pan" maxlength="10" /></mat-form-field>
-          <mat-form-field><mat-label>Other ID type</mat-label><input matInput formControlName="id_type" /></mat-form-field>
-          <mat-form-field><mat-label>Other ID number</mat-label><input matInput formControlName="id_no" /></mat-form-field>
+        <div class="form-section-stack">
+          <section class="panel" aria-labelledby="member-details-heading">
+            <div class="panel-header">
+              <h2 id="member-details-heading">Member details</h2>
+              <span class="status-badge neutral">{{
+                isNew() ? 'New profile' : '#' + form.controls.code.value
+              }}</span>
+            </div>
+            <div class="panel-body form-grid">
+              <mat-form-field>
+                <mat-label>Member code</mat-label>
+                <input matInput type="number" formControlName="code" [readonly]="!isNew()" />
+                <mat-error>Enter a code greater than zero.</mat-error>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Salutation</mat-label>
+                <input
+                  matInput
+                  formControlName="salutation"
+                  maxlength="10"
+                  placeholder="Mr, Mrs, Ms…"
+                  autocomplete="honorific-prefix"
+                />
+              </mat-form-field>
+              <mat-form-field class="wide">
+                <mat-label>Full name</mat-label>
+                <input matInput formControlName="name" maxlength="100" autocomplete="name" />
+                <mat-error>Enter the member’s name.</mat-error>
+              </mat-form-field>
+              <mat-form-field class="wide"
+                ><mat-label>Phone</mat-label
+                ><input matInput type="tel" formControlName="phone" autocomplete="tel"
+              /></mat-form-field>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="member-address-heading">
+            <div class="panel-header">
+              <h2 id="member-address-heading">Address</h2>
+              <span class="hint">Optional</span>
+            </div>
+            <div class="panel-body form-grid">
+              <mat-form-field
+                ><mat-label>Address line 1</mat-label><input matInput formControlName="addr1"
+              /></mat-form-field>
+              <mat-form-field
+                ><mat-label>Address line 2</mat-label><input matInput formControlName="addr2"
+              /></mat-form-field>
+              <mat-form-field
+                ><mat-label>Address line 3</mat-label><input matInput formControlName="addr3"
+              /></mat-form-field>
+              <mat-form-field
+                ><mat-label>Address line 4</mat-label><input matInput formControlName="addr4"
+              /></mat-form-field>
+            </div>
+          </section>
+
+          <section class="panel" aria-labelledby="member-identity-heading">
+            <div class="panel-header">
+              <h2 id="member-identity-heading">Identity details</h2>
+              <span class="hint">Optional</span>
+            </div>
+            <div class="panel-body form-grid">
+              <mat-form-field
+                ><mat-label>Aadhaar</mat-label
+                ><input matInput formControlName="aadhaar" maxlength="14"
+              /></mat-form-field>
+              <mat-form-field
+                ><mat-label>PAN</mat-label
+                ><input matInput formControlName="pan" maxlength="10" /><mat-error
+                  >Enter a valid PAN, such as ABCDE1234F.</mat-error
+                ></mat-form-field
+              >
+              <mat-form-field
+                ><mat-label>Other ID type</mat-label><input matInput formControlName="id_type"
+              /></mat-form-field>
+              <mat-form-field
+                ><mat-label>Other ID number</mat-label><input matInput formControlName="id_no"
+              /></mat-form-field>
+            </div>
+          </section>
         </div>
 
-        <div class="member-photo">
-          <app-webcam-capture [src]="photoUrl()" [disabled]="!auth.canEdit()" (captured)="photoChange = $event" />
-        </div>
+        <section class="member-photo panel" aria-labelledby="member-photo-heading">
+          <div class="panel-header"><h2 id="member-photo-heading">Profile photo</h2></div>
+          <div class="panel-body">
+            <app-webcam-capture
+              [src]="photoUrl()"
+              [disabled]="!auth.canEdit()"
+              (captured)="photoChange = $event"
+            />
+            <p class="hint">Use the camera to add a photo for easy identification.</p>
+          </div>
+        </section>
 
         <div class="form-actions full">
-          <button mat-flat-button type="submit" [disabled]="form.invalid || saving() || !auth.canEdit()">
-            {{ isNew() ? 'Save' : 'Update' }}
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="form.invalid || saving() || !auth.canEdit()"
+          >
+            <mat-icon>check</mat-icon>
+            {{ saving() ? 'Saving…' : isNew() ? 'Create member' : 'Save changes' }}
           </button>
+          <a mat-button routerLink="/masters/members">Cancel</a>
           @if (!isNew() && auth.isAdmin()) {
-            <button mat-button type="button" class="danger" (click)="remove()" [disabled]="saving()">
-              <mat-icon>delete</mat-icon> Delete
+            <button
+              mat-button
+              type="button"
+              class="danger"
+              (click)="remove()"
+              [disabled]="saving()"
+            >
+              <mat-icon>delete_outline</mat-icon> Delete member
             </button>
           }
         </div>
@@ -115,7 +223,12 @@ export class MemberForm implements OnInit {
         await this.loadMember(code);
       } else {
         const last = await must(
-          this.sb.from('customers').select('code').order('code', { ascending: false }).limit(1).maybeSingle<{ code: number }>(),
+          this.sb
+            .from('customers')
+            .select('code')
+            .order('code', { ascending: false })
+            .limit(1)
+            .maybeSingle<{ code: number }>(),
         );
         this.form.controls.code.setValue((last?.code ?? 0) + 1);
       }
@@ -158,7 +271,9 @@ export class MemberForm implements OnInit {
 
   protected async remove(): Promise<void> {
     const code = this.form.controls.code.value;
-    if (!confirm(`Delete member ${code} (${this.form.controls.name.value})? This cannot be undone.`)) {
+    if (
+      !confirm(`Delete member ${code} (${this.form.controls.name.value})? This cannot be undone.`)
+    ) {
       return;
     }
     this.saving.set(true);
@@ -200,7 +315,9 @@ export class MemberForm implements OnInit {
   }
 
   private async loadMember(code: number): Promise<void> {
-    const member = await must(this.sb.from('customers').select('*').eq('code', code).maybeSingle<Customer>());
+    const member = await must(
+      this.sb.from('customers').select('*').eq('code', code).maybeSingle<Customer>(),
+    );
     if (!member) {
       this.notify.error(new Error(`Member ${code} not found`));
       await this.router.navigate(['/masters/members']);
@@ -215,7 +332,9 @@ export class MemberForm implements OnInit {
     this.photoPath = member.photo_path;
     this.photoChange = undefined;
     if (member.photo_path) {
-      const { data } = await this.sb.storage.from(PHOTO_BUCKET).createSignedUrl(member.photo_path, 3600);
+      const { data } = await this.sb.storage
+        .from(PHOTO_BUCKET)
+        .createSignedUrl(member.photo_path, 3600);
       // Cache-bust so a replaced photo shows immediately.
       this.photoUrl.set(data?.signedUrl ? `${data.signedUrl}&t=${Date.now()}` : null);
     } else {
