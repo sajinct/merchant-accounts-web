@@ -5,6 +5,7 @@ import { Component, computed, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { TrialBalanceRow } from '../../core/models';
@@ -23,6 +24,7 @@ import { ReportShell } from '../../shared/report-shell';
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatIconModule,
     ReportShell,
@@ -53,7 +55,14 @@ import { ReportShell } from '../../shared/report-shell';
           class="filter-row"
         >
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>As of date</mat-label><input matInput type="date" formControlName="asOn"
+            ><mat-label>As of date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="asOnPicker"
+              formControlName="asOn"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="asOnPicker" /><mat-datepicker #asOnPicker
           /></mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
             <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}

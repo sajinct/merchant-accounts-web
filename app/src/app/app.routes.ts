@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards';
+import { pendingChangesGuard } from './core/pending-changes';
 import { Shell } from './layout/shell';
 
 const editors = roleGuard('admin', 'accountant');
@@ -25,11 +26,13 @@ export const routes: Routes = [
 
       {
         path: 'transactions/vouchers',
+        canDeactivate: [pendingChangesGuard],
         loadComponent: () => import('./features/transactions/vouchers').then((m) => m.Vouchers),
         title: 'Payments / Receipts',
       },
       {
         path: 'transactions/journals',
+        canDeactivate: [pendingChangesGuard],
         loadComponent: () => import('./features/transactions/journals').then((m) => m.Journals),
         title: 'Journals & Transfers',
       },
@@ -67,6 +70,7 @@ export const routes: Routes = [
 
       {
         path: 'masters/account-heads',
+        canDeactivate: [pendingChangesGuard],
         loadComponent: () => import('./features/masters/account-heads').then((m) => m.AccountHeads),
         title: 'Account Heads',
       },
@@ -77,12 +81,14 @@ export const routes: Routes = [
       },
       {
         path: 'masters/members/new',
+        canDeactivate: [pendingChangesGuard],
         canActivate: [editors],
         loadComponent: () => import('./features/masters/member-form').then((m) => m.MemberForm),
         title: 'New Member',
       },
       {
         path: 'masters/members/:code',
+        canDeactivate: [pendingChangesGuard],
         loadComponent: () => import('./features/masters/member-form').then((m) => m.MemberForm),
         title: 'Member',
       },
@@ -110,6 +116,7 @@ export const routes: Routes = [
       },
       {
         path: 'admin/settings',
+        canDeactivate: [pendingChangesGuard],
         canActivate: [admins],
         loadComponent: () =>
           import('./features/admin/company-settings').then((m) => m.CompanySettingsPage),

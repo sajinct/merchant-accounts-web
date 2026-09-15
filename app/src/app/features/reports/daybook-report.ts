@@ -5,6 +5,7 @@ import { Component, computed, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { DaybookRow } from '../../core/models';
@@ -24,6 +25,7 @@ import { ReportShell } from '../../shared/report-shell';
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatIconModule,
     ReportShell,
@@ -57,10 +59,24 @@ import { ReportShell } from '../../shared/report-shell';
           class="filter-row"
         >
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>From date</mat-label><input matInput type="date" formControlName="from"
+            ><mat-label>From date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="fromPicker"
+              formControlName="from"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="fromPicker" /><mat-datepicker #fromPicker
           /></mat-form-field>
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>To date</mat-label><input matInput type="date" formControlName="to"
+            ><mat-label>To date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="toPicker"
+              formControlName="to"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="toPicker" /><mat-datepicker #toPicker
           /></mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
             <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}

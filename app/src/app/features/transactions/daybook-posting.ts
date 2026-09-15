@@ -6,6 +6,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
@@ -21,6 +22,7 @@ import { addDays, isoDate } from '../../shared/dates';
     MatButtonModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
   ],
   template: `
@@ -68,11 +70,23 @@ import { addDays, isoDate } from '../../shared/dates';
           <div class="form-grid">
             <mat-form-field>
               <mat-label>From date</mat-label>
-              <input matInput type="date" formControlName="from" />
+              <input
+                matInput
+                [matDatepicker]="fromPicker"
+                formControlName="from"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="fromPicker" /><mat-datepicker
+                #fromPicker
+              />
             </mat-form-field>
             <mat-form-field>
               <mat-label>To date</mat-label>
-              <input matInput type="date" formControlName="to" />
+              <input
+                matInput
+                [matDatepicker]="toPicker"
+                formControlName="to"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="toPicker" /><mat-datepicker #toPicker />
             </mat-form-field>
           </div>
           <div class="posting-note">

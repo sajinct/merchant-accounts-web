@@ -1,7 +1,10 @@
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatDatepickerInput, MatDatepickerModule } from '@angular/material/datepicker';
+import { By } from '@angular/platform-browser';
 import { FinancialYearScope } from './financial-year-scope';
+import { provideIsoDateAdapter } from './iso-date-adapter';
 import { FinancialYearService } from '../core/financial-year.service';
 import { SupabaseService } from '../core/supabase.service';
 
@@ -85,5 +88,37 @@ describe('Financial-year form scope', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(form.valid).toBe(true);
+  });
+});
+
+@Component({
+  imports: [ReactiveFormsModule, FinancialYearScope, MatDatepickerModule],
+  template: `<form [formGroup]="form" appFinancialYearScope="report">
+    <input [matDatepicker]="picker" formControlName="from" />
+    <mat-datepicker #picker />
+  </form>`,
+})
+class DatepickerForm {
+  form = new FormGroup({ from: new FormControl('2026-04-01') });
+}
+describe('Financial-year datepicker bounds', () => {
+  it('limits datepickers to the selected year', async () => {
+    await TestBed.configureTestingModule({
+      imports: [DatepickerForm],
+      providers: [{ provide: SupabaseService, useValue: { client: {} } }, provideIsoDateAdapter()],
+    }).compileComponents();
+    const fy = TestBed.inject(FinancialYearService);
+    fy.selected.set(2026);
+    const fixture = TestBed.createComponent(DatepickerForm);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const input = fixture.debugElement
+      .query(By.directive(MatDatepickerInput))
+      .injector.get(MatDatepickerInput);
+    expect([input.min, input.max]).toEqual(['2026-04-01', '2027-03-31']);
+    fy.selected.set(2025);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect([input.min, input.max]).toEqual(['2025-04-01', '2026-03-31']);
   });
 });

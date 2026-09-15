@@ -27,6 +27,7 @@ import { AppUpdateService } from '../core/app-update.service';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
+import { hasPendingChanges } from '../core/pending-changes';
 import { SUPPORT } from '../core/support';
 
 interface NavItem {
@@ -150,7 +151,10 @@ const NAV: NavGroup[] = [
 
 @Component({
   selector: 'app-shell',
-  host: { '(document:keydown)': 'onNavigationKey($event)' },
+  host: {
+    '(document:keydown)': 'onNavigationKey($event)',
+    '(window:beforeunload)': 'onBeforeUnload($event)',
+  },
   imports: [
     FinancialYearSelector,
     RouterOutlet,
@@ -345,6 +349,7 @@ export class Shell implements OnInit {
   });
   private readonly mainContent = viewChild<ElementRef<HTMLElement>>('main');
   private readonly navigation = viewChild<ElementRef<HTMLElement>>('navigation');
+  private readonly outlet = viewChild(RouterOutlet);
   protected readonly letterShortcuts = signal(true);
   protected readonly selectedGroup = signal<NavGroup | null>(null);
   private focusVersion = 0;
@@ -610,7 +615,13 @@ export class Shell implements OnInit {
   }
 
   protected async signOut(): Promise<void> {
+    // Leave the page first so an unsaved-changes prompt can still keep the user signed in.
+    if (!(await this.router.navigate(['/login']))) return;
     await this.auth.signOut();
-    await this.router.navigate(['/login']);
+  }
+
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    const outlet = this.outlet();
+    if (outlet?.isActivated && hasPendingChanges(outlet.component)) event.preventDefault();
   }
 }

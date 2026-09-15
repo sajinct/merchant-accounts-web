@@ -246,6 +246,10 @@ export class AccountHeads implements OnInit {
     this.load();
   }
 
+  hasPendingChanges(): boolean {
+    return this.formOpen() && this.form.dirty && !this.saving();
+  }
+
   protected startNew(): void {
     const userCodes = this.heads()
       .map((h) => h.code)
@@ -306,6 +310,7 @@ export class AccountHeads implements OnInit {
             .update({ name: name.trim(), account_type, is_cash_bank })
             .eq('code', editing),
         );
+        this.form.markAsPristine();
         this.notify.success('Account head updated');
       } else {
         await must(

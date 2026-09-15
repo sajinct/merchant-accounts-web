@@ -209,8 +209,10 @@ export class ConfirmDialog {
 export async function confirmAction(
   dialog: MatDialog,
   options: ConfirmOptions,
+  id?: string,
 ): Promise<Record<string, string> | null> {
   const ref = dialog.open<ConfirmDialog, ConfirmOptions, Record<string, string>>(ConfirmDialog, {
+    id,
     data: options,
     width: '440px',
     maxWidth: 'calc(100vw - 32px)',

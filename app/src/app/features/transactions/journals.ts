@@ -7,6 +7,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AccountHead } from '../../core/models';
@@ -41,6 +42,7 @@ interface Journal {
     DecimalPipe,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatSelectModule,
   ],
@@ -63,7 +65,16 @@ interface Journal {
           <div class="form-grid">
             <mat-form-field
               ><mat-label>Date</mat-label
-              ><input matInput type="date" [(ngModel)]="date" [disabled]="saving()"
+              ><input
+                matInput
+                [matDatepicker]="datePicker"
+                [(ngModel)]="date"
+                [disabled]="saving()"
+                [min]="fy.start()"
+                [max]="fy.end()"
+                placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+                matIconSuffix
+                [for]="datePicker" /><mat-datepicker #datePicker
             /></mat-form-field>
             <mat-form-field
               ><mat-label>Entry type</mat-label
@@ -245,6 +256,13 @@ export class Journals {
     });
   }
 
+  hasPendingChanges(): boolean {
+    return (
+      !this.saving() &&
+      (!!this.narration.trim() ||
+        this.lines.some((line) => line.account !== null || !!line.debit || !!line.credit))
+    );
+  }
   protected total(side: 'debit' | 'credit') {
     return this.lines.reduce((sum, line) => sum + Math.round(Number(line[side] ?? 0) * 100), 0);
   }

@@ -11,6 +11,7 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -43,6 +44,7 @@ interface VoucherLine extends Voucher {
     MatButtonToggleModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
     MatProgressBarModule,
     MatTooltipModule,
@@ -99,7 +101,14 @@ interface VoucherLine extends Voucher {
             <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
               <mat-label>Transaction date</mat-label>
-              <input matInput type="date" formControlName="date" />
+              <input
+                matInput
+                [matDatepicker]="datePicker"
+                formControlName="date"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="datePicker" /><mat-datepicker
+                #datePicker
+              />
             </mat-form-field>
             <app-account-picker
               class="account-field"
@@ -429,6 +438,12 @@ export class Vouchers implements OnInit {
         this.lines.set([]);
       }
     });
+  }
+
+  /** An amount or narration is unfinished work; a selected account alone is just browsing. */
+  hasPendingChanges(): boolean {
+    const { amount, description } = this.form.getRawValue();
+    return !this.saving() && (amount !== null || !!description?.trim());
   }
 
   async ngOnInit(): Promise<void> {

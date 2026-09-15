@@ -4,6 +4,7 @@ import { Journals } from './journals';
 import { AuthService } from '../../core/auth.service';
 import { SupabaseService } from '../../core/supabase.service';
 import { NotifyService } from '../../core/notify.service';
+import { provideIsoDateAdapter } from '../../shared/iso-date-adapter';
 
 describe('Journal entry', () => {
   async function setup() {
@@ -23,6 +24,7 @@ describe('Journal entry', () => {
         { provide: AuthService, useValue: { canEdit: () => true, isAdmin: () => true } },
         { provide: SupabaseService, useValue: { client: { from: () => query, rpc } } },
         { provide: NotifyService, useValue: { success: vi.fn(), error: vi.fn() } },
+        provideIsoDateAdapter(),
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(Journals);

@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../core/auth.service';
 import { Customer } from '../../core/models';
@@ -38,6 +39,7 @@ const TEXT_FIELDS = [
     MatButtonModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
     EnterToNext,
     WebcamCapture,
@@ -104,12 +106,26 @@ const TEXT_FIELDS = [
               /></mat-form-field>
               <mat-form-field>
                 <mat-label>Joined on</mat-label>
-                <input matInput type="date" formControlName="joined_on" />
+                <input
+                  matInput
+                  [matDatepicker]="joined_onPicker"
+                  formControlName="joined_on"
+                  placeholder="dd/mm/yyyy"
+                /><mat-datepicker-toggle matIconSuffix [for]="joined_onPicker" /><mat-datepicker
+                  #joined_onPicker
+                />
                 <mat-hint>Subscription is due from this financial year</mat-hint>
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Left on</mat-label>
-                <input matInput type="date" formControlName="left_on" />
+                <input
+                  matInput
+                  [matDatepicker]="left_onPicker"
+                  formControlName="left_on"
+                  placeholder="dd/mm/yyyy"
+                /><mat-datepicker-toggle matIconSuffix [for]="left_onPicker" /><mat-datepicker
+                  #left_onPicker
+                />
                 <mat-hint>Leave empty while the member is active</mat-hint>
               </mat-form-field>
             </div>
@@ -266,6 +282,10 @@ export class MemberForm implements OnInit {
     }
   }
 
+  hasPendingChanges(): boolean {
+    return !this.saving() && (this.form.dirty || this.photoChange !== undefined);
+  }
+
   protected async save(): Promise<void> {
     if (this.form.invalid) {
       return;
@@ -293,6 +313,7 @@ export class MemberForm implements OnInit {
         await must(this.sb.from('customers').update(record).eq('code', value.code));
       }
       await this.savePhoto(value.code);
+      this.form.markAsPristine();
       this.notify.success(this.isNew() ? 'Member added' : 'Member updated');
       if (this.isNew()) {
         await this.router.navigate(['/masters/members', value.code], { replaceUrl: true });
@@ -326,6 +347,8 @@ export class MemberForm implements OnInit {
       if (this.photoPath) {
         await this.sb.storage.from(PHOTO_BUCKET).remove([this.photoPath]);
       }
+      this.form.markAsPristine();
+      this.photoChange = undefined;
       this.notify.success('Member deleted');
       await this.router.navigate(['/masters/members']);
     } catch (err) {

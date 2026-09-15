@@ -94,6 +94,10 @@ export class CompanySettingsPage implements OnInit {
     gstin: [''],
   });
 
+  hasPendingChanges(): boolean {
+    return this.form.dirty && !this.saving();
+  }
+
   async ngOnInit(): Promise<void> {
     try {
       await this.company.load();
@@ -121,6 +125,7 @@ export class CompanySettingsPage implements OnInit {
         phone: v.phone.trim() || null,
         gstin: v.gstin.trim().toUpperCase() || null,
       });
+      this.form.markAsPristine();
       this.notify.success('Company settings saved');
     } catch (err) {
       this.notify.error(err);

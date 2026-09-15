@@ -18,6 +18,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -47,6 +48,7 @@ interface PaymentRow extends SubscriptionPayment {
     MatButtonModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
     MatSelectModule,
     MatTooltipModule,
@@ -153,7 +155,14 @@ interface PaymentRow extends SubscriptionPayment {
             </mat-form-field>
             <mat-form-field>
               <mat-label>Paid on</mat-label>
-              <input matInput type="date" formControlName="paid_on" />
+              <input
+                matInput
+                [matDatepicker]="paid_onPicker"
+                formControlName="paid_on"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="paid_onPicker" /><mat-datepicker
+                #paid_onPicker
+              />
             </mat-form-field>
             <mat-form-field>
               <mat-label>Notes</mat-label>

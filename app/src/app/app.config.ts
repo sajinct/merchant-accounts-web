@@ -9,6 +9,7 @@ import {
 import { provideRouter, withComponentInputBinding, withHashLocation } from '@angular/router';
 import { MAT_FORM_FIELD_DEFAULT_OPTIONS } from '@angular/material/form-field';
 import { provideServiceWorker } from '@angular/service-worker';
+import { provideIsoDateAdapter } from './shared/iso-date-adapter';
 
 import { routes } from './app.routes';
 
@@ -26,5 +27,7 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes, withHashLocation(), withComponentInputBinding()),
     { provide: LOCALE_ID, useValue: 'en-IN' },
     { provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { appearance: 'outline' } },
+    // Datepickers read and write YYYY-MM-DD strings and accept day-first typing.
+    provideIsoDateAdapter(),
   ],
 };
