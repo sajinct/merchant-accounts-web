@@ -1,7 +1,11 @@
 begin;
+-- The CLI connects as a temporary login role; run as postgres (and return to it instead of RESET ROLE).
+set local role postgres;
 create extension if not exists pgtap with schema extensions;
+-- pgTAP may be installed by the test runner in its own schema; put that schema on the path.
+select set_config('search_path', 'public, extensions, ' || coalesce((select quote_ident(n.nspname) from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgtap'), 'extensions'), true);
 
-select plan(31);
+select plan(30);
 
 -- ---------------------------------------------------------------------------
 -- Structure
@@ -46,7 +50,7 @@ set local role anon;
 select throws_ok('select * from public.vouchers', '42501', null, 'anon cannot read vouchers');
 select throws_ok($$select public.create_voucher(1, current_date, 7001, 'x', 10)$$,
                  '42501', null, 'anon cannot call create_voucher');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Viewer
@@ -60,7 +64,7 @@ select throws_ok($$insert into account_heads (code, name) values (7003, 'X')$$,
 select throws_ok($$select create_voucher(1, current_date, 7001, 'x', 10)$$,
                  '42501', 'not authorized', 'viewer cannot create vouchers');
 select is((select count(*)::int from profiles), 1, 'viewer sees only own profile');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Accountant
@@ -86,8 +90,11 @@ select throws_ok($$select create_voucher(3, current_date, 7001, 'x', 10)$$,
                  '22023', null, 'unknown voucher type is rejected');
 select throws_ok($$select create_voucher(1, current_date, 9999, 'x', 10)$$,
                  '23503', null, 'unknown account head is rejected');
+-- voucher_counters has no client policies, so check it as postgres.
+set local role postgres;
 select is((select last_no from voucher_counters where voucher_type = 1), 2,
           'failed inserts do not consume voucher numbers');
+set local role authenticated;
 
 update vouchers set amount = 1;
 select is((select sum(amount) from vouchers), 1050.00::numeric,
@@ -96,7 +103,7 @@ select throws_ok($$select cancel_voucher((select id from vouchers where voucher_
                  '42501', 'not authorized', 'accountant cannot cancel vouchers');
 select throws_ok($$insert into daybook (head_code, tran_date, credit, is_auto) values (7001, current_date, 5, true)$$,
                  '42501', null, 'accountant cannot write auto day book rows');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Admin
@@ -106,7 +113,7 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000
 
 select isnt((cancel_voucher((select id from vouchers where voucher_no = 1 and voucher_type = 1), 'duplicate')).cancelled_at,
             null, 'admin can cancel a voucher');
-reset role;
+set local role postgres;
 
 select * from finish();
 rollback;

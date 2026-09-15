@@ -1,5 +1,9 @@
 begin;
+-- The CLI connects as a temporary login role; run as postgres (and return to it instead of RESET ROLE).
+set local role postgres;
 create extension if not exists pgtap with schema extensions;
+-- pgTAP may be installed by the test runner in its own schema; put that schema on the path.
+select set_config('search_path', 'public, extensions, ' || coalesce((select quote_ident(n.nspname) from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgtap'), 'extensions'), true);
 
 select plan(22);
 
@@ -40,7 +44,7 @@ select is((select count(*)::int from subscription_years where fy_start in (2091,
           'viewer can read subscription fees');
 select throws_ok($$select record_subscription_payment(97001, 2091, 100, '2091-07-01')$$,
                  '42501', 'not authorized', 'viewer cannot record payments');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Accountant records payments
@@ -90,7 +94,7 @@ select is((select count(*)::int from rpt_subscription_status(2091) where member_
 
 select throws_ok($$select cancel_subscription_payment((select id from subscription_payments where member_code = 97001), 'x')$$,
                  '42501', 'not authorized', 'accountant cannot cancel subscription payments');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Admin cancels
@@ -108,7 +112,7 @@ select isnt((select v.cancelled_at from subscription_payments sp join vouchers v
             'cancelling the payment cancels its receipt voucher');
 select is((select balance from member_subscription_years(97001) where fy_start = 2091), 1000.00::numeric,
           'cancelled payments no longer count as paid');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Missing account head
@@ -118,7 +122,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b3","role":"authenticated"}', true);
 select throws_ok($$select record_subscription_payment(97001, 2091, 100, '2091-07-01')$$,
                  '22023', null, 'payments need a subscription account head');
-reset role;
+set local role postgres;
 
 select * from finish();
 rollback;

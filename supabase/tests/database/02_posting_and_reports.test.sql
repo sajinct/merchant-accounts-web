@@ -1,5 +1,9 @@
 begin;
+-- The CLI connects as a temporary login role; run as postgres (and return to it instead of RESET ROLE).
+set local role postgres;
 create extension if not exists pgtap with schema extensions;
+-- pgTAP may be installed by the test runner in its own schema; put that schema on the path.
+select set_config('search_path', 'public, extensions, ' || coalesce((select quote_ident(n.nspname) from pg_extension e join pg_namespace n on n.oid = e.extnamespace where e.extname = 'pgtap'), 'extensions'), true);
 
 select plan(17);
 
@@ -29,7 +33,7 @@ set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000c1","role":"authenticated"}', true);
 select throws_ok($$select post_daybook('1990-01-01', '1990-01-31')$$, '42501', 'not authorized',
                  'viewer cannot post the day book');
-reset role;
+set local role postgres;
 
 -- ---------------------------------------------------------------------------
 -- Accountant enters vouchers and posts
@@ -47,13 +51,13 @@ select create_voucher(1, '1990-02-02', 7101, 'wrong entry', 999);
 
 -- A manual (non-auto) row in range must survive posting
 insert into daybook (head_code, tran_date, credit, narration) values (7101, '1990-02-03', 50, 'manual adjustment');
-reset role;
+set local role postgres;
 
 -- Admin cancels the wrong entry
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000a1","role":"authenticated"}', true);
 select cancel_voucher((select id from vouchers where description = 'wrong entry'), 'typo');
-reset role;
+set local role postgres;
 
 set local role authenticated;
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-0000-0000-0000000000b1","role":"authenticated"}', true);
@@ -111,7 +115,7 @@ select results_eq(
   $$values (7101, 0.00::numeric, 1750.00::numeric), (7102, 800.00, 0.00)$$,
   'trial balance per account'
 );
-reset role;
+set local role postgres;
 
 select * from finish();
 rollback;
