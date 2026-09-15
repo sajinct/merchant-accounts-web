@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { SwUpdate, UnrecoverableStateEvent, VersionEvent } from '@angular/service-worker';
 import { Subject } from 'rxjs';
 import { vi } from 'vitest';
-import { APP_UPDATE_BROWSER, AppUpdateService } from './app-update.service';
+import { APP_UPDATE_BROWSER, APP_UPDATE_MANIFEST, AppUpdateService } from './app-update.service';
 
 describe('AppUpdateService', () => {
   let versions: Subject<VersionEvent>;
@@ -30,6 +30,7 @@ describe('AppUpdateService', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: APP_UPDATE_BROWSER, useValue: { online, reload } },
+        { provide: APP_UPDATE_MANIFEST, useValue: async () => '2026.09.15.v2' },
         ...(provideWorker
           ? [
               {
@@ -101,6 +102,25 @@ describe('AppUpdateService', () => {
     expect(service.message()).toContain('offline');
     expect(service.checkedAt()).toBeNull();
     expect(checkForUpdate).not.toHaveBeenCalled();
+  });
+
+  it('shows the server build even when the worker cannot complete its check', async () => {
+    const service = createService();
+    await service.check();
+    expect(service.latestVersion()).toBe('2026.09.15.v2');
+    expect(service.phase()).toBe('error');
+    expect(service.ready()).toBe(false);
+  });
+
+  it('offers reload when a different published build is already cached', async () => {
+    const service = createService();
+    versions.next({
+      type: 'NO_NEW_VERSION_DETECTED',
+      version: { hash: 'cached', appData: { version: '2026.09.15.v2' } },
+    });
+    expect(service.ready()).toBe(true);
+    expect(service.latestVersion()).toBe('2026.09.15.v2');
+    expect(reload).not.toHaveBeenCalled();
   });
 
   it('ignores repeated requests while waiting for the worker or an existing download', async () => {
@@ -191,7 +211,7 @@ describe('AppUpdateService', () => {
     const finish = deferredCheck();
     const service = createService();
     const checking = service.check();
-    await vi.advanceTimersByTimeAsync(90_000);
+    await vi.advanceTimersByTimeAsync(30_000);
     await checking;
 
     expect(service.phase()).toBe('error');

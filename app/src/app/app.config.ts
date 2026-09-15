@@ -20,7 +20,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
-      registrationStrategy: 'registerWhenStable:30000',
+      registrationStrategy: 'registerImmediately',
     }),
     // Hash URLs (/#/reports/ledger) so static hosting such as GitHub Pages never needs server rewrites.
     provideRouter(routes, withHashLocation(), withComponentInputBinding()),

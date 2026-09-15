@@ -79,7 +79,7 @@ Production builds include an install manifest and Angular service worker. Open t
 
 The service worker caches the application files and icons. Sign-in, account data, reports and saving changes still require a connection to Supabase; financial records and API responses are not cached by the worker. App updates are downloaded in the background and applied on a subsequent load, without interrupting an open form.
 
-To update from an installed mobile or desktop shortcut, open the app and choose **Account menu → Check for app updates**. The sign-in screen also has **Check for app updates**. Once the latest files have downloaded, save any unfinished form entries and choose **Reload and update**. The app reloads the current page; reinstalling the shortcut is unnecessary. An update-ready notice appears when the worker downloads a version in the background. **Later** leaves the current page running. Offline checks, server failures, and failed downloads offer a retry instead of claiming the app is up to date. The check has a 90-second timeout that includes service-worker registration on first launch.
+To update from an installed mobile or desktop shortcut, open the app and choose **Account menu → Check for app updates**. The sign-in screen also has **Check for app updates**. Once the latest files have downloaded, save any unfinished form entries and choose **Reload and update**. The app reloads the current page; reinstalling the shortcut is unnecessary. An update-ready notice appears when the worker downloads a version in the background. **Later** leaves the current page running. Offline checks, server failures, and failed downloads offer a retry instead of claiming the app is up to date. The check has a 30-second timeout that includes service-worker registration on first launch.
 
 Publish the full production output together, including `ngsw.json`, `ngsw-worker.js`, `index.html` and the hashed assets. Keep the deployment's HTTPS URL and manifest identity stable so existing installed shortcuts continue to work. This update control becomes available after users first receive the release that includes it. The update flow follows [Angular's service-worker update guidance](https://angular.dev/ecosystem/service-workers/communications#updating-to-the-latest-version) and reloads the page only on request.
 
@@ -127,3 +127,9 @@ Database objects: `subscription_years`, `subscription_payments`, `record_subscri
 - **P&L and Balance Sheet** are not built yet. They depend on the meaning of legacy `MAS_HEADS.CKORC` / `CBORP` (stored as `account_heads.kind` / `group_type`).
 - **Report layouts:** printed samples of the Crystal reports are needed to match layouts and the debit/credit sign convention in the trial balance.
 - **Data migration** (Phase 5). Rotate the Azure SQL password committed in the VB repo before running it.
+
+### Release version numbers
+
+The update dialog shows the installed version and the latest server version (for example, 2026.09.15.v1). The server label is fetched without using the offline cache; seeing a newer label does not mean its files have finished downloading. Wait for **Reload and update**.
+
+Before publishing a new release, run **npm run release:version** from the app directory and commit the changed build-version.ts and ngsw-config.json files. It uses the current date in India, starts at v1 on a new date, and increments the revision for further releases that day. Both build commands automatically synchronize the label into the service-worker manifest. Rebuilding the same release preserves its version. Deploy the complete build output together. Older releases without version metadata display an explanatory label.

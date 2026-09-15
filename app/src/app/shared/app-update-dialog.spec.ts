@@ -8,6 +8,9 @@ import { AppUpdateDialog, openAppUpdates } from './app-update-dialog';
 it('opens one update dialog and reloads only after the explicit update button', async () => {
   const updates = {
     enabled: true,
+    currentVersion: '2026.09.15.v1',
+    latestVersion: signal('2026.09.15.v2'),
+    versionStatus: signal(''),
     ready: signal(true),
     needsReload: signal(false),
     busy: signal(false),
@@ -31,6 +34,8 @@ it('opens one update dialog and reloads only after the explicit update button', 
     expect(updates.reload).not.toHaveBeenCalled();
     const element = document.querySelector('app-update-dialog')!;
     expect(element.textContent).toContain('unsaved form entries');
+    expect(element.textContent).toContain('2026.09.15.v1');
+    expect(element.textContent).toContain('2026.09.15.v2');
     const later = Array.from(element.querySelectorAll('button')).find(
       (button) => button.textContent?.trim() === 'Later',
     )!;

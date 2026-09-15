@@ -4,12 +4,14 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
-    "build:pages": "ng build --base-href ./",
+    "build": "npm run version:sync && ng build",
+    "build:pages": "npm run version:sync && ng build --base-href ./",
     "icons:generate": "node scripts/generate-icons.mjs",
     "check:pwa": "node scripts/check-pwa.mjs",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "version:sync": "node scripts/build-version.mjs",
+    "release:version": "node scripts/build-version.mjs --next"
   },
   "private": true,
   "packageManager": "npm@10.9.2",

@@ -22,9 +22,15 @@
       "installMode": "lazy",
       "updateMode": "prefetch",
       "resources": {
-        "urls": ["https://fonts.googleapis.com/**", "https://fonts.gstatic.com/**"]
+        "urls": [
+          "https://fonts.googleapis.com/**",
+          "https://fonts.gstatic.com/**"
+        ]
       }
     }
   ],
-  "dataGroups": []
+  "dataGroups": [],
+  "appData": {
+    "version": "2026.09.15.v1"
+  }
 }

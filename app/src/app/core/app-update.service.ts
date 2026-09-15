@@ -2,6 +2,26 @@ import { computed, inject, Injectable, InjectionToken, signal } from '@angular/c
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { SwUpdate } from '@angular/service-worker';
 import { firstValueFrom, from, timeout } from 'rxjs';
+import { BUILD_VERSION } from './build-version';
+
+export const APP_UPDATE_MANIFEST = new InjectionToken('APP_UPDATE_MANIFEST', {
+  providedIn: 'root',
+  factory: () => async (): Promise<string | null> => {
+    const url = new URL('ngsw.json', document.baseURI);
+    url.searchParams.set('ngsw-bypass', 'true');
+    url.searchParams.set('t', String(Date.now()));
+    const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10000) });
+    if (!response.ok) throw new Error('Manifest unavailable');
+    return versionLabel((await response.json()).appData);
+  },
+});
+
+function versionLabel(data: unknown): string | null {
+  const version = (data as { version?: unknown } | undefined)?.version;
+  return typeof version === 'string' && /^\d{4}\.\d{2}\.\d{2}\.v\d+$/.test(version)
+    ? version
+    : null;
+}
 
 export const APP_UPDATE_BROWSER = new InjectionToken('APP_UPDATE_BROWSER', {
   providedIn: 'root',
@@ -17,6 +37,10 @@ type UpdatePhase = 'idle' | 'checking' | 'downloading' | 'latest' | 'ready' | 'e
 export class AppUpdateService {
   private readonly updates = inject(SwUpdate, { optional: true });
   private readonly browser = inject(APP_UPDATE_BROWSER);
+  private readonly fetchVersion = inject(APP_UPDATE_MANIFEST);
+  readonly currentVersion = BUILD_VERSION;
+  readonly latestVersion = signal<string | null>(null);
+  readonly versionStatus = signal('Not checked yet');
   readonly enabled = this.updates?.isEnabled === true;
   readonly phase = signal<UpdatePhase>('idle');
   readonly ready = signal(false);
@@ -43,10 +67,17 @@ export class AppUpdateService {
           }
           break;
         case 'VERSION_READY':
+          this.latestVersion.set(versionLabel(event.latestVersion.appData));
           this.markReady();
           break;
         case 'NO_NEW_VERSION_DETECTED':
           this.noNewVersionCount++;
+          // A newer build may already be cached from a previous visit.
+          const cachedVersion = versionLabel(event.version.appData);
+          if (cachedVersion && cachedVersion !== this.currentVersion) {
+            this.latestVersion.set(cachedVersion);
+            this.markReady();
+          }
           break;
         case 'VERSION_INSTALLATION_FAILED':
           this.failureCount++;
@@ -79,11 +110,23 @@ export class AppUpdateService {
     this.checking = true;
     this.phase.set('checking');
     this.message.set('Checking the server for updates…');
+    this.versionStatus.set('Checking server…');
+    void this.fetchVersion()
+      .then((version) => {
+        this.latestVersion.set(version);
+        this.versionStatus.set(version ? '' : 'Published build has no version label');
+      })
+      .catch(() => this.versionStatus.set('Server version could not be reached'));
+    const progress = setTimeout(() => {
+      if (this.phase() === 'checking') {
+        this.message.set('Waiting for the app updater. This check will finish within 30 seconds.');
+      }
+    }, 5000);
     const noNewBefore = this.noNewVersionCount;
     const failuresBefore = this.failureCount;
     try {
       // SwUpdate waits for a controlling worker; include registration in the time limit.
-      const found = await firstValueFrom(from(this.updates.checkForUpdate()).pipe(timeout(90000)));
+      const found = await firstValueFrom(from(this.updates.checkForUpdate()).pipe(timeout(30000)));
       if (this.needsReload()) return;
       if (found || this.ready()) {
         this.markReady();
@@ -104,6 +147,7 @@ export class AppUpdateService {
         );
       }
     } finally {
+      clearTimeout(progress);
       this.checking = false;
     }
   }

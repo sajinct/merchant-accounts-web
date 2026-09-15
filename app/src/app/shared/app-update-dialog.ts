@@ -11,6 +11,16 @@ import { AppUpdateService } from '../core/app-update.service';
   template: `
     <h2 mat-dialog-title>App updates</h2>
     <mat-dialog-content>
+      <dl class="versions">
+        <div>
+          <dt>Installed version</dt>
+          <dd>{{ updates.currentVersion }}</dd>
+        </div>
+        <div>
+          <dt>Latest on server</dt>
+          <dd>{{ updates.latestVersion() || updates.versionStatus() }}</dd>
+        </div>
+      </dl>
       <div class="update-status" role="status" aria-live="polite" [attr.aria-busy]="updates.busy()">
         <mat-icon>{{
           updates.ready()
@@ -53,6 +63,28 @@ import { AppUpdateService } from '../core/app-update.service';
     </mat-dialog-actions>
   `,
   styles: `
+    .versions {
+      margin: 0 0 20px;
+      padding: 12px;
+      background: #f4f7f9;
+      border-radius: 8px;
+    }
+    .versions div {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 5px 0;
+      font-size: 12px;
+    }
+    .versions dt {
+      color: var(--app-muted);
+    }
+    .versions dd {
+      margin: 0;
+      text-align: right;
+      font-weight: 600;
+      overflow-wrap: anywhere;
+    }
     .update-status {
       display: flex;
       align-items: flex-start;
