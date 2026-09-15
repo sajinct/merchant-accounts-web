@@ -6,13 +6,22 @@ const editors = roleGuard('admin', 'accountant');
 const admins = roleGuard('admin');
 
 export const routes: Routes = [
-  { path: 'login', loadComponent: () => import('./features/auth/login').then((m) => m.Login), title: 'Sign in' },
+  {
+    path: 'login',
+    loadComponent: () => import('./features/auth/login').then((m) => m.Login),
+    title: 'Sign in',
+  },
   {
     path: '',
     component: Shell,
     canActivate: [authGuard],
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'transactions/vouchers' },
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      {
+        path: 'dashboard',
+        loadComponent: () => import('./features/dashboard/dashboard').then((m) => m.Dashboard),
+        title: 'Dashboard',
+      },
 
       {
         path: 'transactions/vouchers',
@@ -22,18 +31,21 @@ export const routes: Routes = [
       {
         path: 'transactions/daybook-posting',
         canActivate: [editors],
-        loadComponent: () => import('./features/transactions/daybook-posting').then((m) => m.DaybookPosting),
+        loadComponent: () =>
+          import('./features/transactions/daybook-posting').then((m) => m.DaybookPosting),
         title: 'Day Book Posting',
       },
       {
         path: 'transactions/day-closing',
-        loadComponent: () => import('./features/transactions/day-closing').then((m) => m.DayClosing),
+        loadComponent: () =>
+          import('./features/transactions/day-closing').then((m) => m.DayClosing),
         title: 'Day Closing Balance',
       },
 
       {
         path: 'reports/daybook',
-        loadComponent: () => import('./features/reports/daybook-report').then((m) => m.DaybookReport),
+        loadComponent: () =>
+          import('./features/reports/daybook-report').then((m) => m.DaybookReport),
         title: 'Day Book',
       },
       {
@@ -43,7 +55,8 @@ export const routes: Routes = [
       },
       {
         path: 'reports/trial-balance',
-        loadComponent: () => import('./features/reports/trial-balance-report').then((m) => m.TrialBalanceReport),
+        loadComponent: () =>
+          import('./features/reports/trial-balance-report').then((m) => m.TrialBalanceReport),
         title: 'Trial Balance',
       },
 
@@ -71,20 +84,23 @@ export const routes: Routes = [
 
       {
         path: 'membership/subscriptions',
-        loadComponent: () => import('./features/membership/subscriptions').then((m) => m.Subscriptions),
+        loadComponent: () =>
+          import('./features/membership/subscriptions').then((m) => m.Subscriptions),
         title: 'Subscriptions',
       },
       {
         path: 'membership/fees',
         canActivate: [admins],
-        loadComponent: () => import('./features/membership/subscription-fees').then((m) => m.SubscriptionFees),
+        loadComponent: () =>
+          import('./features/membership/subscription-fees').then((m) => m.SubscriptionFees),
         title: 'Subscription Fees',
       },
 
       {
         path: 'admin/settings',
         canActivate: [admins],
-        loadComponent: () => import('./features/admin/company-settings').then((m) => m.CompanySettingsPage),
+        loadComponent: () =>
+          import('./features/admin/company-settings').then((m) => m.CompanySettingsPage),
         title: 'Company Settings',
       },
       {
@@ -95,7 +111,8 @@ export const routes: Routes = [
       },
       {
         path: 'account/password',
-        loadComponent: () => import('./features/auth/change-password').then((m) => m.ChangePassword),
+        loadComponent: () =>
+          import('./features/auth/change-password').then((m) => m.ChangePassword),
         title: 'Change Password',
       },
     ],
