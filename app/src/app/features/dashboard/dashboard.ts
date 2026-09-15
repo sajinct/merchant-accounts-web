@@ -1,243 +1,565 @@
-import { FinancialYearService } from '../../core/financial-year.service';
-import { DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { DatePipe, DecimalPipe } from '@angular/common';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthService } from '../../core/auth.service';
-import { CompanyService } from '../../core/company.service';
-import { fyLabel, fyStart } from '../../shared/fy';
+import { FinancialYearService } from '../../core/financial-year.service';
+import { DaybookRow, SubscriptionStatusRow, VoucherType } from '../../core/models';
+import { NotifyService } from '../../core/notify.service';
+import { must, SupabaseService } from '../../core/supabase.service';
+import { addDays, isoDate } from '../../shared/dates';
+import { CashFlowChart } from './cash-flow-chart';
+import { CashSummary, summariseCash } from './dashboard-data';
+
+const CHART_DAYS = 7;
+const RECENT_LIMIT = 6;
+
+interface RecentVoucher {
+  id: number;
+  voucher_type: VoucherType;
+  voucher_no: number;
+  voucher_date: string;
+  amount: number;
+  description: string;
+  head: { name: string } | null;
+}
+
+interface YearResult {
+  income: number;
+  expense: number;
+  net_result: number;
+}
+
+interface Dues {
+  total: number;
+  members: number;
+}
 
 @Component({
   selector: 'app-dashboard',
-  imports: [DatePipe, RouterLink, MatIconModule],
+  imports: [
+    DatePipe,
+    DecimalPipe,
+    RouterLink,
+    MatButtonModule,
+    MatIconModule,
+    MatProgressBarModule,
+    CashFlowChart,
+  ],
   template: `
     <div class="page">
       <div class="page-header">
         <div class="page-heading">
-          <span class="eyebrow">Workspace overview</span>
-          <h1>Dashboard</h1>
+          <span class="eyebrow">{{ today | date: 'EEEE, d MMMM yyyy' }}</span>
+          <h1>Welcome back, {{ firstName() }}</h1>
           <p class="page-description">
-            Welcome back, {{ auth.profile()?.full_name || auth.profile()?.username || 'there' }}.
-            Choose where to start.
+            @if (isToday()) {
+              Here is where your accounts stand today.
+            } @else {
+              Showing figures as on <strong>{{ asOn() | date: 'dd-MMM-yyyy' }}</strong
+              >, the nearest date in the selected financial year.
+            }
           </p>
         </div>
+        <span class="status-badge" [class.success]="!fy.closed()" [class.warning]="fy.closed()">
+          <mat-icon>{{ fy.closed() ? 'lock' : 'lock_open' }}</mat-icon>
+          FY {{ fy.label() }} · {{ fy.closed() ? 'Closed' : 'Open' }}
+        </span>
       </div>
-      <section class="welcome-panel" aria-label="Your workspace">
-        <div>
-          <span class="eyebrow">{{ today | date: 'EEEE, d MMMM yyyy' }}</span>
-          <h2>{{ company.settings()?.name || 'Merchant Accounts' }}</h2>
-          <p>Your daily accounts, membership and reports in one place.</p>
-        </div>
-        <div class="year">
-          <span>Financial year</span><strong>{{ fy.label() }}</strong>
-        </div>
-      </section>
-      <div class="section-header">
-        <div>
-          <h2>Quick access</h2>
-          <p>Open a workspace to get started.</p>
-        </div>
-      </div>
-      <div class="dashboard-grid">
-        @for (card of cards; track card.link) {
-          @if (!card.editor || auth.canEdit()) {
-            <a class="dashboard-card" [routerLink]="card.link">
-              <mat-icon class="card-icon">{{ card.icon }}</mat-icon>
-              <div>
-                <h3>{{ card.title }}</h3>
-                <p>{{ card.description }}</p>
-              </div>
-              <mat-icon class="card-arrow">arrow_forward</mat-icon>
-            </a>
-          }
+
+      <div class="loading-slot" aria-hidden="true">
+        @if (loading()) {
+          <mat-progress-bar mode="indeterminate" />
         }
       </div>
-      <section class="navigation-tip">
-        <mat-icon>keyboard</mat-icon>
-        <div>
-          <strong>Move through your workspace with the keyboard</strong>
-          <p>
-            Open the menu and press the letter beside an item. Esc opens navigation from a page,
-            returns to all menus, then brings you back to this dashboard.
-          </p>
-        </div>
+
+      <section
+        class="kpi-row"
+        aria-label="Key figures"
+        [attr.aria-busy]="loading()"
+        [class.refreshing]="loading()"
+      >
+        <a class="kpi" routerLink="/reports/daybook">
+          <span class="kpi-label"><mat-icon>account_balance</mat-icon>Cash & bank balance</span>
+          <strong class="kpi-value" [class.danger]="(cash()?.closing ?? 0) < 0">{{
+            cash() ? (cash()!.closing | number: '1.2-2') : '—'
+          }}</strong>
+          <span class="kpi-note">All cash and bank accounts</span>
+        </a>
+        <a class="kpi" routerLink="/transactions/vouchers">
+          <span class="kpi-label"
+            ><span class="dot in"></span>Money in {{ isToday() ? 'today' : 'that day' }}</span
+          >
+          <strong class="kpi-value">{{
+            cash() ? (cash()!.today.received | number: '1.2-2') : '—'
+          }}</strong>
+          <span class="kpi-note">{{
+            cash()
+              ? (weekTotal('received') | number: '1.2-2') + ' in the last 7 days'
+              : 'Last 7 days'
+          }}</span>
+        </a>
+        <a class="kpi" routerLink="/transactions/vouchers">
+          <span class="kpi-label"
+            ><span class="dot out"></span>Money out {{ isToday() ? 'today' : 'that day' }}</span
+          >
+          <strong class="kpi-value">{{
+            cash() ? (cash()!.today.paid | number: '1.2-2') : '—'
+          }}</strong>
+          <span class="kpi-note">{{
+            cash() ? (weekTotal('paid') | number: '1.2-2') + ' in the last 7 days' : 'Last 7 days'
+          }}</span>
+        </a>
+        <a class="kpi" routerLink="/membership/subscriptions">
+          <span class="kpi-label"><mat-icon>card_membership</mat-icon>Subscription dues</span>
+          <strong class="kpi-value">{{ dues() ? (dues()!.total | number: '1.2-2') : '—' }}</strong>
+          <span class="kpi-note">{{
+            !dues()
+              ? 'Outstanding member fees'
+              : dues()!.members
+                ? dues()!.members + (dues()!.members === 1 ? ' member owes' : ' members owe')
+                : 'No outstanding dues'
+          }}</span>
+        </a>
       </section>
+
+      <div class="dashboard-main">
+        <section class="panel" aria-labelledby="flow-heading">
+          <div class="panel-header">
+            <div>
+              <h2 id="flow-heading">Money in and out</h2>
+              <p>Cash and bank accounts, last 7 days</p>
+            </div>
+            <a mat-button routerLink="/reports/daybook">Day book</a>
+          </div>
+          <div class="panel-body" [class.refreshing]="loading()">
+            @if (cash(); as summary) {
+              <app-cash-flow-chart [days]="summary.days" />
+            } @else {
+              <div class="empty-state" role="status">
+                <p>{{ loading() ? 'Loading cash movement…' : 'Cash movement is unavailable.' }}</p>
+              </div>
+            }
+          </div>
+        </section>
+
+        <section class="panel" aria-labelledby="year-heading">
+          <div class="panel-header">
+            <div>
+              <h2 id="year-heading">Financial year {{ fy.label() }}</h2>
+              <p>{{ fy.start() | date: 'd MMM yyyy' }} – {{ fy.end() | date: 'd MMM yyyy' }}</p>
+            </div>
+          </div>
+          <div class="panel-body" [class.refreshing]="loading()">
+            <dl class="year-figures">
+              <div>
+                <dt>Income</dt>
+                <dd>{{ year() ? (year()!.income | number: '1.2-2') : '—' }}</dd>
+              </div>
+              <div>
+                <dt>Expenses</dt>
+                <dd>{{ year() ? (year()!.expense | number: '1.2-2') : '—' }}</dd>
+              </div>
+              <div class="net">
+                <dt>{{ (year()?.net_result ?? 0) < 0 ? 'Net deficit' : 'Net surplus' }}</dt>
+                <dd [class.danger]="(year()?.net_result ?? 0) < 0">
+                  {{ year() ? (absolute(year()!.net_result) | number: '1.2-2') : '—' }}
+                </dd>
+              </div>
+            </dl>
+            <p class="hint">
+              {{
+                fy.closed()
+                  ? 'This year is closed. Reports stay available; posting is locked.'
+                  : 'Income and expenses posted so far this year.'
+              }}
+            </p>
+            <a mat-stroked-button routerLink="/reports/trial-balance"
+              ><mat-icon>balance</mat-icon> Trial balance</a
+            >
+          </div>
+        </section>
+      </div>
+
+      <section class="panel recent" aria-labelledby="recent-heading">
+        <div class="panel-header">
+          <div>
+            <h2 id="recent-heading">Recent vouchers</h2>
+            <p>Latest receipts and payments in the selected year</p>
+          </div>
+          <a mat-button routerLink="/transactions/vouchers">All vouchers</a>
+        </div>
+        @if (recent().length) {
+          <div class="table-wrap" tabindex="0" role="region" aria-label="Recent vouchers">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Voucher</th>
+                  <th scope="col">Date</th>
+                  <th scope="col">Account</th>
+                  <th scope="col">Narration</th>
+                  <th scope="col" class="num">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (voucher of recent(); track voucher.id) {
+                  <tr>
+                    <td>
+                      <span class="voucher-ref" [class.receipt]="voucher.voucher_type === 1"
+                        >{{ voucher.voucher_type === 1 ? 'R' : 'P' }}-{{ voucher.voucher_no }}</span
+                      >
+                    </td>
+                    <td class="nowrap">{{ voucher.voucher_date | date: 'dd-MMM-yyyy' }}</td>
+                    <td class="table-primary">{{ voucher.head?.name ?? '—' }}</td>
+                    <td class="table-secondary narration">{{ voucher.description || '—' }}</td>
+                    <td class="num">{{ voucher.amount | number: '1.2-2' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <div class="empty-state" role="status">
+            <div class="empty-icon"><mat-icon>receipt_long</mat-icon></div>
+            <h3>{{ loading() ? 'Loading vouchers' : 'No vouchers yet' }}</h3>
+            <p>Receipts and payments for this financial year will appear here.</p>
+          </div>
+        }
+      </section>
+
+      <nav class="quick-links" aria-labelledby="quick-heading">
+        <h2 id="quick-heading">Quick access</h2>
+        <div class="quick-grid">
+          @for (link of links; track link.link) {
+            @if (!link.editor || auth.canEdit()) {
+              <a class="quick-link" [routerLink]="link.link">
+                <mat-icon>{{ link.icon }}</mat-icon
+                ><span>{{ link.title }}</span>
+              </a>
+            }
+          }
+        </div>
+        <p class="hint">
+          <mat-icon>keyboard</mat-icon> Press Esc to open the menu, then the letter beside an item.
+        </p>
+      </nav>
     </div>
   `,
   styles: `
-    .welcome-panel {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
-      padding: 28px;
-      background: #172c39;
-      color: #fff;
-      border-radius: 12px;
+    :host {
+      --flow-in: #00a38f;
+      --flow-out: #eb6834;
     }
-    .welcome-panel .eyebrow {
-      color: #8fd7c6;
+    .loading-slot {
+      height: 4px;
+      margin: -14px 0 10px;
     }
-    .welcome-panel h2 {
-      margin: 10px 0;
-      font-size: 24px;
-      letter-spacing: -0.5px;
+    .refreshing {
+      opacity: 0.55;
+      transition: opacity 150ms ease;
     }
-    .welcome-panel p {
-      margin: 0;
-      color: #c1d0d9;
-      font-size: 13px;
-      line-height: 1.7;
-    }
-    .year {
-      flex-shrink: 0;
+    .kpi-row {
       display: grid;
-      gap: 8px;
-      border-left: 1px solid #ffffff26;
-      padding-left: 28px;
-    }
-    .year span {
-      font-size: 11px;
-      color: #c1d0d9;
-    }
-    .year strong {
-      font-size: 18px;
-    }
-    .dashboard-grid {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 16px;
+      margin-bottom: 20px;
     }
-    .dashboard-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 14px;
-      padding: 22px;
+    .kpi {
+      display: grid;
+      align-content: start;
+      gap: 6px;
+      min-width: 0;
+      padding: 16px 18px;
       border: 1px solid var(--app-border);
       border-radius: var(--app-radius);
       background: #fff;
       color: var(--app-ink);
       text-decoration: none;
+      transition: border-color 120ms ease;
     }
-    .dashboard-card:hover {
-      border-color: #63ab9c;
-      background: #f5fbf8;
+    .kpi:hover {
+      border-color: #9cc9bf;
     }
-    .dashboard-card:focus-visible {
+    .kpi:focus-visible {
       outline: 2px solid var(--app-accent);
       outline-offset: 3px;
     }
-    .dashboard-card div {
-      min-width: 0;
-    }
-    .dashboard-card h3 {
-      margin: 2px 0 8px;
-      font-size: 14px;
-    }
-    .dashboard-card p {
-      margin: 0;
+    .kpi-label {
+      display: flex;
+      align-items: center;
+      gap: 7px;
       color: var(--app-muted);
       font-size: 12px;
-      line-height: 1.7;
+      font-weight: 500;
     }
-    .card-icon {
-      flex-shrink: 0;
-      color: var(--app-accent);
-    }
-    .card-arrow {
-      margin-left: auto;
-      flex-shrink: 0;
+    .kpi-label mat-icon {
       width: 16px;
       height: 16px;
       font-size: 16px;
-      color: #80938c;
+      color: var(--app-accent);
     }
-    .navigation-tip {
+    .dot {
+      width: 10px;
+      height: 10px;
+      margin: 0 3px;
+      border-radius: 2px;
+    }
+    .dot.in {
+      background: var(--flow-in);
+    }
+    .dot.out {
+      background: var(--flow-out);
+    }
+    .kpi-value {
+      font-size: clamp(20px, 2vw, 25px);
+      font-weight: 650;
+      letter-spacing: -0.6px;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+    .kpi-note {
+      color: var(--app-muted);
+      font-size: 11px;
+    }
+    .dashboard-main {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+      gap: 20px;
+      align-items: start;
+    }
+    .dashboard-main .panel + .panel,
+    .recent {
+      margin-top: 0;
+    }
+    .recent {
+      margin-top: 20px;
+    }
+    .year-figures {
+      display: grid;
+      gap: 2px;
+      margin: 0 0 12px;
+    }
+    .year-figures div {
       display: flex;
-      gap: 14px;
-      padding: 22px 0;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--app-border);
+    }
+    .year-figures dt {
       color: var(--app-muted);
     }
-    .navigation-tip mat-icon {
-      flex-shrink: 0;
+    .year-figures dd {
+      margin: 0;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
     }
-    .navigation-tip strong {
-      font-size: 12px;
+    .year-figures .net {
+      border-bottom: 0;
+    }
+    .year-figures .net dt {
+      color: var(--app-ink);
       font-weight: 600;
     }
-    .navigation-tip p {
-      margin: 6px 0 0;
-      font-size: 12px;
-      line-height: 1.7;
+    .year-figures .net dd {
+      font-size: 18px;
+    }
+    .year-figures + .hint {
+      margin: 0 0 14px;
+    }
+    .voucher-ref {
+      display: inline-flex;
+      padding: 3px 7px;
+      border-radius: 4px;
+      background: #fff5e7;
+      color: #945810;
+      font-size: 11px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .voucher-ref.receipt {
+      background: #eaf6f1;
+      color: #177054;
+    }
+    .nowrap {
+      white-space: nowrap;
+    }
+    .narration {
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .data-table {
+      min-width: 620px;
+    }
+    .quick-links {
+      margin-top: 24px;
+    }
+    .quick-links h2 {
+      margin: 0 0 10px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .quick-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .quick-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 0 14px;
+      border: 1px solid var(--app-border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--app-ink);
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .quick-link:hover {
+      border-color: #9cc9bf;
+      background: #f5fbf8;
+    }
+    .quick-link:focus-visible {
+      outline: 2px solid var(--app-accent);
+      outline-offset: 2px;
+    }
+    .quick-link mat-icon {
+      width: 18px;
+      height: 18px;
+      font-size: 18px;
+      color: var(--app-accent);
+    }
+    .quick-links .hint {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin: 14px 0 0;
+    }
+    .quick-links .hint mat-icon {
+      width: 16px;
+      height: 16px;
+      font-size: 16px;
     }
     @media (max-width: 1199px) {
-      .dashboard-grid {
+      .kpi-row {
         grid-template-columns: repeat(2, minmax(0, 1fr));
       }
-    }
-    @media (max-width: 599px) {
-      .dashboard-grid {
+      .dashboard-main {
         grid-template-columns: minmax(0, 1fr);
-        gap: 12px;
       }
-      .welcome-panel {
-        align-items: flex-start;
-        flex-direction: column;
-        padding: 22px;
-        gap: 18px;
+    }
+    @media (max-width: 440px) {
+      .kpi-row {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 10px;
       }
-      .year {
-        border: 0;
-        padding: 0;
-      }
-      .dashboard-card {
-        padding: 18px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .refreshing {
+        transition: none;
       }
     }
   `,
 })
 export class Dashboard {
   protected readonly auth = inject(AuthService);
-  protected readonly company = inject(CompanyService);
-  protected readonly today = new Date();
   protected readonly fy = inject(FinancialYearService);
-  protected readonly cards = [
-    {
-      title: 'Payments / Receipts',
-      description: 'Review and manage daily transactions.',
-      icon: 'receipt_long',
-      link: '/transactions/vouchers',
-    },
-    {
-      title: 'Members',
-      description: 'Find member details and manage records.',
-      icon: 'groups',
-      link: '/masters/members',
-    },
-    {
-      title: 'Subscriptions',
-      description: 'Review membership fees and outstanding dues.',
-      icon: 'card_membership',
-      link: '/membership/subscriptions',
-    },
-    {
-      title: 'Day Book',
-      description: 'Review daily receipts, payments and balances.',
-      icon: 'menu_book',
-      link: '/reports/daybook',
-    },
-    {
-      title: 'Ledger',
-      description: 'Explore account activity and balances.',
-      icon: 'account_balance_wallet',
-      link: '/reports/ledger',
-    },
+  private readonly sb = inject(SupabaseService).client;
+  private readonly notify = inject(NotifyService);
+
+  protected readonly today = new Date();
+  protected readonly asOn = computed(() => this.fy.entryDate());
+  protected readonly isToday = computed(() => this.asOn() === isoDate());
+  protected readonly firstName = computed(() => {
+    const profile = this.auth.profile();
+    return (profile?.full_name || profile?.username || 'there').trim().split(/\s+/)[0];
+  });
+
+  protected readonly loading = signal(true);
+  protected readonly cash = signal<CashSummary | null>(null);
+  protected readonly year = signal<YearResult | null>(null);
+  protected readonly dues = signal<Dues | null>(null);
+  protected readonly recent = signal<RecentVoucher[]>([]);
+  private loadId = 0;
+
+  protected readonly links = [
+    { title: 'Payments / Receipts', icon: 'receipt_long', link: '/transactions/vouchers' },
+    { title: 'Journals', icon: 'balance', link: '/transactions/journals' },
+    { title: 'Members', icon: 'groups', link: '/masters/members' },
+    { title: 'Subscriptions', icon: 'card_membership', link: '/membership/subscriptions' },
+    { title: 'Day Book', icon: 'menu_book', link: '/reports/daybook' },
+    { title: 'Ledger', icon: 'account_balance_wallet', link: '/reports/ledger' },
     {
       title: 'Ledger Verification',
-      description: 'Verify that every journal is balanced.',
       icon: 'publish',
       link: '/transactions/daybook-posting',
       editor: true,
     },
   ];
+
+  constructor() {
+    effect(() => {
+      const start = this.fy.selected();
+      const asOn = this.asOn();
+      untracked(() => void this.load(start, asOn));
+    });
+  }
+
+  protected weekTotal(side: 'received' | 'paid'): number | null {
+    return this.cash()?.days.reduce((sum, day) => sum + day[side], 0) ?? null;
+  }
+
+  protected absolute(value: number): number {
+    return Math.abs(value);
+  }
+
+  private async load(startYear: number, asOn: string): Promise<void> {
+    const id = ++this.loadId;
+    this.loading.set(true);
+    const current = () => id === this.loadId;
+    const [cash, year, dues, recent] = await Promise.allSettled([
+      must(this.sb.rpc('rpt_daybook', { p_from: addDays(asOn, 1 - CHART_DAYS), p_to: asOn })).then(
+        (rows) => summariseCash(rows as DaybookRow[], asOn, CHART_DAYS),
+      ),
+      must(this.sb.rpc('financial_year_summary', { p_start_year: startYear })).then(
+        (rows) => ((rows as YearResult[])[0] ?? null) as YearResult | null,
+      ),
+      must(this.sb.rpc('rpt_subscription_status', { p_fy: startYear })).then((rows) => {
+        const owing = (rows as SubscriptionStatusRow[]).filter((r) => Number(r.total_due) > 0);
+        return {
+          total: owing.reduce((sum, r) => sum + Number(r.total_due), 0),
+          members: owing.length,
+        };
+      }),
+      must(
+        this.sb
+          .from('vouchers')
+          .select(
+            'id, voucher_type, voucher_no, voucher_date, amount, description, head:account_heads!vouchers_head_code_fkey(name)',
+          )
+          .gte('voucher_date', this.fy.start())
+          .lte('voucher_date', this.fy.end())
+          .is('cancelled_at', null)
+          .order('voucher_date', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(RECENT_LIMIT),
+      ).then((rows) => rows as unknown as RecentVoucher[]),
+    ]);
+    if (!current()) return;
+
+    // Each section keeps its own result so one failing query does not blank the page.
+    this.cash.set(cash.status === 'fulfilled' ? cash.value : null);
+    this.year.set(year.status === 'fulfilled' ? year.value : null);
+    this.dues.set(dues.status === 'fulfilled' ? dues.value : null);
+    this.recent.set(recent.status === 'fulfilled' ? recent.value : []);
+    const failure = [cash, year, dues, recent].find((result) => result.status === 'rejected');
+    if (failure) this.notify.error((failure as PromiseRejectedResult).reason);
+    this.loading.set(false);
+  }
 }
