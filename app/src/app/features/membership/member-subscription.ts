@@ -1,11 +1,21 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
-import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  LOCALE_ID,
+  signal,
+  untracked,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -17,6 +27,7 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { isoDate } from '../../shared/dates';
 import { fyLabel, fyStart } from '../../shared/fy';
+import { confirmAction } from '../../shared/confirm-dialog';
 
 interface PaymentRow extends SubscriptionPayment {
   voucher: { voucher_no: number } | null;
@@ -252,6 +263,8 @@ export class MemberSubscription {
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly label = fyLabel;
   protected readonly currentFy = fyStart();
@@ -344,14 +357,26 @@ export class MemberSubscription {
   }
 
   protected async cancel(payment: PaymentRow): Promise<void> {
-    const reason = prompt(
-      `Cancel the payment of ${payment.amount} for ${fyLabel(payment.fy_start)}?\n` +
-        'Its receipt voucher is cancelled too. Enter a reason:',
-    );
-    if (reason === null) return;
+    const result = await confirmAction(this.dialog, {
+      title: 'Cancel this payment?',
+      message: 'Its receipt voucher is cancelled too, with a balancing reversal.',
+      details: [
+        { label: 'Year', value: fyLabel(payment.fy_start) },
+        { label: 'Paid on', value: formatDate(payment.paid_on, 'dd-MMM-yyyy', this.locale) },
+        { label: 'Amount', value: formatNumber(Number(payment.amount), this.locale, '1.2-2') },
+      ],
+      fields: [{ key: 'reason', label: 'Reason for cancelling', required: true, maxLength: 200 }],
+      confirmLabel: 'Cancel payment',
+      cancelLabel: 'Keep payment',
+      destructive: true,
+    });
+    if (!result) return;
     try {
       await must(
-        this.sb.rpc('cancel_subscription_payment', { p_id: payment.id, p_reason: reason }),
+        this.sb.rpc('cancel_subscription_payment', {
+          p_id: payment.id,
+          p_reason: result['reason'],
+        }),
       );
       this.notify.success('Payment cancelled with a balancing reversal.');
       await this.load(this.memberCode());

@@ -3,13 +3,12 @@ import { FinancialYearService } from '../../core/financial-year.service';
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
-import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
+import { Component, computed, inject, LOCALE_ID, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -21,15 +20,13 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { isoDate } from '../../shared/dates';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { AccountPicker } from '../../shared/account-picker';
+import { confirmAction } from '../../shared/confirm-dialog';
 
 interface VoucherLine extends Voucher {
   receipt: number;
   payment: number;
   balance: number;
-}
-
-function isHead(value: unknown): value is AccountHead {
-  return !!value && typeof value === 'object' && 'code' in value;
 }
 
 @Component({
@@ -38,10 +35,10 @@ function isHead(value: unknown): value is AccountHead {
     FinancialYearScope,
     FinancialYearNotice,
     CashAccountField,
+    AccountPicker,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
-    MatAutocompleteModule,
     MatButtonModule,
     MatButtonToggleModule,
     MatFormFieldModule,
@@ -104,30 +101,13 @@ function isHead(value: unknown): value is AccountHead {
               <mat-label>Transaction date</mat-label>
               <input matInput type="date" formControlName="date" />
             </mat-form-field>
-            <mat-form-field class="account-field">
-              <mat-label>Account</mat-label>
-              <mat-icon matPrefix>search</mat-icon>
-              <input
-                matInput
-                formControlName="account"
-                [matAutocomplete]="accountAuto"
-                placeholder="Search by name or code"
-              />
-              <mat-autocomplete
-                #accountAuto="matAutocomplete"
-                [displayWith]="displayHead"
-                autoActiveFirstOption
-                (optionSelected)="loadAccount($event.option.value)"
-              >
-                @for (head of matchingHeads(); track head.code) {
-                  <mat-option [value]="head">{{ head.code }} – {{ head.name }}</mat-option>
-                } @empty {
-                  <mat-option disabled>{{
-                    loadingHeads() ? 'Loading accounts…' : 'No matching accounts'
-                  }}</mat-option>
-                }
-              </mat-autocomplete>
-            </mat-form-field>
+            <app-account-picker
+              class="account-field"
+              formControlName="account"
+              [accounts]="heads()"
+              [loading]="loadingHeads()"
+              (accountSelected)="loadAccount($event)"
+            />
             <mat-form-field>
               <mat-label>Amount</mat-label>
               <input
@@ -403,6 +383,8 @@ export class Vouchers implements OnInit {
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly heads = signal<AccountHead[]>([]);
   protected readonly selectedHead = signal<AccountHead | null>(null);
@@ -419,24 +401,9 @@ export class Vouchers implements OnInit {
     type: [1 as VoucherType, Validators.required],
     date: [isoDate(), Validators.required],
     cash: [null as number | null, Validators.required],
-    account: [null as AccountHead | string | null, Validators.required],
+    account: [null as number | null, Validators.required],
     description: [''],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
-  });
-
-  private readonly accountValue = toSignal(this.form.controls.account.valueChanges, {
-    initialValue: null,
-  });
-
-  protected readonly matchingHeads = computed(() => {
-    const value = this.accountValue();
-    const q = (typeof value === 'string' ? value : '').trim().toLowerCase();
-    const heads = this.heads();
-    return (
-      q
-        ? heads.filter((h) => h.name.toLowerCase().includes(q) || String(h.code).startsWith(q))
-        : heads
-    ).slice(0, 50);
   });
 
   protected readonly balance = computed(() => this.lines().at(-1)?.balance ?? 0);
@@ -447,9 +414,6 @@ export class Vouchers implements OnInit {
     this.lines().reduce((sum, line) => sum + line.payment, 0),
   );
 
-  protected readonly displayHead = (head: AccountHead | string | null): string =>
-    isHead(head) ? `${head.code} – ${head.name}` : (head ?? '');
-
   constructor() {
     effect(() => {
       this.fy.selected();
@@ -459,8 +423,8 @@ export class Vouchers implements OnInit {
       });
     });
     // Typing over a chosen account clears the selection.
-    this.form.controls.account.valueChanges.subscribe((value) => {
-      if (!isHead(value) && this.selectedHead()) {
+    this.form.controls.account.valueChanges.subscribe((code) => {
+      if (code === null && this.selectedHead()) {
         this.selectedHead.set(null);
         this.lines.set([]);
       }
@@ -562,12 +526,24 @@ export class Vouchers implements OnInit {
 
   protected async cancel(line: VoucherLine): Promise<void> {
     const ref = `${line.voucher_type === 1 ? 'R' : 'P'}-${line.voucher_no}`;
-    const reason = prompt(`Cancel voucher ${ref} (${line.amount})?\nEnter a reason:`);
-    if (reason === null) {
+    const result = await confirmAction(this.dialog, {
+      title: `Cancel voucher ${ref}?`,
+      message: 'A balancing reversal is posted. The original voucher stays in the audit trail.',
+      details: [
+        { label: 'Account', value: this.selectedHead()?.name ?? '' },
+        { label: 'Date', value: formatDate(line.voucher_date, 'dd-MMM-yyyy', this.locale) },
+        { label: 'Amount', value: formatNumber(Number(line.amount), this.locale, '1.2-2') },
+      ],
+      fields: [{ key: 'reason', label: 'Reason for cancelling', required: true, maxLength: 200 }],
+      confirmLabel: 'Cancel voucher',
+      cancelLabel: 'Keep voucher',
+      destructive: true,
+    });
+    if (!result) {
       return;
     }
     try {
-      await must(this.sb.rpc('cancel_voucher', { p_id: line.id, p_reason: reason }));
+      await must(this.sb.rpc('cancel_voucher', { p_id: line.id, p_reason: result['reason'] }));
       this.notify.success(`Voucher ${ref} cancelled with a balancing reversal.`);
       const head = this.selectedHead();
       if (head) {

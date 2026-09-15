@@ -1,10 +1,11 @@
 import { effect } from '@angular/core';
 import { FinancialYearService } from '../../core/financial-year.service';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
-import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
+import { Component, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -12,7 +13,8 @@ import { AccountHead } from '../../core/models';
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
-import { isoDate } from '../../shared/dates';
+import { AccountPicker } from '../../shared/account-picker';
+import { confirmAction } from '../../shared/confirm-dialog';
 
 interface Line {
   account: number | null;
@@ -33,6 +35,7 @@ interface Journal {
   selector: 'app-journals',
   imports: [
     FinancialYearNotice,
+    AccountPicker,
     FormsModule,
     DatePipe,
     DecimalPipe,
@@ -78,14 +81,13 @@ interface Journal {
           </div>
           @for (line of lines; track $index; let i = $index) {
             <div class="journal-line">
-              <mat-form-field
-                ><mat-label>Account {{ i + 1 }}</mat-label
-                ><mat-select [(ngModel)]="line.account" [disabled]="saving()">
-                  @for (head of accounts(); track head.code) {
-                    <mat-option [value]="head.code">{{ head.code }} · {{ head.name }}</mat-option>
-                  }
-                </mat-select></mat-form-field
-              >
+              <app-account-picker
+                [label]="'Account ' + (i + 1)"
+                [accounts]="accounts()"
+                [loading]="loading()"
+                [(ngModel)]="line.account"
+                [disabled]="saving()"
+              />
               <mat-form-field
                 ><mat-label>Debit</mat-label
                 ><input
@@ -208,7 +210,7 @@ interface Journal {
       .journal-line {
         grid-template-columns: 1fr 1fr;
       }
-      .journal-line mat-form-field:first-child {
+      .journal-line > :first-child {
         grid-column: 1/-1;
       }
     }
@@ -218,6 +220,8 @@ export class Journals {
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
+  private readonly locale = inject(LOCALE_ID);
   protected readonly accounts = signal<AccountHead[]>([]);
   protected readonly entries = signal<Journal[]>([]);
   protected readonly saving = signal(false);
@@ -341,14 +345,39 @@ export class Journals {
     }
   }
   protected async reverse(entry: Journal) {
-    const reason = prompt(`Reason for reversing J-${entry.id}:`);
-    if (!reason?.trim()) return;
-    const date = prompt('Reversal date (YYYY-MM-DD):', isoDate());
-    if (!date) return;
+    const debit = entry.daybook.reduce((sum, line) => sum + Number(line.debit), 0);
+    const result = await confirmAction(this.dialog, {
+      title: `Reverse journal J-${entry.id}?`,
+      message: 'A balancing entry with opposite debits and credits is posted on the chosen date.',
+      details: [
+        { label: 'Entry date', value: formatDate(entry.entry_date, 'dd-MMM-yyyy', this.locale) },
+        { label: 'Narration', value: entry.narration || '—' },
+        { label: 'Total debit', value: formatNumber(debit, this.locale, '1.2-2') },
+      ],
+      fields: [
+        { key: 'reason', label: 'Reason for reversing', required: true, maxLength: 500 },
+        {
+          key: 'date',
+          label: 'Reversal date',
+          type: 'date',
+          value: this.fy.entryDate(),
+          required: true,
+          min: this.fy.start(),
+          max: this.fy.end(),
+        },
+      ],
+      confirmLabel: 'Post reversal',
+      destructive: true,
+    });
+    if (!result) return;
     this.saving.set(true);
     try {
       await must(
-        this.sb.rpc('reverse_journal', { p_id: entry.id, p_date: date, p_reason: reason }),
+        this.sb.rpc('reverse_journal', {
+          p_id: entry.id,
+          p_date: result['date'],
+          p_reason: result['reason'],
+        }),
       );
       this.notify.success('Balancing reversal posted');
       await this.load();

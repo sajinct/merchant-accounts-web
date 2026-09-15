@@ -2,6 +2,7 @@ import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -12,6 +13,7 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { WebcamCapture } from '../../shared/webcam-capture';
 import { isoDate } from '../../shared/dates';
+import { confirmAction } from '../../shared/confirm-dialog';
 import { MemberSubscription } from '../membership/member-subscription';
 
 const PHOTO_BUCKET = 'customer-photos';
@@ -217,6 +219,7 @@ export class MemberForm implements OnInit {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly isNew = signal(true);
   protected readonly saving = signal(false);
@@ -304,9 +307,17 @@ export class MemberForm implements OnInit {
 
   protected async remove(): Promise<void> {
     const code = this.form.controls.code.value;
-    if (
-      !confirm(`Delete member ${code} (${this.form.controls.name.value})? This cannot be undone.`)
-    ) {
+    const confirmed = await confirmAction(this.dialog, {
+      title: 'Delete this member?',
+      message: 'The member record and photo are removed permanently. This cannot be undone.',
+      details: [
+        { label: 'Member code', value: String(code) },
+        { label: 'Name', value: this.form.controls.name.value },
+      ],
+      confirmLabel: 'Delete member',
+      destructive: true,
+    });
+    if (!confirmed) {
       return;
     }
     this.saving.set(true);

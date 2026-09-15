@@ -1,7 +1,7 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -11,7 +11,7 @@ import { TrialBalanceRow } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { downloadCsv } from '../../shared/csv';
-import { isoDate } from '../../shared/dates';
+import { displayDate, isoDate } from '../../shared/dates';
 import { ReportShell } from '../../shared/report-shell';
 
 @Component({
@@ -118,6 +118,7 @@ import { ReportShell } from '../../shared/report-shell';
 export class TrialBalanceReport {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly rows = signal<TrialBalanceRow[]>([]);
   protected readonly loading = signal(false);
@@ -149,7 +150,7 @@ export class TrialBalanceReport {
         this.rows.set([]);
         return;
       }
-      this.subtitle.set(`As on ${asOn}`);
+      this.subtitle.set(`As on ${displayDate(asOn, this.locale)}`);
       this.ran.set(true);
     } catch (err) {
       this.notify.error(err);

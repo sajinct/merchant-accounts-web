@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -20,6 +21,7 @@ import { AccountHead, SubscriptionYear } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { fyLabel, fyStart } from '../../shared/fy';
+import { confirmAction } from '../../shared/confirm-dialog';
 
 @Component({
   selector: 'app-subscription-fees',
@@ -222,6 +224,7 @@ export class SubscriptionFees implements OnInit {
   private readonly injector = inject(Injector);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly currentFy = fyStart();
   protected readonly label = fyLabel;
@@ -344,8 +347,13 @@ export class SubscriptionFees implements OnInit {
   }
 
   protected async remove(year: SubscriptionYear): Promise<void> {
-    if (!confirm(`Remove ${fyLabel(year.fy_start)}? Members will no longer owe for this year.`))
-      return;
+    const confirmed = await confirmAction(this.dialog, {
+      title: `Remove ${fyLabel(year.fy_start)}?`,
+      message: 'Members will no longer owe a subscription for this year.',
+      confirmLabel: 'Remove year',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await must(this.sb.from('subscription_years').delete().eq('fy_start', year.fy_start));
       this.notify.success(`${fyLabel(year.fy_start)} removed`);

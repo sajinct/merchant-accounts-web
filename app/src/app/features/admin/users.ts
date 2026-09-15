@@ -1,6 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -11,6 +12,7 @@ import { AuthService } from '../../core/auth.service';
 import { Profile, Role } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
+import { confirmAction } from '../../shared/confirm-dialog';
 
 const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
 
@@ -222,6 +224,7 @@ export class Users implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly roles = ROLES;
   protected readonly roleLabels: Record<Role, string> = {
@@ -278,14 +281,25 @@ export class Users implements OnInit {
   }
 
   protected async resetPassword(user: Profile): Promise<void> {
-    const password = prompt(`New password for ${user.username} (at least 8 characters):`);
-    if (!password) {
+    const result = await confirmAction(this.dialog, {
+      title: 'Set a new password',
+      message: `${user.username} signs in with this password from now on. Share it with them securely.`,
+      fields: [
+        {
+          key: 'password',
+          label: 'New password',
+          type: 'password',
+          required: true,
+          minLength: 8,
+          hint: 'At least 8 characters',
+        },
+      ],
+      confirmLabel: 'Set password',
+    });
+    if (!result) {
       return;
     }
-    if (password.length < 8) {
-      this.notify.error(new Error('Password must be at least 8 characters.'));
-      return;
-    }
+    const password = result['password'];
     try {
       await this.invoke({ action: 'set_password', user_id: user.user_id, password });
       this.notify.success(`Password changed for ${user.username}`);

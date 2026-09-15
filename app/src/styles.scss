@@ -637,7 +637,7 @@ app-report-shell {
   gap: 10px;
   flex-wrap: wrap;
 }
-.filter-row mat-form-field {
+.filter-row > mat-form-field {
   width: 160px;
   max-width: 100%;
 }
