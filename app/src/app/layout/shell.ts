@@ -524,7 +524,10 @@ export class Shell implements OnInit {
         }
         return true;
       });
-      (first ?? main).focus();
+      if (first) first.focus();
+      // Pages without fields still need focus outside the hidden navigation,
+      // but focusing their content container must not shift the viewport.
+      else main.focus({ preventScroll: true });
     });
   }
   protected readonly isMobile = signal(this.breakpoints.isMatched('(max-width: 959px)'));
