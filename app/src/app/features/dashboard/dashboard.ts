@@ -232,8 +232,8 @@ export class Dashboard {
       link: '/reports/ledger',
     },
     {
-      title: 'Day Book Posting',
-      description: 'Post completed daily entries to the ledger.',
+      title: 'Ledger Verification',
+      description: 'Verify that every journal is balanced.',
       icon: 'publish',
       link: '/transactions/daybook-posting',
       editor: true,

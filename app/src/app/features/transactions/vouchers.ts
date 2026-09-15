@@ -1,3 +1,4 @@
+import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -30,6 +31,7 @@ function isHead(value: unknown): value is AccountHead {
 @Component({
   selector: 'app-vouchers',
   imports: [
+    CashAccountField,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
@@ -84,6 +86,7 @@ function isHead(value: unknown): value is AccountHead {
 
         <div class="panel-body">
           <div class="form-grid voucher-grid">
+            <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
               <mat-label>Transaction date</mat-label>
               <input matInput type="date" formControlName="date" />
@@ -181,7 +184,7 @@ function isHead(value: unknown): value is AccountHead {
             <div class="summary-card">
               <div class="summary-icon"><mat-icon>account_balance_wallet</mat-icon></div>
               <div>
-                <span class="summary-label">Account balance</span
+                <span class="summary-label">Net receipts / payments</span
                 ><strong class="summary-value" [class.danger]="balance() < 0">{{
                   balance() | number: '1.2-2'
                 }}</strong>
@@ -396,9 +399,11 @@ export class Vouchers implements OnInit {
   protected readonly loadingAccount = signal(false);
   protected readonly accountError = signal(false);
 
+  private requestId = crypto.randomUUID();
   protected readonly form = inject(FormBuilder).group({
     type: [1 as VoucherType, Validators.required],
     date: [isoDate(), Validators.required],
+    cash: [null as number | null, Validators.required],
     account: [null as AccountHead | string | null, Validators.required],
     description: [''],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
@@ -442,14 +447,13 @@ export class Vouchers implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      // Same range as the desktop app: 1001-9998 are user account heads.
+      // Only classified accounts can participate in a double-entry voucher.
       this.heads.set(
         await must(
           this.sb
             .from('account_heads')
             .select('code, name')
-            .gt('code', 1000)
-            .lt('code', 9999)
+            .not('account_type', 'is', null)
             .order('name'),
         ),
       );
@@ -499,8 +503,8 @@ export class Vouchers implements OnInit {
 
   protected async save(): Promise<void> {
     const head = this.selectedHead();
-    const { type, date, description, amount } = this.form.getRawValue();
-    if (this.form.invalid || !head || !type || !date || !amount) {
+    const { type, date, description, amount, cash } = this.form.getRawValue();
+    if (this.saving() || this.form.invalid || !head || !type || !date || !amount || !cash) {
       return;
     }
     this.saving.set(true);
@@ -513,10 +517,13 @@ export class Vouchers implements OnInit {
             p_head_code: head.code,
             p_description: description ?? '',
             p_amount: amount,
+            p_cash_account_code: cash,
+            p_request_id: this.requestId,
           })
           .single<Voucher>(),
       );
       this.notify.success(`${type === 1 ? 'Receipt R' : 'Payment P'}-${voucher.voucher_no} saved`);
+      this.requestId = crypto.randomUUID();
       this.form.patchValue({ description: '', amount: null });
       this.form.controls.amount.markAsUntouched();
       await this.loadAccount(head);
@@ -535,9 +542,7 @@ export class Vouchers implements OnInit {
     }
     try {
       await must(this.sb.rpc('cancel_voucher', { p_id: line.id, p_reason: reason }));
-      this.notify.success(
-        `Voucher ${ref} cancelled. Re-post the day book for ${line.voucher_date}.`,
-      );
+      this.notify.success(`Voucher ${ref} cancelled with a balancing reversal.`);
       const head = this.selectedHead();
       if (head) {
         await this.loadAccount(head);
@@ -548,6 +553,7 @@ export class Vouchers implements OnInit {
   }
 
   protected clear(): void {
+    this.requestId = crypto.randomUUID();
     this.form.reset({ type: 1, date: isoDate(), account: null, description: '', amount: null });
     this.selectedHead.set(null);
     this.lines.set([]);

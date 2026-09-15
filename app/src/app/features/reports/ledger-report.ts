@@ -45,7 +45,7 @@ const ALL = 0;
           <span class="eyebrow">Reports</span>
           <h1>General ledger</h1>
           <p class="page-description">
-            Explore account activity with opening and closing balances.
+            Explore account activity. Positive balances are credit balances; negative balances are debit balances.
           </p>
         </div>
       </div>
@@ -94,8 +94,8 @@ const ALL = 0;
                     <th>Date</th>
                     <th>Voucher</th>
                     <th>Narration</th>
-                    <th class="num">Receipt</th>
-                    <th class="num">Payment</th>
+                    <th class="num">Credit</th>
+                    <th class="num">Debit</th>
                     <th class="num">Balance</th>
                   </tr>
                 </thead>
@@ -186,7 +186,7 @@ export class LedgerReport implements OnInit {
     try {
       this.heads.set(
         await must(
-          this.sb.from('account_heads').select('code, name').gt('code', 1000).order('name'),
+          this.sb.from('account_heads').select('code, name').order('name'),
         ),
       );
     } catch (err) {
@@ -219,7 +219,7 @@ export class LedgerReport implements OnInit {
   protected exportCsv(): void {
     downloadCsv(
       'ledger.csv',
-      ['Account code', 'Account', 'Date', 'Voucher', 'Narration', 'Receipt', 'Payment', 'Balance'],
+      ['Account code', 'Account', 'Date', 'Voucher', 'Narration', 'Credit', 'Debit', 'Balance'],
       this.rows().map((r) => [
         r.head_code,
         r.head_name,

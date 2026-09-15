@@ -29,11 +29,16 @@ export const routes: Routes = [
         title: 'Payments / Receipts',
       },
       {
+        path: 'transactions/journals',
+        loadComponent: () => import('./features/transactions/journals').then((m) => m.Journals),
+        title: 'Journals & Transfers',
+      },
+      {
         path: 'transactions/daybook-posting',
         canActivate: [editors],
         loadComponent: () =>
           import('./features/transactions/daybook-posting').then((m) => m.DaybookPosting),
-        title: 'Day Book Posting',
+        title: 'Ledger Verification',
       },
       {
         path: 'transactions/day-closing',

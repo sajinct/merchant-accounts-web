@@ -33,7 +33,8 @@ import { ReportShell } from '../../shared/report-shell';
           <span class="eyebrow">Transactions</span>
           <h1>Day closing balance</h1>
           <p class="page-description">
-            Review daily balances and quickly identify negative closing positions.
+            All cash and bank accounts combined. Review daily balances and quickly identify negative
+            closing positions.
           </p>
         </div>
       </div>

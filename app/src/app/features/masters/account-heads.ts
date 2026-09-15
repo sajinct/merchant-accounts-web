@@ -1,3 +1,4 @@
+import { MatSelectModule } from '@angular/material/select';
 import {
   afterNextRender,
   Component,
@@ -26,6 +27,7 @@ const SYSTEM_CODE_START = 9000;
 @Component({
   selector: 'app-account-heads',
   imports: [
+    MatSelectModule,
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -106,7 +108,8 @@ const SYSTEM_CODE_START = 9000;
                         class="status-badge"
                         [class.neutral]="head.code >= systemCodeStart"
                         [class.success]="head.code < systemCodeStart"
-                        >{{ head.code >= systemCodeStart ? 'System' : 'Custom' }}</span
+                        >{{ head.account_type || 'Needs classification'
+                        }}{{ head.is_cash_bank ? ' · Cash/bank' : '' }}</span
                       >
                     </td>
                   </tr>
@@ -171,6 +174,22 @@ const SYSTEM_CODE_START = 9000;
                 <input matInput formControlName="name" maxlength="100" />
                 <mat-error>Enter an account name.</mat-error>
               </mat-form-field>
+              <mat-form-field
+                ><mat-label>Classification</mat-label>
+                <mat-select formControlName="account_type">
+                  @for (type of ['asset', 'liability', 'equity', 'income', 'expense']; track type) {
+                    <mat-option [value]="type">{{ type }}</mat-option>
+                  }</mat-select
+                ><mat-error>Select an account classification.</mat-error>
+              </mat-form-field>
+              <mat-form-field
+                ><mat-label>Cash / bank account</mat-label>
+                <mat-select formControlName="is_cash_bank"
+                  ><mat-option [value]="false">No</mat-option
+                  ><mat-option [value]="true">Yes (asset only)</mat-option></mat-select
+                >
+              </mat-form-field>
+              <p class="hint">Classification is locked after the first posted entry.</p>
               <div class="form-actions">
                 <button
                   mat-flat-button
@@ -219,6 +238,8 @@ export class AccountHeads implements OnInit {
   protected readonly form = inject(FormBuilder).group({
     code: [null as number | null, [Validators.required, Validators.min(1)]],
     name: ['', [Validators.required, Validators.pattern(/\S/)]],
+    account_type: ['asset', Validators.required],
+    is_cash_bank: [false],
   });
 
   ngOnInit(): void {
@@ -230,14 +251,24 @@ export class AccountHeads implements OnInit {
       .map((h) => h.code)
       .filter((c) => c < SYSTEM_CODE_START);
     this.editingCode.set(null);
-    this.form.reset({ code: userCodes.length ? Math.max(...userCodes) + 1 : 1001, name: '' });
+    this.form.reset({
+      code: userCodes.length ? Math.max(...userCodes) + 1 : 1001,
+      name: '',
+      account_type: 'asset',
+      is_cash_bank: false,
+    });
     this.formOpen.set(true);
     this.focusForm();
   }
 
   protected edit(head: AccountHead): void {
     this.editingCode.set(head.code);
-    this.form.reset({ code: head.code, name: head.name });
+    this.form.reset({
+      code: head.code,
+      name: head.name,
+      account_type: head.account_type ?? null,
+      is_cash_bank: head.is_cash_bank ?? false,
+    });
     this.formOpen.set(true);
     this.focusForm();
   }
@@ -261,7 +292,7 @@ export class AccountHeads implements OnInit {
   }
 
   protected async save(): Promise<void> {
-    const { code, name } = this.form.getRawValue();
+    const { code, name, account_type, is_cash_bank } = this.form.getRawValue();
     if (this.form.invalid || code === null || !name) {
       return;
     }
@@ -269,10 +300,19 @@ export class AccountHeads implements OnInit {
     try {
       const editing = this.editingCode();
       if (editing) {
-        await must(this.sb.from('account_heads').update({ name: name.trim() }).eq('code', editing));
+        await must(
+          this.sb
+            .from('account_heads')
+            .update({ name: name.trim(), account_type, is_cash_bank })
+            .eq('code', editing),
+        );
         this.notify.success('Account head updated');
       } else {
-        await must(this.sb.from('account_heads').insert({ code, name: name.trim() }));
+        await must(
+          this.sb
+            .from('account_heads')
+            .insert({ code, name: name.trim(), account_type, is_cash_bank }),
+        );
         this.notify.success('Account head added');
         this.close();
       }
@@ -287,7 +327,14 @@ export class AccountHeads implements OnInit {
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      this.heads.set(await must(this.sb.from('account_heads').select('code, name').order('name')));
+      this.heads.set(
+        await must(
+          this.sb
+            .from('account_heads')
+            .select('code, name, account_type, is_cash_bank')
+            .order('name'),
+        ),
+      );
     } catch (err) {
       this.notify.error(err);
     } finally {

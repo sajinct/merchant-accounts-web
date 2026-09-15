@@ -24,9 +24,9 @@ import { addDays, isoDate } from '../../shared/dates';
       <div class="page-header">
         <div class="page-heading">
           <span class="eyebrow">Transactions</span>
-          <h1>Day book posting</h1>
+          <h1>Ledger verification</h1>
           <p class="page-description">
-            Bring your vouchers into the day book for a selected period.
+            Entries post immediately with balanced debits and credits. Verify a selected period here.
           </p>
         </div>
       </div>
@@ -53,8 +53,8 @@ import { addDays, isoDate } from '../../shared/dates';
       <form class="panel" [formGroup]="form" (ngSubmit)="post()">
         <div class="panel-header">
           <div>
-            <h2>Select posting period</h2>
-            <p class="hint">Include the dates you want to update.</p>
+            <h2>Select verification period</h2>
+            <p class="hint">Include the dates you want to verify.</p>
           </div>
           <mat-icon class="panel-symbol">date_range</mat-icon>
         </div>
@@ -72,13 +72,12 @@ import { addDays, isoDate } from '../../shared/dates';
           <div class="posting-note">
             <mat-icon>info_outline</mat-icon>
             <p>
-              Posting refreshes automatic entries for these dates. You can post the same period
-              again; manual day book entries are kept.
+              Verification checks every journal in the period. It does not rebuild, delete or duplicate entries.
             </p>
           </div>
           <div class="form-actions">
             <button mat-flat-button type="submit" [disabled]="form.invalid || busy() || loading()">
-              <mat-icon>publish</mat-icon> {{ busy() ? 'Posting entries…' : 'Post to day book' }}
+              <mat-icon>publish</mat-icon> {{ busy() ? 'Verifying…' : 'Verify ledger' }}
             </button>
           </div>
         </div>
@@ -89,7 +88,7 @@ import { addDays, isoDate } from '../../shared/dates';
           <mat-icon>check_circle</mat-icon>
           <div>
             <strong
-              >Posting complete · {{ result.count }}
+              >Verification complete · {{ result.count }}
               {{ result.count === 1 ? 'entry' : 'entries' }}</strong
             >
             <p>{{ result.from | date: 'dd MMM yyyy' }} – {{ result.to | date: 'dd MMM yyyy' }}</p>
@@ -223,7 +222,7 @@ export class DaybookPosting implements OnInit {
     try {
       const count = await must(this.sb.rpc('post_daybook', { p_from: from, p_to: to }));
       this.lastPosting.set({ count: Number(count), from, to });
-      this.notify.success(`Day book posting completed: ${count} entries.`);
+      this.notify.success(`Ledger verification completed: ${count} entries.`);
       this.lastDate.set((await must(this.sb.rpc('daybook_last_date'))) as string | null);
       this.dateUnavailable.set(false);
     } catch (err) {

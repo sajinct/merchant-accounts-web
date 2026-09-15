@@ -1,6 +1,6 @@
 # Merchant Accounts (web)
 
-Browser rebuild of the VB.NET *Merchant Accounts* desktop app: receipts/payments against account heads, day book posting, and day book / ledger / trial balance reports.
+Double-entry accounting for Merchant Accounts: balanced receipts/payments, journals, transfers, opening balances, subscriptions, and cash book / ledger / trial balance reports.
 
 - **Backend:** Supabase cloud (Postgres, Auth, Storage, Edge Functions)
 - **Frontend:** Angular 21 + Angular Material (`app/`)
@@ -135,3 +135,7 @@ The update dialog shows the installed version and the latest server version (for
 GitHub Actions automatically generates the deployment version before testing and building, using the current date in India and the workflow run number: for example, run 42 on September 15 produces **2026.09.15.v42**. The revision increases across workflow runs and does not reset each day. Retrying the same run on the same date retains its version. The generated version is embedded in both the app and the service-worker manifest and shown in the Actions summary. These generated changes stay in the build workspace; no version commit or repository write permission is needed.
 
 For releases built locally, **npm run release:version** remains available: it starts at v1 on a new date and increments the revision for further local releases that day. Both build commands synchronize the selected label into the service-worker manifest without incrementing it. Deploy the complete build output together. Older releases without version metadata display an explanatory label.
+
+## Double-entry upgrade
+
+See [Double-entry setup and migration](docs/double-entry-upgrade.md) for account classification, opening balances, fresh-start migration and verification. Receipts and payments now post immediately; the former Day Book Posting screen verifies the ledger.

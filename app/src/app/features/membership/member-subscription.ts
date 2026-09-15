@@ -1,3 +1,4 @@
+import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -23,6 +24,7 @@ interface PaymentRow extends SubscriptionPayment {
 @Component({
   selector: 'app-member-subscription',
   imports: [
+    CashAccountField,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
@@ -94,7 +96,9 @@ interface PaymentRow extends SubscriptionPayment {
                   </td>
                   <td class="row-actions">
                     @if (auth.canEdit() && year.balance > 0) {
-                      <button mat-stroked-button type="button" (click)="startPayment(year)">Pay</button>
+                      <button mat-stroked-button type="button" (click)="startPayment(year)">
+                        Pay
+                      </button>
                     }
                   </td>
                 </tr>
@@ -108,6 +112,7 @@ interface PaymentRow extends SubscriptionPayment {
         <form class="panel-body payment-form" [formGroup]="form" (ngSubmit)="record()">
           <h3>Record a payment</h3>
           <div class="form-grid">
+            <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
               <mat-label>For year</mat-label>
               <mat-select formControlName="fy_start" (selectionChange)="fillBalance()">
@@ -131,14 +136,25 @@ interface PaymentRow extends SubscriptionPayment {
             </mat-form-field>
             <mat-form-field>
               <mat-label>Notes</mat-label>
-              <input matInput formControlName="notes" maxlength="200" placeholder="Cash, UPI ref…" />
+              <input
+                matInput
+                formControlName="notes"
+                maxlength="200"
+                placeholder="Cash, UPI ref…"
+              />
             </mat-form-field>
           </div>
           @if (amountTooHigh()) {
-            <p class="form-error" role="alert">The amount is more than the balance for this year.</p>
+            <p class="form-error" role="alert">
+              The amount is more than the balance for this year.
+            </p>
           }
           <div class="form-actions">
-            <button mat-flat-button type="submit" [disabled]="form.invalid || amountTooHigh() || saving()">
+            <button
+              mat-flat-button
+              type="submit"
+              [disabled]="form.invalid || amountTooHigh() || saving()"
+            >
               <mat-icon>payments</mat-icon> {{ saving() ? 'Saving…' : 'Record payment' }}
             </button>
             <span class="hint">A receipt voucher is created automatically.</span>
@@ -177,8 +193,14 @@ interface PaymentRow extends SubscriptionPayment {
                     </td>
                     <td class="row-actions">
                       @if (auth.isAdmin() && !p.cancelled_at) {
-                        <button mat-icon-button type="button" class="danger" (click)="cancel(p)"
-                                matTooltip="Cancel payment" aria-label="Cancel payment">
+                        <button
+                          mat-icon-button
+                          type="button"
+                          class="danger"
+                          (click)="cancel(p)"
+                          matTooltip="Cancel payment"
+                          aria-label="Cancel payment"
+                        >
                           <mat-icon>block</mat-icon>
                         </button>
                       }
@@ -233,10 +255,14 @@ export class MemberSubscription {
       .filter((y) => y.fy_start <= this.currentFy)
       .reduce((sum, y) => sum + Math.max(0, Number(y.balance)), 0),
   );
-  protected readonly payableYears = computed(() => this.years().filter((y) => Number(y.balance) > 0));
+  protected readonly payableYears = computed(() =>
+    this.years().filter((y) => Number(y.balance) > 0),
+  );
 
+  private requestId = crypto.randomUUID();
   protected readonly form = inject(FormBuilder).group({
     fy_start: [null as number | null, Validators.required],
+    cash: [null as number | null, Validators.required],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
     paid_on: [isoDate(), Validators.required],
     notes: [''],
@@ -272,8 +298,17 @@ export class MemberSubscription {
   }
 
   protected async record(): Promise<void> {
-    const { fy_start, amount, paid_on, notes } = this.form.getRawValue();
-    if (this.form.invalid || this.amountTooHigh() || fy_start === null || amount === null || !paid_on) return;
+    const { fy_start, amount, paid_on, notes, cash } = this.form.getRawValue();
+    if (
+      this.saving() ||
+      !cash ||
+      this.form.invalid ||
+      this.amountTooHigh() ||
+      fy_start === null ||
+      amount === null ||
+      !paid_on
+    )
+      return;
     this.saving.set(true);
     try {
       await must(
@@ -283,10 +318,13 @@ export class MemberSubscription {
           p_amount: amount,
           p_paid_on: paid_on,
           p_notes: notes ?? '',
+          p_cash_account_code: cash,
+          p_request_id: this.requestId,
         }),
       );
       this.notify.success(`Payment of ${amount.toFixed(2)} for ${fyLabel(fy_start)} recorded`);
-      this.form.reset({ fy_start: null, amount: null, paid_on: isoDate(), notes: '' });
+      this.requestId = crypto.randomUUID();
+      this.form.reset({ cash, fy_start: null, amount: null, paid_on: isoDate(), notes: '' });
       await this.load(this.memberCode());
     } catch (err) {
       this.notify.error(err);
@@ -302,8 +340,10 @@ export class MemberSubscription {
     );
     if (reason === null) return;
     try {
-      await must(this.sb.rpc('cancel_subscription_payment', { p_id: payment.id, p_reason: reason }));
-      this.notify.success(`Payment cancelled. Re-post the day book for ${payment.paid_on}.`);
+      await must(
+        this.sb.rpc('cancel_subscription_payment', { p_id: payment.id, p_reason: reason }),
+      );
+      this.notify.success('Payment cancelled with a balancing reversal.');
       await this.load(this.memberCode());
     } catch (err) {
       this.notify.error(err);
@@ -318,7 +358,9 @@ export class MemberSubscription {
         must(
           this.sb
             .from('subscription_payments')
-            .select('id, member_code, fy_start, paid_on, amount, voucher_id, notes, cancelled_at, cancel_reason, voucher:vouchers(voucher_no)')
+            .select(
+              'id, member_code, fy_start, paid_on, amount, voucher_id, notes, cancelled_at, cancel_reason, voucher:vouchers(voucher_no)',
+            )
             .eq('member_code', code)
             .order('paid_on', { ascending: false })
             .order('id', { ascending: false }),
@@ -326,7 +368,8 @@ export class MemberSubscription {
       ]);
       this.years.set(years as MemberSubscriptionYear[]);
       this.payments.set(payments as unknown as PaymentRow[]);
-      const oldest = this.payableYears().find((y) => y.fy_start <= this.currentFy) ?? this.payableYears()[0];
+      const oldest =
+        this.payableYears().find((y) => y.fy_start <= this.currentFy) ?? this.payableYears()[0];
       if (oldest && this.form.controls.fy_start.value === null && this.auth.canEdit()) {
         this.startPayment(oldest);
       }

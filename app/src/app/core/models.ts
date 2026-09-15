@@ -19,6 +19,8 @@ export interface CompanySettings {
 }
 
 export interface AccountHead {
+  account_type?: string | null;
+  is_cash_bank?: boolean;
   code: number;
   name: string;
 }

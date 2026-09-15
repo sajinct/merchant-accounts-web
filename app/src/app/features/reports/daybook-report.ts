@@ -31,7 +31,8 @@ import { ReportShell } from '../../shared/report-shell';
           <span class="eyebrow">Reports</span>
           <h1>Day book</h1>
           <p class="page-description">
-            Review receipts, payments and running balances for any period.
+            All cash and bank accounts combined. Review receipts, payments and running balances for
+            any period.
           </p>
         </div>
       </div>

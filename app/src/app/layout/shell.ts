@@ -57,7 +57,13 @@ const NAV: NavGroup[] = [
         icon: 'receipt_long',
       },
       {
-        label: 'Day Book Posting',
+        label: 'Journals / Transfers',
+        shortcut: 'J',
+        link: '/transactions/journals',
+        icon: 'balance',
+      },
+      {
+        label: 'Ledger Verification',
         shortcut: 'D',
         link: '/transactions/daybook-posting',
         icon: 'publish',

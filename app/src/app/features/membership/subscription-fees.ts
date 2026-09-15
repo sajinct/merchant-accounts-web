@@ -387,8 +387,7 @@ export class SubscriptionFees implements OnInit {
           this.sb
             .from('account_heads')
             .select('code, name')
-            .gt('code', 1000)
-            .lt('code', 9999)
+            .eq('account_type', 'income')
             .order('name'),
         ),
         must(

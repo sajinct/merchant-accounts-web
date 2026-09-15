@@ -80,7 +80,7 @@ import { ReportShell } from '../../shared/report-shell';
                   <td class="num">{{ totals().credit | number: '1.2-2' }}</td>
                 </tr>
                 <tr>
-                  <td colspan="2">Difference (cash balance)</td>
+                  <td colspan="2">Difference (must be zero)</td>
                   <td colspan="2" class="num">
                     {{ totals().credit - totals().debit | number: '1.2-2' }}
                   </td>
