@@ -102,6 +102,13 @@ export const routes: Routes = [
       },
 
       {
+        path: 'admin/financial-years',
+        canActivate: [admins],
+        loadComponent: () =>
+          import('./features/admin/financial-years').then((m) => m.FinancialYears),
+        title: 'Financial Years',
+      },
+      {
         path: 'admin/settings',
         canActivate: [admins],
         loadComponent: () =>

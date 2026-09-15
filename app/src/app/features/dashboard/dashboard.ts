@@ -1,3 +1,4 @@
+import { FinancialYearService } from '../../core/financial-year.service';
 import { DatePipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -28,7 +29,7 @@ import { fyLabel, fyStart } from '../../shared/fy';
           <p>Your daily accounts, membership and reports in one place.</p>
         </div>
         <div class="year">
-          <span>Financial year</span><strong>{{ financialYear }}</strong>
+          <span>Financial year</span><strong>{{ fy.label() }}</strong>
         </div>
       </section>
       <div class="section-header">
@@ -199,7 +200,7 @@ export class Dashboard {
   protected readonly auth = inject(AuthService);
   protected readonly company = inject(CompanyService);
   protected readonly today = new Date();
-  protected readonly financialYear = fyLabel(fyStart());
+  protected readonly fy = inject(FinancialYearService);
   protected readonly cards = [
     {
       title: 'Payments / Receipts',

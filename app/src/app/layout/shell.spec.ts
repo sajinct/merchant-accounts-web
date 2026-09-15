@@ -1,3 +1,4 @@
+import { FinancialYearService } from '../core/financial-year.service';
 import { vi } from 'vitest';
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
@@ -27,6 +28,15 @@ describe('Shell navigation', () => {
     await TestBed.configureTestingModule({
       imports: [Shell],
       providers: [
+        {
+          provide: FinancialYearService,
+          useValue: {
+            years: signal([]),
+            selected: signal(2026),
+            label: () => '2026-27',
+            load: async () => {},
+          },
+        },
         provideRouter(
           [{ path: '**', component: TestPage }],
           ...(hashRouting ? [withHashLocation()] : []),

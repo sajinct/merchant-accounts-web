@@ -139,3 +139,7 @@ For releases built locally, **npm run release:version** remains available: it st
 ## Double-entry upgrade
 
 See [Double-entry setup and migration](docs/double-entry-upgrade.md) for account classification, opening balances, fresh-start migration and verification. Receipts and payments now post immediately; the former Day Book Posting screen verifies the ledger.
+
+## Financial years
+
+Use the header selector for the active accounting year. Admins manage April–March years, close them into a selected retained-earnings equity account, and reopen them with an audit reason in **Utilities → Financial Years**. See [Financial-year setup and closing](docs/financial-years.md). Ledger balances carry forward automatically without duplicate opening entries.

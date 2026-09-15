@@ -1,3 +1,5 @@
+import { FinancialYearScope } from '../../shared/financial-year-scope';
+import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
@@ -24,6 +26,8 @@ interface PaymentRow extends SubscriptionPayment {
 @Component({
   selector: 'app-member-subscription',
   imports: [
+    FinancialYearScope,
+    FinancialYearNotice,
     CashAccountField,
     DatePipe,
     DecimalPipe,
@@ -109,7 +113,13 @@ interface PaymentRow extends SubscriptionPayment {
       }
 
       @if (auth.canEdit() && payableYears().length) {
-        <form class="panel-body payment-form" [formGroup]="form" (ngSubmit)="record()">
+        <app-financial-year-notice />
+        <form
+          appFinancialYearScope="entry"
+          class="panel-body payment-form"
+          [formGroup]="form"
+          (ngSubmit)="record()"
+        >
           <h3>Record a payment</h3>
           <div class="form-grid">
             <app-cash-account-field [control]="form.controls.cash" />

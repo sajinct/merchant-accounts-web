@@ -1,3 +1,5 @@
+import { FinancialYearScope } from '../../shared/financial-year-scope';
+import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -28,6 +30,8 @@ const ALL = 0;
 @Component({
   selector: 'app-ledger-report',
   imports: [
+    FinancialYearScope,
+    FinancialYearNotice,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
@@ -45,7 +49,8 @@ const ALL = 0;
           <span class="eyebrow">Reports</span>
           <h1>General ledger</h1>
           <p class="page-description">
-            Explore account activity. Positive balances are credit balances; negative balances are debit balances.
+            Explore account activity. Positive balances are credit balances; negative balances are
+            debit balances.
           </p>
         </div>
       </div>
@@ -56,7 +61,15 @@ const ALL = 0;
         [hasData]="rows().length > 0"
         (csv)="exportCsv()"
       >
-        <form filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
+        <app-financial-year-notice />
+        <form
+          [appFinancialYearScope]="'report'"
+          (yearChanged)="invalidateReport()"
+          filters
+          [formGroup]="form"
+          (ngSubmit)="run()"
+          class="filter-row"
+        >
           <mat-form-field subscriptSizing="dynamic" class="account-select">
             <mat-label>Account</mat-label>
             <mat-select formControlName="account">
@@ -184,17 +197,21 @@ export class LedgerReport implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      this.heads.set(
-        await must(
-          this.sb.from('account_heads').select('code, name').order('name'),
-        ),
-      );
+      this.heads.set(await must(this.sb.from('account_heads').select('code, name').order('name')));
     } catch (err) {
       this.notify.error(err);
     }
   }
 
+  private reportRequest = 0;
+  protected invalidateReport() {
+    this.reportRequest++;
+    this.ran.set(false);
+    this.rows.set([]);
+  }
   protected async run(): Promise<void> {
+    const request = this.reportRequest;
+    if (this.form.invalid || this.loading()) return;
     const { account, from, to } = this.form.getRawValue();
     this.loading.set(true);
     try {
@@ -207,6 +224,10 @@ export class LedgerReport implements OnInit {
           }),
         ),
       );
+      if (request !== this.reportRequest) {
+        this.rows.set([]);
+        return;
+      }
       this.subtitle.set(`For the period ${from} to ${to}`);
       this.ran.set(true);
     } catch (err) {

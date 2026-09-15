@@ -14,7 +14,7 @@ The upgrade starts fresh, as requested: existing financial entries were demo dat
 
 Journal headers and their daybook lines are the authoritative ledger. Database checks require at least two lines, a positive amount on exactly one side of each line, two-decimal precision and equal debit/credit totals. RPCs are atomic, role-checked and protected against repeated request IDs. Changing the contents of an already-used request is rejected.
 
-Posted journals and lines cannot be edited or deleted. Account classifications cannot change after posting. Voucher and subscription cancellation writes an equal reversing journal on the original transaction date and retains both entries. General journals can be reversed by admins on a chosen date no earlier than the original. Reversing the same journal twice is rejected. Period locking is not part of this release.
+Posted journals and lines cannot be edited or deleted. Account classifications cannot change after posting. Voucher and subscription cancellation writes an equal reversing journal on the original transaction date and retains both entries. General journals can be reversed by admins on a chosen date no earlier than the original. Reversing the same journal twice is rejected. [Financial-year closing](financial-years.md) locks closed years and supports audited reopening.
 
 Subscription dues remain membership tracking; fees are recorded as income when payment is collected. This release does not automatically accrue unpaid subscriptions into receivables.
 

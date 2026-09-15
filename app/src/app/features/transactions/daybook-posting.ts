@@ -1,3 +1,5 @@
+import { FinancialYearScope } from '../../shared/financial-year-scope';
+import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DatePipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -12,6 +14,8 @@ import { addDays, isoDate } from '../../shared/dates';
 @Component({
   selector: 'app-daybook-posting',
   imports: [
+    FinancialYearScope,
+    FinancialYearNotice,
     DatePipe,
     ReactiveFormsModule,
     MatButtonModule,
@@ -26,7 +30,8 @@ import { addDays, isoDate } from '../../shared/dates';
           <span class="eyebrow">Transactions</span>
           <h1>Ledger verification</h1>
           <p class="page-description">
-            Entries post immediately with balanced debits and credits. Verify a selected period here.
+            Entries post immediately with balanced debits and credits. Verify a selected period
+            here.
           </p>
         </div>
       </div>
@@ -50,7 +55,8 @@ import { addDays, isoDate } from '../../shared/dates';
         }
       </div>
 
-      <form class="panel" [formGroup]="form" (ngSubmit)="post()">
+      <app-financial-year-notice />
+      <form [appFinancialYearScope]="'report'" class="panel" [formGroup]="form" (ngSubmit)="post()">
         <div class="panel-header">
           <div>
             <h2>Select verification period</h2>
@@ -72,7 +78,8 @@ import { addDays, isoDate } from '../../shared/dates';
           <div class="posting-note">
             <mat-icon>info_outline</mat-icon>
             <p>
-              Verification checks every journal in the period. It does not rebuild, delete or duplicate entries.
+              Verification checks every journal in the period. It does not rebuild, delete or
+              duplicate entries.
             </p>
           </div>
           <div class="form-actions">
@@ -213,6 +220,7 @@ export class DaybookPosting implements OnInit {
   }
 
   protected async post(): Promise<void> {
+    if (this.form.invalid || this.busy()) return;
     const { from, to } = this.form.getRawValue();
     if (from > to) {
       this.notify.error(new Error('"From" date must not be after "To" date.'));

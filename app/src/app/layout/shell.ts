@@ -1,3 +1,4 @@
+import { FinancialYearSelector } from '../shared/financial-year-selector';
 import {
   afterNextRender,
   Component,
@@ -129,6 +130,13 @@ const NAV: NavGroup[] = [
         adminOnly: true,
       },
       {
+        label: 'Financial Years',
+        shortcut: 'F',
+        link: '/admin/financial-years',
+        icon: 'date_range',
+        adminOnly: true,
+      },
+      {
         label: 'Users',
         shortcut: 'U',
         link: '/admin/users',
@@ -144,6 +152,7 @@ const NAV: NavGroup[] = [
   selector: 'app-shell',
   host: { '(document:keydown)': 'onNavigationKey($event)' },
   imports: [
+    FinancialYearSelector,
     RouterOutlet,
     RouterLink,
     MatButtonModule,
@@ -253,6 +262,7 @@ const NAV: NavGroup[] = [
             <span>{{ company.settings()?.place || 'Accounting workspace' }}</span>
           </div>
           <span class="spacer"></span>
+          <app-financial-year-selector />
           <button
             class="user-control"
             type="button"

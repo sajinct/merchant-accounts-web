@@ -1,3 +1,6 @@
+import { effect } from '@angular/core';
+import { FinancialYearService } from '../../core/financial-year.service';
+import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -29,6 +32,7 @@ interface Journal {
 @Component({
   selector: 'app-journals',
   imports: [
+    FinancialYearNotice,
     FormsModule,
     DatePipe,
     DecimalPipe,
@@ -48,6 +52,7 @@ interface Journal {
         </p>
       </div>
     </div>
+    <app-financial-year-notice />
     @if (auth.canEdit()) {
       <section class="panel">
         <div class="panel-header"><h2>New entry</h2></div>
@@ -136,7 +141,10 @@ interface Journal {
       <div class="panel-header">
         <div>
           <h2>Journal register</h2>
-          <p>Latest 100 entries, including receipts, payments and reversals.</p>
+          <p>
+            Latest 100 entries in the selected financial year, including receipts, payments and
+            reversals.
+          </p>
         </div>
         <button mat-button (click)="load()" [disabled]="loading()">Refresh</button>
       </div>
@@ -206,7 +214,7 @@ interface Journal {
     }
   `,
 })
-export class Journals implements OnInit {
+export class Journals {
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
@@ -214,23 +222,33 @@ export class Journals implements OnInit {
   protected readonly entries = signal<Journal[]>([]);
   protected readonly saving = signal(false);
   protected readonly loading = signal(false);
-  protected date = isoDate();
+  protected readonly fy = inject(FinancialYearService);
+  protected date = this.fy.entryDate();
   protected narration = '';
   protected opening = false;
   protected lines: Line[] = [
     { account: null, debit: null, credit: null },
     { account: null, debit: null, credit: null },
   ];
+  private loadId = 0;
   private requestId = crypto.randomUUID();
-  async ngOnInit() {
-    await this.load();
+  constructor() {
+    effect(() => {
+      this.fy.selected();
+      if (this.lines.every((line) => !line.account && !line.debit && !line.credit))
+        this.date = this.fy.entryDate();
+      void this.load();
+    });
   }
+
   protected total(side: 'debit' | 'credit') {
     return this.lines.reduce((sum, line) => sum + Math.round(Number(line[side] ?? 0) * 100), 0);
   }
   protected valid() {
     return (
       !!this.date &&
+      this.fy.contains(this.date) &&
+      !this.fy.closed() &&
       this.total('debit') > 0 &&
       this.total('debit') === this.total('credit') &&
       this.lines.every((line) => {
@@ -267,6 +285,8 @@ export class Journals implements OnInit {
     return this.accounts().find((a) => a.code === code)?.name ?? String(code);
   }
   protected async load() {
+    const loadId = ++this.loadId;
+    this.entries.set([]);
     this.loading.set(true);
     try {
       const [accounts, entries] = await Promise.all([
@@ -283,16 +303,19 @@ export class Journals implements OnInit {
             .select(
               'id,entry_date,narration,kind,reversal_of,voucher_id,daybook(head_code,debit,credit)',
             )
+            .gte('entry_date', this.fy.start())
+            .lte('entry_date', this.fy.end())
             .order('id', { ascending: false })
             .limit(100),
         ),
       ]);
+      if (loadId !== this.loadId) return;
       this.accounts.set(accounts);
       this.entries.set(entries as Journal[]);
     } catch (error) {
       this.notify.error(error);
     } finally {
-      this.loading.set(false);
+      if (loadId === this.loadId) this.loading.set(false);
     }
   }
   protected async post() {

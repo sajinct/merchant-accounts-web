@@ -1,3 +1,7 @@
+import { effect, untracked } from '@angular/core';
+import { FinancialYearService } from '../../core/financial-year.service';
+import { FinancialYearScope } from '../../shared/financial-year-scope';
+import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
@@ -31,6 +35,8 @@ function isHead(value: unknown): value is AccountHead {
 @Component({
   selector: 'app-vouchers',
   imports: [
+    FinancialYearScope,
+    FinancialYearNotice,
     CashAccountField,
     DatePipe,
     DecimalPipe,
@@ -58,7 +64,14 @@ function isHead(value: unknown): value is AccountHead {
         <span class="status-badge neutral"><mat-icon>receipt_long</mat-icon> Voucher entry</span>
       </div>
 
-      <form class="panel voucher-form" [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
+      <app-financial-year-notice />
+      <form
+        appFinancialYearScope="entry"
+        class="panel voucher-form"
+        [formGroup]="form"
+        (ngSubmit)="save()"
+        appEnterToNext
+      >
         <div class="panel-header">
           <div>
             <h2>New {{ form.controls.type.value === 1 ? 'receipt' : 'payment' }}</h2>
@@ -196,7 +209,7 @@ function isHead(value: unknown): value is AccountHead {
           <div class="panel-header">
             <div>
               <h2>{{ head.name }}</h2>
-              <p class="hint">Account {{ head.code }} · Transaction history</p>
+              <p class="hint">Account {{ head.code }} · Selected financial year</p>
             </div>
             @if (!loadingAccount() && !accountError()) {
               <span class="status-badge neutral"
@@ -399,6 +412,8 @@ export class Vouchers implements OnInit {
   protected readonly loadingAccount = signal(false);
   protected readonly accountError = signal(false);
 
+  private readonly fy = inject(FinancialYearService);
+  private accountLoadId = 0;
   private requestId = crypto.randomUUID();
   protected readonly form = inject(FormBuilder).group({
     type: [1 as VoucherType, Validators.required],
@@ -436,6 +451,13 @@ export class Vouchers implements OnInit {
     isHead(head) ? `${head.code} – ${head.name}` : (head ?? '');
 
   constructor() {
+    effect(() => {
+      this.fy.selected();
+      untracked(() => {
+        const head = this.selectedHead();
+        if (head) void this.loadAccount(head);
+      });
+    });
     // Typing over a chosen account clears the selection.
     this.form.controls.account.valueChanges.subscribe((value) => {
       if (!isHead(value) && this.selectedHead()) {
@@ -465,6 +487,7 @@ export class Vouchers implements OnInit {
   }
 
   protected async loadAccount(head: AccountHead): Promise<void> {
+    const loadId = ++this.accountLoadId;
     this.selectedHead.set(head);
     this.loadingAccount.set(true);
     this.accountError.set(false);
@@ -477,11 +500,13 @@ export class Vouchers implements OnInit {
             'id, voucher_type, voucher_no, voucher_date, head_code, description, amount, cancelled_at',
           )
           .eq('head_code', head.code)
+          .gte('voucher_date', this.fy.start())
+          .lte('voucher_date', this.fy.end())
           .is('cancelled_at', null)
           .order('voucher_date')
           .order('id'),
       );
-      if (this.selectedHead()?.code !== head.code) return;
+      if (this.selectedHead()?.code !== head.code || loadId !== this.accountLoadId) return;
       let balance = 0;
       this.lines.set(
         (vouchers as Voucher[]).map((v) => {
@@ -492,12 +517,13 @@ export class Vouchers implements OnInit {
         }),
       );
     } catch (err) {
-      if (this.selectedHead()?.code === head.code) {
+      if (this.selectedHead()?.code === head.code && loadId === this.accountLoadId) {
         this.accountError.set(true);
         this.notify.error(err);
       }
     } finally {
-      if (this.selectedHead()?.code === head.code) this.loadingAccount.set(false);
+      if (this.selectedHead()?.code === head.code && loadId === this.accountLoadId)
+        this.loadingAccount.set(false);
     }
   }
 

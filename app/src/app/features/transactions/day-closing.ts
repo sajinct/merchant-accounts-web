@@ -1,3 +1,5 @@
+import { FinancialYearScope } from '../../shared/financial-year-scope';
+import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -16,6 +18,8 @@ import { ReportShell } from '../../shared/report-shell';
 @Component({
   selector: 'app-day-closing',
   imports: [
+    FinancialYearScope,
+    FinancialYearNotice,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
@@ -45,7 +49,15 @@ import { ReportShell } from '../../shared/report-shell';
         [hasData]="rows().length > 0"
         (csv)="exportCsv()"
       >
-        <form filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
+        <app-financial-year-notice />
+        <form
+          [appFinancialYearScope]="'report'"
+          (yearChanged)="invalidateReport()"
+          filters
+          [formGroup]="form"
+          (ngSubmit)="run()"
+          class="filter-row"
+        >
           <mat-form-field subscriptSizing="dynamic"
             ><mat-label>From date</mat-label><input matInput type="date" formControlName="from"
           /></mat-form-field>
@@ -194,7 +206,15 @@ export class DayClosing {
     negativeOnly: [false],
   });
 
+  private reportRequest = 0;
+  protected invalidateReport() {
+    this.reportRequest++;
+    this.ran.set(false);
+    this.rows.set([]);
+  }
   protected async run(): Promise<void> {
+    const request = this.reportRequest;
+    if (this.form.invalid || this.loading()) return;
     const { from, to, negativeOnly } = this.form.getRawValue();
     this.loading.set(true);
     try {
@@ -203,6 +223,10 @@ export class DayClosing {
           this.sb.rpc('rpt_day_closing', { p_from: from, p_to: to, p_negative_only: negativeOnly }),
         ),
       );
+      if (request !== this.reportRequest) {
+        this.rows.set([]);
+        return;
+      }
       this.subtitle.set(`${from} to ${to}${negativeOnly ? ' (negative balances only)' : ''}`);
       this.ran.set(true);
     } catch (err) {
