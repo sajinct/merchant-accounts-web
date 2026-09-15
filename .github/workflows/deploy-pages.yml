@@ -31,6 +31,8 @@ jobs:
           cache-dependency-path: app/package-lock.json
 
       - run: npm ci
+      - name: Generate deployment version
+        run: node scripts/build-version.mjs --github
       - run: npx ng test --watch=false
       # Relative base href + hash routing: works at https://<user>.github.io/<repo>/ without a 404.html fallback.
       - run: npm run build:pages
