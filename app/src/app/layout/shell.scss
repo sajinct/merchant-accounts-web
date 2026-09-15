@@ -80,6 +80,11 @@
 .workspace-content {
   background: var(--app-canvas);
 }
+// This container receives programmatic focus when a page has no form fields.
+// Keep focus outlines on interactive descendants, not around the entire page.
+#main-content:focus {
+  outline: none;
+}
 .workspace-topbar {
   position: sticky;
   top: 0;
