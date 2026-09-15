@@ -5,6 +5,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatDialog } from '@angular/material/dialog';
+import { openAppUpdates } from '../../shared/app-update-dialog';
 import { AuthService } from '../../core/auth.service';
 import { errorMessage } from '../../core/notify.service';
 import { SUPPORT } from '../../core/support';
@@ -111,6 +113,9 @@ import { SUPPORT } from '../../core/support';
             >
               <mat-icon>chat_bubble_outline</mat-icon>WhatsApp · {{ support.phone }}
             </a>
+            <button mat-button type="button" class="update-link" (click)="openUpdates()">
+              Check for app updates
+            </button>
           </div>
         </div>
         <div class="login-footer">
@@ -128,6 +133,10 @@ import { SUPPORT } from '../../core/support';
   `,
 })
 export class Login {
+  private readonly dialog = inject(MatDialog);
+  protected openUpdates(): void {
+    openAppUpdates(this.dialog);
+  }
   protected readonly support = SUPPORT;
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);

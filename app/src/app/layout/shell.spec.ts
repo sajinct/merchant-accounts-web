@@ -110,7 +110,7 @@ describe('Shell navigation', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(drawer.mode).toBe('side');
-    expect(drawer.opened).toBe(true);
+    expect(drawer.opened).toBe(false);
   });
 
   it('preserves role-based navigation visibility for viewers', async () => {
@@ -337,4 +337,121 @@ describe('Shell navigation', () => {
       },
     );
   }
+
+  it('keeps shortcuts available with notifications but yields to interactive overlays', async () => {
+    const fixture = await createShell(false);
+    const element = fixture.nativeElement as HTMLElement;
+    const overlay = document.createElement('div');
+    overlay.className = 'cdk-overlay-pane';
+    overlay.innerHTML = '<div role="status">Saved</div>';
+    document.body.append(overlay);
+    try {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(element.querySelector('.nav-heading')!.textContent).toBe('Reports');
+      for (const role of ['dialog', 'menu', 'listbox']) {
+        overlay.firstElementChild!.setAttribute('role', role);
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+        fixture.detectChanges();
+        expect(element.querySelector('.nav-back')).not.toBeNull();
+      }
+      overlay.firstElementChild!.setAttribute('role', 'tooltip');
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      fixture.detectChanges();
+      expect(element.querySelector('.nav-back')).toBeNull();
+    } finally {
+      overlay.remove();
+    }
+  });
+
+  it('ignores modified Escape and lets comboboxes handle their letters', async () => {
+    const fixture = await createShell(false);
+    const element = fixture.nativeElement as HTMLElement;
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+    for (const modifiers of [
+      { altKey: true },
+      { ctrlKey: true },
+      { metaKey: true },
+      { shiftKey: true },
+    ]) {
+      document.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, ...modifiers }),
+      );
+    }
+    fixture.detectChanges();
+    expect(navigate).not.toHaveBeenCalled();
+    const combo = document.createElement('div');
+    combo.setAttribute('role', 'combobox');
+    element.append(combo);
+    combo.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
+    fixture.detectChanges();
+    expect(element.querySelector('.nav-back')).toBeNull();
+  });
+
+  it('synchronizes the menu and focus after navigation outside the sidebar', async () => {
+    const fixture = await createShell(false);
+    const element = fixture.nativeElement as HTMLElement;
+    await TestBed.inject(Router).navigateByUrl('/reports/daybook');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await TestBed.inject(Router).navigateByUrl('/membership/fees');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(
+      element
+        .querySelector('[aria-controls="workspace-navigation"]')!
+        .getAttribute('aria-expanded'),
+    ).toBe('false');
+    expect(document.activeElement).toBe(element.querySelector('main input'));
+    element
+      .querySelector<HTMLInputElement>('main input')!
+      .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(element.querySelector('.nav-heading')!.textContent).toBe('Membership');
+    expect(document.activeElement).toBe(element.querySelector('.nav-back'));
+  });
+
+  it('focuses navigation when opened with the toggle and restores the toggle on close', async () => {
+    const fixture = await createShell(true);
+    const element = fixture.nativeElement as HTMLElement;
+    const toggle = element.querySelector<HTMLButtonElement>(
+      '[aria-controls="workspace-navigation"]',
+    )!;
+    toggle.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(element.querySelector('.nav-home'));
+    toggle.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  it('does not double navigate or close the menu when pending navigation is cancelled', async () => {
+    const fixture = await createShell(false);
+    const element = fixture.nativeElement as HTMLElement;
+    element.querySelector<HTMLButtonElement>('[data-group="R"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    let finish!: (value: boolean) => void;
+    const navigate = vi
+      .spyOn(TestBed.inject(Router), 'navigateByUrl')
+      .mockReturnValue(new Promise((resolve) => (finish = resolve)));
+    const link = element.querySelector<HTMLAnchorElement>('nav a')!;
+    link.click();
+    link.click();
+    expect(navigate).toHaveBeenCalledTimes(1);
+    finish(false);
+    await Promise.resolve();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(element.querySelector('.nav-heading')!.textContent).toBe('Reports');
+    expect(
+      element
+        .querySelector('[aria-controls="workspace-navigation"]')!
+        .getAttribute('aria-expanded'),
+    ).toBe('true');
+  });
 });

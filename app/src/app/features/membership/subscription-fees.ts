@@ -1,5 +1,14 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  OnInit,
+  signal,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -53,7 +62,7 @@ import { fyLabel, fyStart } from '../../shared/fy';
             </thead>
             <tbody>
               @for (year of years(); track year.fy_start) {
-                <tr>
+                <tr [attr.data-fee-year]="year.fy_start">
                   <td>
                     <span class="table-primary">{{ label(year.fy_start) }}</span>
                     @if (year.fy_start === currentFy) {
@@ -70,8 +79,7 @@ import { fyLabel, fyStart } from '../../shared/fy';
                           step="0.01"
                           [value]="year.fee"
                           (input)="editFee.set($any($event.target).valueAsNumber)"
-                          (keydown.enter)="$event.preventDefault(); updateFee(year, editFee())"
-                          (keydown.escape)="editing.set(null)"
+                          (keydown)="handleEditKey($event, year)"
                           [attr.aria-label]="'Fee for ' + label(year.fy_start)"
                         />
                       </mat-form-field>
@@ -81,17 +89,42 @@ import { fyLabel, fyStart } from '../../shared/fy';
                   </td>
                   <td class="row-actions">
                     @if (editing() === year.fy_start) {
-                      <button mat-icon-button type="button" (click)="updateFee(year, editFee())"
-                              matTooltip="Save fee" aria-label="Save fee"><mat-icon>check</mat-icon></button>
-                      <button mat-icon-button type="button" (click)="editing.set(null)"
-                              matTooltip="Cancel" aria-label="Cancel"><mat-icon>close</mat-icon></button>
+                      <button
+                        mat-icon-button
+                        type="button"
+                        (click)="updateFee(year, editFee())"
+                        matTooltip="Save fee"
+                        aria-label="Save fee"
+                      >
+                        <mat-icon>check</mat-icon>
+                      </button>
+                      <button
+                        mat-icon-button
+                        type="button"
+                        (click)="cancelEdit(year)"
+                        matTooltip="Cancel"
+                        aria-label="Cancel"
+                      >
+                        <mat-icon>close</mat-icon>
+                      </button>
                     } @else {
-                      <button mat-icon-button type="button" (click)="startEdit(year)"
-                              matTooltip="Change fee" [attr.aria-label]="'Change fee for ' + label(year.fy_start)">
+                      <button
+                        mat-icon-button
+                        type="button"
+                        (click)="startEdit(year)"
+                        matTooltip="Change fee"
+                        [attr.aria-label]="'Change fee for ' + label(year.fy_start)"
+                      >
                         <mat-icon>edit</mat-icon>
                       </button>
-                      <button mat-icon-button type="button" class="danger" (click)="remove(year)"
-                              matTooltip="Remove year" [attr.aria-label]="'Remove ' + label(year.fy_start)">
+                      <button
+                        mat-icon-button
+                        type="button"
+                        class="danger"
+                        (click)="remove(year)"
+                        matTooltip="Remove year"
+                        [attr.aria-label]="'Remove ' + label(year.fy_start)"
+                      >
                         <mat-icon>delete_outline</mat-icon>
                       </button>
                     }
@@ -113,7 +146,12 @@ import { fyLabel, fyStart } from '../../shared/fy';
         </div>
       </section>
 
-      <form class="panel" [formGroup]="addForm" (ngSubmit)="addYear()" aria-labelledby="add-year-heading">
+      <form
+        class="panel"
+        [formGroup]="addForm"
+        (ngSubmit)="addYear()"
+        aria-labelledby="add-year-heading"
+      >
         <div class="panel-header"><h2 id="add-year-heading">Add a financial year</h2></div>
         <div class="panel-body">
           <div class="form-grid">
@@ -156,8 +194,12 @@ import { fyLabel, fyStart } from '../../shared/fy';
             </mat-form-field>
           </div>
           <div class="form-actions">
-            <button mat-stroked-button type="button" (click)="saveHead()"
-                    [disabled]="!headCode() || headCode() === savedHeadCode() || saving()">
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="saveHead()"
+              [disabled]="!headCode() || headCode() === savedHeadCode() || saving()"
+            >
               Save account
             </button>
           </div>
@@ -176,6 +218,8 @@ import { fyLabel, fyStart } from '../../shared/fy';
   `,
 })
 export class SubscriptionFees implements OnInit {
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
 
@@ -233,6 +277,53 @@ export class SubscriptionFees implements OnInit {
   protected startEdit(year: SubscriptionYear): void {
     this.editFee.set(Number(year.fee));
     this.editing.set(year.fy_start);
+    afterNextRender(
+      () => {
+        if (this.editing() === year.fy_start)
+          this.host.nativeElement
+            .querySelector<HTMLInputElement>(`[data-fee-year="${year.fy_start}"] input`)
+            ?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected cancelEdit(year: SubscriptionYear): void {
+    this.editing.set(null);
+    afterNextRender(
+      () => {
+        if (this.editing() === null)
+          this.host.nativeElement
+            .querySelector<HTMLButtonElement>(
+              `[data-fee-year="${year.fy_start}"] button[aria-label^="Change fee"]`,
+            )
+            ?.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected handleEditKey(event: KeyboardEvent, year: SubscriptionYear): void {
+    if (
+      event.defaultPrevented ||
+      event.isComposing ||
+      event.keyCode === 229 ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      (event.key !== 'Enter' && event.key !== 'Escape')
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.repeat) return;
+    if (event.key === 'Escape') {
+      this.cancelEdit(year);
+    } else {
+      void this.updateFee(year, this.editFee());
+    }
   }
 
   protected async updateFee(year: SubscriptionYear, fee: number): Promise<void> {
@@ -242,7 +333,9 @@ export class SubscriptionFees implements OnInit {
     }
     try {
       await must(this.sb.from('subscription_years').update({ fee }).eq('fy_start', year.fy_start));
-      this.notify.success(`Fee for ${fyLabel(year.fy_start)} changed. Member balances use the new fee.`);
+      this.notify.success(
+        `Fee for ${fyLabel(year.fy_start)} changed. Member balances use the new fee.`,
+      );
       this.editing.set(null);
       await this.load();
     } catch (err) {
@@ -251,7 +344,8 @@ export class SubscriptionFees implements OnInit {
   }
 
   protected async remove(year: SubscriptionYear): Promise<void> {
-    if (!confirm(`Remove ${fyLabel(year.fy_start)}? Members will no longer owe for this year.`)) return;
+    if (!confirm(`Remove ${fyLabel(year.fy_start)}? Members will no longer owe for this year.`))
+      return;
     try {
       await must(this.sb.from('subscription_years').delete().eq('fy_start', year.fy_start));
       this.notify.success(`${fyLabel(year.fy_start)} removed`);
@@ -267,7 +361,9 @@ export class SubscriptionFees implements OnInit {
     if (!code) return;
     this.saving.set(true);
     try {
-      await must(this.sb.from('company_settings').update({ subscription_head_code: code }).eq('id', true));
+      await must(
+        this.sb.from('company_settings').update({ subscription_head_code: code }).eq('id', true),
+      );
       this.savedHeadCode.set(code);
       this.notify.success('Subscription receipt account saved');
     } catch (err) {
@@ -281,8 +377,20 @@ export class SubscriptionFees implements OnInit {
     this.loading.set(true);
     try {
       const [years, heads, settings] = await Promise.all([
-        must(this.sb.from('subscription_years').select('fy_start, fee').order('fy_start', { ascending: false })),
-        must(this.sb.from('account_heads').select('code, name').gt('code', 1000).lt('code', 9999).order('name')),
+        must(
+          this.sb
+            .from('subscription_years')
+            .select('fy_start, fee')
+            .order('fy_start', { ascending: false }),
+        ),
+        must(
+          this.sb
+            .from('account_heads')
+            .select('code, name')
+            .gt('code', 1000)
+            .lt('code', 9999)
+            .order('name'),
+        ),
         must(
           this.sb
             .from('company_settings')

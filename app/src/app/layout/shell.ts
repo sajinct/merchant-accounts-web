@@ -2,6 +2,7 @@ import {
   afterNextRender,
   Component,
   computed,
+  DestroyRef,
   ElementRef,
   inject,
   Injector,
@@ -19,6 +20,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatDialog } from '@angular/material/dialog';
+import { openAppUpdates } from '../shared/app-update-dialog';
+import { AppUpdateService } from '../core/app-update.service';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
@@ -147,24 +151,20 @@ const NAV: NavGroup[] = [
     <a
       class="skip-link no-print"
       href="#main-content"
-      (click)="$event.preventDefault(); main.focus()"
+      (click)="$event.preventDefault(); skipToContent()"
       >Skip to main content</a
     >
-    <mat-sidenav-container class="workspace-shell" (backdropClick)="drawerOpen.set(false)">
+    <mat-sidenav-container class="workspace-shell" (backdropClick)="closeNavigation()">
       <mat-sidenav
         id="workspace-navigation"
         [mode]="isMobile() ? 'over' : 'side'"
         [opened]="drawerOpen()"
         [disableClose]="true"
+        [autoFocus]="false"
         (closedStart)="drawerOpen.set(false)"
         class="workspace-nav no-print"
       >
-        <a
-          class="brand"
-          routerLink="/"
-          (click)="closeMobileNav()"
-          aria-label="Merchant Accounts home"
-        >
+        <a class="brand" routerLink="/" aria-label="Merchant Accounts home">
           <img class="brand-mark" src="favicon.svg" alt="" width="39" height="39" />
           <span class="brand-name">Merchant<span>ACCOUNTS</span></span>
         </a>
@@ -217,7 +217,7 @@ const NAV: NavGroup[] = [
             }
           }
           <p class="nav-hint">
-            Press a letter shown in this menu.<br />Esc returns to all menus.
+            Press a letter shown in this menu.<br />Esc goes back, then to Dashboard.
             <label class="shortcut-toggle"
               ><input
                 type="checkbox"
@@ -232,9 +232,10 @@ const NAV: NavGroup[] = [
       <mat-sidenav-content class="workspace-content">
         <header class="workspace-topbar no-print">
           <button
+            #navigationToggle
             mat-icon-button
             type="button"
-            (click)="drawerOpen.set(!drawerOpen())"
+            (click)="toggleNavigation()"
             [attr.aria-label]="drawerOpen() ? 'Close navigation' : 'Open navigation'"
             [attr.aria-expanded]="drawerOpen()"
             aria-controls="workspace-navigation"
@@ -261,6 +262,10 @@ const NAV: NavGroup[] = [
           </button>
           <mat-menu #userMenu="matMenu">
             <div mat-menu-item disabled>Signed in as {{ auth.role() }}</div>
+            <button mat-menu-item type="button" (click)="openUpdates()">
+              <mat-icon>system_update</mat-icon
+              >{{ updates.ready() ? 'App update ready' : 'Check for app updates' }}
+            </button>
             <a mat-menu-item routerLink="/account/password"
               ><mat-icon>lock_outline</mat-icon> Change password</a
             >
@@ -304,6 +309,11 @@ const NAV: NavGroup[] = [
   `,
 })
 export class Shell implements OnInit {
+  protected readonly updates = inject(AppUpdateService);
+  private readonly dialog = inject(MatDialog);
+  protected openUpdates(): void {
+    openAppUpdates(this.dialog);
+  }
   protected readonly support = SUPPORT;
   protected readonly auth = inject(AuthService);
   protected readonly company = inject(CompanyService);
@@ -313,10 +323,16 @@ export class Shell implements OnInit {
   private readonly breakpoints = inject(BreakpointObserver);
 
   private readonly injector = inject(Injector);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly navigationToggle = viewChild('navigationToggle', {
+    read: ElementRef,
+  });
   private readonly mainContent = viewChild<ElementRef<HTMLElement>>('main');
   private readonly navigation = viewChild<ElementRef<HTMLElement>>('navigation');
   protected readonly letterShortcuts = signal(true);
   protected readonly selectedGroup = signal<NavGroup | null>(null);
+  private focusVersion = 0;
+  private navigationPending = false;
   protected readonly visibleGroups = computed(() =>
     NAV.filter((group) => group.items.some((item) => this.visible(item))),
   );
@@ -334,10 +350,40 @@ export class Shell implements OnInit {
   }
 
   private focusNavigation(selector: string): void {
+    this.scheduleFocus(() => {
+      if (this.drawerOpen())
+        this.navigation()?.nativeElement.querySelector<HTMLElement>(selector)?.focus();
+    });
+  }
+
+  private scheduleFocus(action: () => void): void {
+    const version = ++this.focusVersion;
     afterNextRender(
-      () => this.navigation()?.nativeElement.querySelector<HTMLElement>(selector)?.focus(),
+      () => {
+        if (version === this.focusVersion) action();
+      },
       { injector: this.injector },
     );
+  }
+
+  protected toggleNavigation(): void {
+    if (this.drawerOpen()) this.closeNavigation();
+    else this.openNavigation();
+  }
+
+  private openNavigation(): void {
+    this.drawerOpen.set(true);
+    this.focusNavigation(this.selectedGroup() ? '.nav-back' : '.nav-home');
+  }
+
+  protected closeNavigation(): void {
+    this.drawerOpen.set(false);
+    this.scheduleFocus(() => this.navigationToggle()?.nativeElement.focus());
+  }
+
+  protected skipToContent(): void {
+    this.drawerOpen.set(false);
+    this.scheduleFocus(() => this.mainContent()?.nativeElement.focus());
   }
 
   protected onNavigationKey(event: KeyboardEvent): void {
@@ -346,13 +392,20 @@ export class Shell implements OnInit {
       event.defaultPrevented ||
       event.repeat ||
       event.isComposing ||
-      document.querySelector('.cdk-overlay-container .cdk-overlay-pane')
+      event.keyCode === 229 ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      this.navigationPending ||
+      document.querySelector(
+        '.cdk-overlay-pane [role="dialog"], .cdk-overlay-pane [role="alertdialog"], .cdk-overlay-pane [role="menu"], .cdk-overlay-pane [role="listbox"], .cdk-overlay-pane .mat-datepicker-content',
+      )
     )
       return;
     if (event.key === 'Escape' && !this.drawerOpen()) {
       event.preventDefault();
-      this.drawerOpen.set(true);
-      this.focusNavigation(this.selectedGroup() ? '.nav-back' : '.nav-group');
+      this.openNavigation();
       return;
     }
     if (event.key === 'Escape' && this.drawerOpen() && this.selectedGroup()) {
@@ -368,12 +421,8 @@ export class Shell implements OnInit {
     if (
       !this.drawerOpen() ||
       !this.letterShortcuts() ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.shiftKey ||
       target?.closest(
-        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"]',
+        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="spinbutton"], [role="slider"]',
       )
     )
       return;
@@ -406,7 +455,6 @@ export class Shell implements OnInit {
     void this.activateItem(item);
   }
   protected goDashboard(): void {
-    this.selectedGroup.set(null);
     void this.activateItem({
       label: 'Dashboard',
       link: '/dashboard',
@@ -427,40 +475,57 @@ export class Shell implements OnInit {
   }
 
   private async activateItem(item: NavItem): Promise<void> {
+    if (this.navigationPending || !this.visible(item)) return;
+    this.navigationPending = true;
     try {
       const samePage = this.router.url === item.link;
       const navigated = await this.router.navigateByUrl(item.link);
-      if (!navigated && !samePage) return;
-      this.drawerOpen.set(false);
-      afterNextRender(
-        () => {
-          const main = this.mainContent()?.nativeElement;
-          if (!main) return;
-          const controls = main.querySelectorAll<HTMLElement>(
-            'input:not([type="hidden"]):not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled]):not([readonly]), [role="combobox"][tabindex="0"]',
-          );
-          const first = Array.from(controls).find((control) => {
-            for (
-              let node: HTMLElement | null = control;
-              node && node !== main;
-              node = node.parentElement
-            ) {
-              if (
-                node.matches('[hidden], [inert], [aria-hidden="true"]') ||
-                getComputedStyle(node).display === 'none' ||
-                getComputedStyle(node).visibility === 'hidden'
-              )
-                return false;
-            }
-            return true;
-          });
-          (first ?? main).focus();
-        },
-        { injector: this.injector },
-      );
+      if (!this.destroyRef.destroyed && !navigated && samePage && this.router.url === item.link) {
+        this.enterPage(item.link);
+      }
     } catch (err) {
       this.notify.error(err);
+    } finally {
+      this.navigationPending = false;
     }
+  }
+
+  private enterPage(url: string): void {
+    const path = url.split(/[?#]/)[0];
+    this.selectedGroup.set(
+      NAV.find((group) =>
+        group.items.some(
+          (item) => this.visible(item) && (path === item.link || path.startsWith(item.link + '/')),
+        ),
+      ) ?? null,
+    );
+    this.drawerOpen.set(false);
+    this.scheduleFocus(() => {
+      if (this.drawerOpen()) return;
+      const main = this.mainContent()?.nativeElement;
+      if (!main) return;
+      const controls = main.querySelectorAll<HTMLElement>(
+        'input:not([type="hidden"]):not([disabled]):not([readonly]), select:not([disabled]), textarea:not([disabled]):not([readonly]), [role="combobox"][tabindex="0"]',
+      );
+      const first = Array.from(controls).find((control) => {
+        if (control.matches(':disabled, [aria-disabled="true"]') || control.tabIndex < 0)
+          return false;
+        for (
+          let node: HTMLElement | null = control;
+          node && node !== main;
+          node = node.parentElement
+        ) {
+          if (
+            node.matches('[hidden], [inert], [aria-hidden="true"]') ||
+            getComputedStyle(node).display === 'none' ||
+            getComputedStyle(node).visibility === 'hidden'
+          )
+            return false;
+        }
+        return true;
+      });
+      (first ?? main).focus();
+    });
   }
   protected readonly isMobile = signal(this.breakpoints.isMatched('(max-width: 959px)'));
   protected readonly drawerOpen = signal(!this.isMobile());
@@ -501,18 +566,14 @@ export class Shell implements OnInit {
       .pipe(takeUntilDestroyed())
       .subscribe(({ matches }) => {
         this.isMobile.set(matches);
-        this.drawerOpen.set(!matches);
+        if (matches && this.drawerOpen()) this.closeNavigation();
       });
     this.router.events
       .pipe(
-        filter((event) => event instanceof NavigationEnd),
+        filter((event): event is NavigationEnd => event instanceof NavigationEnd),
         takeUntilDestroyed(),
       )
-      .subscribe(() => this.closeMobileNav());
-  }
-
-  protected closeMobileNav(): void {
-    if (this.isMobile()) this.drawerOpen.set(false);
+      .subscribe((event) => this.enterPage(event.urlAfterRedirects));
   }
 
   ngOnInit(): void {
