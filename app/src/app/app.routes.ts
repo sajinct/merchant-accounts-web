@@ -70,6 +70,18 @@ export const routes: Routes = [
       },
 
       {
+        path: 'membership/subscriptions',
+        loadComponent: () => import('./features/membership/subscriptions').then((m) => m.Subscriptions),
+        title: 'Subscriptions',
+      },
+      {
+        path: 'membership/fees',
+        canActivate: [admins],
+        loadComponent: () => import('./features/membership/subscription-fees').then((m) => m.SubscriptionFees),
+        title: 'Subscription Fees',
+      },
+
+      {
         path: 'admin/settings',
         canActivate: [admins],
         loadComponent: () => import('./features/admin/company-settings').then((m) => m.CompanySettingsPage),

@@ -11,6 +11,8 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { WebcamCapture } from '../../shared/webcam-capture';
+import { isoDate } from '../../shared/dates';
+import { MemberSubscription } from '../membership/member-subscription';
 
 const PHOTO_BUCKET = 'customer-photos';
 const TEXT_FIELDS = [
@@ -37,6 +39,7 @@ const TEXT_FIELDS = [
     MatInputModule,
     EnterToNext,
     WebcamCapture,
+    MemberSubscription,
   ],
   template: `
     <div class="page">
@@ -97,6 +100,16 @@ const TEXT_FIELDS = [
                 ><mat-label>Phone</mat-label
                 ><input matInput type="tel" formControlName="phone" autocomplete="tel"
               /></mat-form-field>
+              <mat-form-field>
+                <mat-label>Joined on</mat-label>
+                <input matInput type="date" formControlName="joined_on" />
+                <mat-hint>Subscription is due from this financial year</mat-hint>
+              </mat-form-field>
+              <mat-form-field>
+                <mat-label>Left on</mat-label>
+                <input matInput type="date" formControlName="left_on" />
+                <mat-hint>Leave empty while the member is active</mat-hint>
+              </mat-form-field>
             </div>
           </section>
 
@@ -182,7 +195,18 @@ const TEXT_FIELDS = [
           }
         </div>
       </form>
+
+      @if (!isNew() && form.controls.code.value) {
+        <div class="member-subscription">
+          <app-member-subscription [memberCode]="form.controls.code.value" />
+        </div>
+      }
     </div>
+  `,
+  styles: `
+    .member-subscription {
+      margin-top: 20px;
+    }
   `,
 })
 export class MemberForm implements OnInit {
@@ -214,6 +238,8 @@ export class MemberForm implements OnInit {
     pan: ['', Validators.pattern(/^[A-Za-z]{5}\d{4}[A-Za-z]$|^$/)],
     id_type: [''],
     id_no: [''],
+    joined_on: [isoDate()],
+    left_on: [''],
   });
 
   async ngOnInit(): Promise<void> {
@@ -246,6 +272,13 @@ export class MemberForm implements OnInit {
     const record: Record<string, string | number | null> = { name: value.name.trim() };
     for (const field of TEXT_FIELDS) {
       record[field] = value[field].trim() || null;
+    }
+    record['joined_on'] = value.joined_on || null;
+    record['left_on'] = value.left_on || null;
+    if (value.joined_on && value.left_on && value.left_on < value.joined_on) {
+      this.notify.error(new Error('"Left on" cannot be before "Joined on".'));
+      this.saving.set(false);
+      return;
     }
     if (record['pan']) {
       record['pan'] = String(record['pan']).toUpperCase();
@@ -328,6 +361,8 @@ export class MemberForm implements OnInit {
       code: member.code,
       name: member.name,
       ...Object.fromEntries(TEXT_FIELDS.map((f) => [f, member[f] ?? ''])),
+      joined_on: member.joined_on ?? '',
+      left_on: member.left_on ?? '',
     });
     this.photoPath = member.photo_path;
     this.photoChange = undefined;

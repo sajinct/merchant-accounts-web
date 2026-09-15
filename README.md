@@ -88,10 +88,23 @@ Service workers are disabled during normal `npm start` development. To check the
 | Role | Can |
 |---|---|
 | `viewer` | read everything, run reports |
-| `accountant` | + account heads, members, vouchers, day book posting, manual day book rows |
-| `admin` | + cancel vouchers, delete members, company settings, manage users |
+| `accountant` | + account heads, members, vouchers, subscription payments, day book posting, manual day book rows |
+| `admin` | + cancel vouchers and subscription payments, subscription fees, delete members, company settings, manage users |
 
 Vouchers are only written through the `create_voucher` / `cancel_voucher` RPCs. Numbers come from `voucher_counters`, one sequence per type (1 receipt, 2 payment). Cancelling a voucher does not change the day book until that date is posted again.
+
+## Membership subscriptions
+
+Members pay one yearly subscription per **financial year (1 April – 31 March)**, labelled like `2026-27`.
+
+- **Fees:** an admin sets the fee for each year under Membership → Subscription Fees. Everyone pays the same fee for a given year, and changing a year's fee changes the balances for that year.
+- **Who owes what:** a member owes the fee for every year from the financial year of *Joined on* up to the financial year of *Left on*. A member with no join date owes all years that have a fee.
+- **Payments:** on the member's page, record a payment against a year. Part payments are allowed, but a payment can't exceed that year's balance. Unpaid balances carry forward as **arrears**.
+- **Accounts:** each payment creates a receipt voucher against the subscription account head. The migration creates a `MEMBERSHIP SUBSCRIPTION` head and selects it; you can change it on the Subscription Fees page. Receipts reach the day book and reports after **Day Book Posting**, like any other voucher.
+- **Cancelling:** only admins can cancel a payment, from the member's page. That also cancels its receipt voucher. Subscription receipts can't be cancelled from the Payments / Receipts screen.
+- **Reports:** Membership → Subscriptions lists every member for a year with fee, paid, balance, arrears and total due. It can be filtered to *Owing* or *Paid up*, printed, or exported to CSV.
+
+Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`.
 
 ## Screens (from the desktop menu)
 

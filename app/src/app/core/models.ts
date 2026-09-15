@@ -37,6 +37,49 @@ export interface Customer {
   id_type: string | null;
   id_no: string | null;
   photo_path: string | null;
+  joined_on: string | null;
+  left_on: string | null;
+}
+
+/** Fee for one financial year; fy_start 2026 means 2026-27. */
+export interface SubscriptionYear {
+  fy_start: number;
+  fee: number;
+}
+
+export interface SubscriptionPayment {
+  id: number;
+  member_code: number;
+  fy_start: number;
+  paid_on: string;
+  amount: number;
+  voucher_id: number;
+  notes: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+}
+
+/** One financial year for one member (member_subscription_years). */
+export interface MemberSubscriptionYear {
+  fy_start: number;
+  fee: number;
+  paid: number;
+  balance: number;
+  last_paid_on: string | null;
+}
+
+/** One member in the dues report (rpt_subscription_status). */
+export interface SubscriptionStatusRow {
+  member_code: number;
+  member_name: string;
+  phone: string | null;
+  due_this_year: boolean;
+  year_fee: number;
+  year_paid: number;
+  year_balance: number;
+  arrears: number;
+  total_due: number;
+  last_paid_on: string | null;
 }
 
 /** 1 = receipt, 2 = payment. */

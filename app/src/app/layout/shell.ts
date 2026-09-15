@@ -44,11 +44,21 @@ const NAV: { heading: string; items: NavItem[] }[] = [
     ],
   },
   {
-    heading: 'Masters',
+    heading: 'Membership',
     items: [
-      { label: 'Account Heads', link: '/masters/account-heads', icon: 'list_alt' },
       { label: 'Members', link: '/masters/members', icon: 'group' },
+      { label: 'Subscriptions', link: '/membership/subscriptions', icon: 'card_membership' },
+      {
+        label: 'Subscription Fees',
+        link: '/membership/fees',
+        icon: 'price_change',
+        adminOnly: true,
+      },
     ],
+  },
+  {
+    heading: 'Masters',
+    items: [{ label: 'Account Heads', link: '/masters/account-heads', icon: 'list_alt' }],
   },
   {
     heading: 'Utilities',
