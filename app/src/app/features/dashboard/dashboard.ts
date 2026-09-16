@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { AuthService } from '../../core/auth.service';
 import { FinancialYearService } from '../../core/financial-year.service';
-import { DaybookRow, SubscriptionStatusRow, VoucherType } from '../../core/models';
+import { DaybookRow, SubscriptionDuesSummary, VoucherType } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { addDays, isoDate } from '../../shared/dates';
@@ -32,11 +32,6 @@ interface YearResult {
   income: number;
   expense: number;
   net_result: number;
-}
-
-interface Dues {
-  total: number;
-  members: number;
 }
 
 @Component({
@@ -478,7 +473,7 @@ export class Dashboard {
   protected readonly loading = signal(true);
   protected readonly cash = signal<CashSummary | null>(null);
   protected readonly year = signal<YearResult | null>(null);
-  protected readonly dues = signal<Dues | null>(null);
+  protected readonly dues = signal<SubscriptionDuesSummary | null>(null);
   protected readonly recent = signal<RecentVoucher[]>([]);
   private loadId = 0;
 
@@ -524,12 +519,12 @@ export class Dashboard {
       must(this.sb.rpc('financial_year_summary', { p_start_year: startYear })).then(
         (rows) => ((rows as YearResult[])[0] ?? null) as YearResult | null,
       ),
-      must(this.sb.rpc('rpt_subscription_status', { p_fy: startYear })).then((rows) => {
-        const owing = (rows as SubscriptionStatusRow[]).filter((r) => Number(r.total_due) > 0);
-        return {
-          total: owing.reduce((sum, r) => sum + Number(r.total_due), 0),
-          members: owing.length,
-        };
+      // One row, whatever the size of the membership: the sum happens in the database.
+      must(this.sb.rpc('subscription_dues_summary', { p_fy: startYear })).then((rows) => {
+        const summary = (rows as SubscriptionDuesSummary[])[0];
+        return summary
+          ? { total: Number(summary.total), members: Number(summary.members) }
+          : { total: 0, members: 0 };
       }),
       must(
         this.sb

@@ -29,6 +29,7 @@ import { AppUpdateService } from '../core/app-update.service';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
+import { ThemePreference, ThemeService } from '../core/theme.service';
 import { hasPendingChanges } from '../core/pending-changes';
 import { SUPPORT } from '../core/support';
 import { NAV, NavGroup, NavItem } from './navigation';
@@ -159,6 +160,10 @@ import { NAV, NavGroup, NavItem } from './navigation';
           </button>
           <mat-menu #userMenu="matMenu">
             <div mat-menu-item disabled>Signed in as {{ auth.role() }}</div>
+            <button mat-menu-item type="button" [matMenuTriggerFor]="themeMenu">
+              <mat-icon>{{ theme.resolved() === 'dark' ? 'dark_mode' : 'light_mode' }}</mat-icon
+              >Appearance
+            </button>
             <button mat-menu-item type="button" (click)="openUpdates()">
               <mat-icon>system_update</mat-icon
               >{{ updates.ready() ? 'App update ready' : 'Check for app updates' }}
@@ -194,6 +199,23 @@ import { NAV, NavGroup, NavItem } from './navigation';
               <mat-icon>logout</mat-icon> Sign out
             </button>
           </mat-menu>
+          <mat-menu #themeMenu="matMenu">
+            @for (option of themes; track option.value) {
+              <button
+                mat-menu-item
+                type="button"
+                role="menuitemradio"
+                [attr.aria-checked]="theme.preference() === option.value"
+                (click)="theme.set(option.value)"
+              >
+                <mat-icon>{{ option.icon }}</mat-icon
+                >{{ option.label }}
+                @if (theme.preference() === option.value) {
+                  <mat-icon class="menu-check">check</mat-icon>
+                }
+              </button>
+            }
+          </mat-menu>
         </header>
         <app-financial-year-banner class="no-print" />
         <div class="workspace-breadcrumb no-print" aria-label="Current location">
@@ -215,6 +237,12 @@ export class Shell implements OnInit {
   protected readonly support = SUPPORT;
   protected readonly auth = inject(AuthService);
   protected readonly company = inject(CompanyService);
+  protected readonly theme = inject(ThemeService);
+  protected readonly themes: { value: ThemePreference; label: string; icon: string }[] = [
+    { value: 'system', label: 'Match system', icon: 'contrast' },
+    { value: 'light', label: 'Light', icon: 'light_mode' },
+    { value: 'dark', label: 'Dark', icon: 'dark_mode' },
+  ];
   private readonly notify = inject(NotifyService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);

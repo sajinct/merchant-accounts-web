@@ -84,6 +84,12 @@ export interface SubscriptionStatusRow {
   last_paid_on: string | null;
 }
 
+/** Outstanding dues up to a financial year, totalled in the database. */
+export interface SubscriptionDuesSummary {
+  total: number;
+  members: number;
+}
+
 /** 1 = receipt, 2 = payment. */
 export type VoucherType = 1 | 2;
 

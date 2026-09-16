@@ -288,3 +288,10 @@ button.nav-link.is-active {
     transition: none;
   }
 }
+
+/* Menus render in an overlay, but the markup is still the shell's template. */
+.menu-check {
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--app-accent);
+}

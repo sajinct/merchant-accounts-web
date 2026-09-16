@@ -84,7 +84,7 @@ describe('Members list', () => {
     const { calls } = setup();
     const { harness, page } = await open();
     expect(calls.at(-1)!.range).toEqual([0, 24]);
-    expect(calls.at(-1)!.order[0]).toEqual(['name', { ascending: true, nullsFirst: false }]);
+    expect(calls.at(-1)!.order[0]).toEqual(['name_sort', { ascending: true, nullsFirst: false }]);
     expect(page.total()).toBe(120);
     expect(harness.nativeElement.textContent).toContain('1–25 of 120 members');
     expect(harness.nativeElement.querySelectorAll('tbody tr').length).toBe(25);
@@ -111,6 +111,15 @@ describe('Members list', () => {
     expect(calls.at(-1)!.order[0]).toEqual(['code', { ascending: false, nullsFirst: false }]);
     expect(calls.at(-1)!.range).toEqual([0, 24]);
     expect(page.pageIndex()).toBe(0);
+  });
+
+  it('sorts names on the case-insensitive column but keeps the URL readable', async () => {
+    const { calls } = setup();
+    const { page, settle } = await open();
+    page.onSort({ active: 'name', direction: 'desc' });
+    await settle();
+    expect(calls.at(-1)!.order[0]).toEqual(['name_sort', { ascending: false, nullsFirst: false }]);
+    expect(TestBed.inject(Location).path()).toContain('sort=name.desc');
   });
 
   it('restores the search, page and sort from the URL', async () => {

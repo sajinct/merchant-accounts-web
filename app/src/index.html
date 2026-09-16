@@ -20,6 +20,24 @@
     <link rel="manifest" href="manifest.webmanifest" />
   </head>
   <body>
+    <script>
+      // Paint the saved theme before Angular boots, or a light frame flashes first.
+      // Kept in step with ThemeService: same key, same attribute, same meta tag.
+      try {
+        var theme = localStorage.getItem('merchant-accounts.theme');
+        if (theme === 'light' || theme === 'dark') {
+          document.documentElement.dataset.theme = theme;
+        }
+        var dark =
+          theme === 'dark' ||
+          (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+        document
+          .querySelector('meta[name="theme-color"]')
+          .setAttribute('content', dark ? '#101c25' : '#172c39');
+      } catch (e) {
+        // No stored preference available; the stylesheet follows the OS setting.
+      }
+    </script>
     <app-root></app-root>
     <noscript>Please enable JavaScript to use Merchant Accounts.</noscript>
   </body>

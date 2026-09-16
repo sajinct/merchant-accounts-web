@@ -87,6 +87,12 @@ The icon set includes an SVG favicon, 16/32/48px ICO, 192/512px install icons, s
 
 Service workers are disabled during normal `npm start` development. To check the installed experience locally, run `npm start -- --configuration production` and open localhost. See [Angular's service-worker guide](https://angular.dev/ecosystem/service-workers/getting-started) and [browser installation requirements](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
 
+### Appearance (light and dark)
+
+The app ships both a light and a dark palette and follows the operating system's setting. **Account menu → Appearance** overrides it with *Light*, *Dark* or *Match system*; the choice is stored per browser and applied before the first paint, so switching never flashes the other theme. Printing always uses the light palette, whatever is on screen.
+
+Colours live in one place: the `scheme-light` and `scheme-dark` mixins in `app/src/styles.scss`. Components only ever reference an `--app-*` token, so a colour is defined twice and used everywhere. `npm run check:contrast` reads both mixins and measures every text, icon, focus-ring and chart pairing against WCAG 2.2 (4.5:1 for text, 3:1 for graphics). It needs no build, and CI runs it before the tests.
+
 ## Roles
 
 | Role | Can |
@@ -96,6 +102,12 @@ Service workers are disabled during normal `npm start` development. To check the
 | `admin` | + cancel vouchers and subscription payments, subscription fees, delete members, company settings, manage users |
 
 Vouchers are only written through the `create_voucher` / `cancel_voucher` RPCs. Numbers come from `voucher_counters`, one sequence per type (1 receipt, 2 payment). Cancelling a voucher does not change the day book until that date is posted again.
+
+## Member directory
+
+Masters → Members pages and sorts in the database rather than in the browser, so the list stays the same size however many members there are.
+
+Names sort case-insensitively. Postgres orders text by the database collation, which under a `C` collation puts every capitalised name ahead of every lowercase one, so a directory typed by different hands reads as two lists. `customers.name_sort` is a stored, indexed lowercase copy of the name, and every ordered query — the member list and the dues report — sorts on it.
 
 ## Membership subscriptions
 
@@ -108,7 +120,9 @@ Members pay one yearly subscription per **financial year (1 April – 31 March)*
 - **Cancelling:** only admins can cancel a payment, from the member's page. That also cancels its receipt voucher. Subscription receipts can't be cancelled from the Payments / Receipts screen.
 - **Reports:** Membership → Subscriptions lists every member for a year with fee, paid, balance, arrears and total due. It can be filtered to *Owing* or *Paid up*, printed, or exported to CSV.
 
-Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`.
+- **Dashboard:** the *Subscription dues* figure comes from `subscription_dues_summary`, which totals the outstanding balances in the database and returns a single row. The per-member report behind the Subscriptions page is unchanged; only the dashboard stopped downloading it.
+
+Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`, `subscription_dues_summary`.
 
 ## Screens (from the desktop menu)
 
