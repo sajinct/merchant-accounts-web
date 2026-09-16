@@ -1,4 +1,5 @@
 import { FinancialYearSelector } from '../shared/financial-year-selector';
+import { FinancialYearBanner } from '../shared/financial-year-banner';
 import {
   afterNextRender,
   Component,
@@ -157,6 +158,7 @@ const NAV: NavGroup[] = [
   },
   imports: [
     FinancialYearSelector,
+    FinancialYearBanner,
     RouterOutlet,
     RouterLink,
     MatButtonModule,
@@ -318,6 +320,7 @@ const NAV: NavGroup[] = [
             </button>
           </mat-menu>
         </header>
+        <app-financial-year-banner class="no-print" />
         <div class="workspace-breadcrumb no-print" aria-label="Current location">
           <mat-icon>grid_view</mat-icon><span>{{ context().heading }}</span
           ><mat-icon>chevron_right</mat-icon>
