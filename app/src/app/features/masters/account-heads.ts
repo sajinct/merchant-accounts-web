@@ -110,7 +110,9 @@ const SYSTEM_CODE_START = 9000;
                         [class.neutral]="head.code >= systemCodeStart"
                         [class.success]="head.code < systemCodeStart"
                         >{{ head.account_type || 'Needs classification'
-                        }}{{ head.is_cash_bank ? ' · Cash/bank' : '' }}</span
+                        }}{{ head.is_cash_bank ? ' · Cash/bank' : ''
+                        }}{{ head.is_group ? ' · Group' : ''
+                        }}{{ head.is_active === false ? ' · Retired' : '' }}</span
                       >
                     </td>
                   </tr>
@@ -185,6 +187,15 @@ const SYSTEM_CODE_START = 9000;
                   ><mat-option [value]="true">Yes (asset only)</mat-option></mat-select
                 >
               </mat-form-field>
+              <mat-form-field
+                ><mat-label>Posting</mat-label>
+                <mat-select formControlName="posting">
+                  <mat-option value="ledger">Ledger — vouchers post here</mat-option>
+                  <mat-option value="group">Group — organises the chart only</mat-option>
+                  <mat-option value="retired">Retired — keeps history, takes no entries</mat-option>
+                </mat-select>
+                <mat-hint>Group and retired accounts are not offered on voucher lines.</mat-hint>
+              </mat-form-field>
               <p class="hint">Classification is locked after the first posted entry.</p>
               <div class="form-actions">
                 <button
@@ -236,6 +247,7 @@ export class AccountHeads implements OnInit {
     name: ['', [Validators.required, Validators.pattern(/\S/)]],
     account_type: ['asset', Validators.required],
     is_cash_bank: [false],
+    posting: ['ledger'],
   });
 
   ngOnInit(): void {
@@ -256,6 +268,7 @@ export class AccountHeads implements OnInit {
       name: '',
       account_type: 'asset',
       is_cash_bank: false,
+      posting: 'ledger',
     });
     this.formOpen.set(true);
     this.focusForm();
@@ -268,6 +281,7 @@ export class AccountHeads implements OnInit {
       name: head.name,
       account_type: head.account_type ?? null,
       is_cash_bank: head.is_cash_bank ?? false,
+      posting: head.is_group ? 'group' : head.is_active === false ? 'retired' : 'ledger',
     });
     this.formOpen.set(true);
     this.focusForm();
@@ -292,10 +306,11 @@ export class AccountHeads implements OnInit {
   }
 
   protected async save(): Promise<void> {
-    const { code, name, account_type, is_cash_bank } = this.form.getRawValue();
+    const { code, name, account_type, is_cash_bank, posting } = this.form.getRawValue();
     if (this.form.invalid || code === null || !name) {
       return;
     }
+    const flags = { is_group: posting === 'group', is_active: posting !== 'retired' };
     this.saving.set(true);
     try {
       const editing = this.editingCode();
@@ -303,7 +318,7 @@ export class AccountHeads implements OnInit {
         await must(
           this.sb
             .from('account_heads')
-            .update({ name: name.trim(), account_type, is_cash_bank })
+            .update({ name: name.trim(), account_type, is_cash_bank, ...flags })
             .eq('code', editing),
         );
         this.form.markAsPristine();
@@ -312,7 +327,7 @@ export class AccountHeads implements OnInit {
         await must(
           this.sb
             .from('account_heads')
-            .insert({ code, name: name.trim(), account_type, is_cash_bank }),
+            .insert({ code, name: name.trim(), account_type, is_cash_bank, ...flags }),
         );
         this.notify.success('Account head added');
         this.close();
@@ -332,7 +347,7 @@ export class AccountHeads implements OnInit {
         await must(
           this.sb
             .from('account_heads')
-            .select('code, name, account_type, is_cash_bank')
+            .select('code, name, account_type, is_cash_bank, is_group, is_active')
             .order('name'),
         ),
       );

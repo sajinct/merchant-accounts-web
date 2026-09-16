@@ -8,6 +8,7 @@ import { AuthService } from '../../core/auth.service';
 import { FinancialYearService } from '../../core/financial-year.service';
 import { DaybookRow, SubscriptionDuesSummary, VoucherType } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
+import { voucherRef } from '../../core/voucher-types';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { addDays, isoDate } from '../../shared/dates';
 import { CashFlowChart } from './cash-flow-chart';
@@ -23,9 +24,9 @@ interface RecentVoucher {
   voucher_type: VoucherType;
   voucher_no: number;
   voucher_date: string;
-  amount: number;
-  description: string;
-  head: { name: string } | null;
+  total_amount: number;
+  narration: string;
+  reference_no: string | null;
 }
 
 interface YearResult {
@@ -186,7 +187,7 @@ interface YearResult {
         <div class="panel-header">
           <div>
             <h2 id="recent-heading">Recent vouchers</h2>
-            <p>Latest receipts and payments in the selected year</p>
+            <p>Latest vouchers of every type in the selected year</p>
           </div>
           <a mat-button routerLink="/transactions/vouchers">All vouchers</a>
         </div>
@@ -197,7 +198,7 @@ interface YearResult {
                 <tr>
                   <th scope="col">Voucher</th>
                   <th scope="col">Date</th>
-                  <th scope="col">Account</th>
+                  <th scope="col">Reference</th>
                   <th scope="col">Narration</th>
                   <th scope="col" class="num">Amount</th>
                 </tr>
@@ -206,14 +207,14 @@ interface YearResult {
                 @for (voucher of recent(); track voucher.id) {
                   <tr>
                     <td>
-                      <span class="voucher-ref" [class.receipt]="voucher.voucher_type === 1"
-                        >{{ voucher.voucher_type === 1 ? 'R' : 'P' }}-{{ voucher.voucher_no }}</span
-                      >
+                      <span class="voucher-ref" [class.receipt]="voucher.voucher_type === 1">{{
+                        voucherRef(voucher.voucher_type, voucher.voucher_no)
+                      }}</span>
                     </td>
                     <td class="nowrap">{{ voucher.voucher_date | date: 'dd-MMM-yyyy' }}</td>
-                    <td class="table-primary">{{ voucher.head?.name ?? '—' }}</td>
-                    <td class="table-secondary narration">{{ voucher.description || '—' }}</td>
-                    <td class="num">{{ voucher.amount | number: '1.2-2' }}</td>
+                    <td class="table-primary">{{ voucher.reference_no || '—' }}</td>
+                    <td class="table-secondary narration">{{ voucher.narration || '—' }}</td>
+                    <td class="num">{{ voucher.total_amount | number: '1.2-2' }}</td>
                   </tr>
                 }
               </tbody>
@@ -477,9 +478,11 @@ export class Dashboard {
   protected readonly recent = signal<RecentVoucher[]>([]);
   private loadId = 0;
 
+  protected readonly voucherRef = voucherRef;
   protected readonly links = [
-    { title: 'Payments / Receipts', icon: 'receipt_long', link: '/transactions/vouchers' },
-    { title: 'Journals', icon: 'balance', link: '/transactions/journals' },
+    { title: 'Receipt', icon: 'south_west', link: '/transactions/voucher/receipt', editor: true },
+    { title: 'Payment', icon: 'north_east', link: '/transactions/voucher/payment', editor: true },
+    { title: 'Voucher Register', icon: 'receipt_long', link: '/transactions/vouchers' },
     { title: 'Members', icon: 'groups', link: '/masters/members' },
     { title: 'Subscriptions', icon: 'card_membership', link: '/membership/subscriptions' },
     { title: 'Day Book', icon: 'menu_book', link: '/reports/daybook' },
@@ -530,7 +533,7 @@ export class Dashboard {
         this.sb
           .from('vouchers')
           .select(
-            'id, voucher_type, voucher_no, voucher_date, amount, description, head:account_heads!vouchers_head_code_fkey(name)',
+            'id, voucher_type, voucher_no, voucher_date, total_amount, narration, reference_no',
           )
           .gte('voucher_date', this.fy.start())
           .lte('voucher_date', this.fy.end())

@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { CompanyService } from '../../core/company.service';
 import { NotifyService } from '../../core/notify.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
@@ -18,6 +19,7 @@ import { PageHeader } from '../../shared/page-header';
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatSlideToggleModule,
     EnterToNext,
   ],
   template: `
@@ -59,6 +61,24 @@ import { PageHeader } from '../../shared/page-header';
             </p>
           </div>
         </section>
+        <section class="panel" aria-labelledby="accounting-rules-heading">
+          <div class="panel-header">
+            <h2 id="accounting-rules-heading">Accounting rules</h2>
+            <mat-icon>rule</mat-icon>
+          </div>
+          <div class="panel-body">
+            <mat-slide-toggle formControlName="journal_allows_cash">
+              Allow cash and bank accounts in journal vouchers
+            </mat-slide-toggle>
+            <p class="hint company-note">
+              <mat-icon>info_outline</mat-icon>
+              <span
+                >Off by default, so money moving in or out is entered as a receipt, payment or
+                contra, where it is visible in the cash book.</span
+              >
+            </p>
+          </div>
+        </section>
         <div class="form-actions">
           <button mat-flat-button type="submit" [disabled]="form.invalid || saving()">
             <mat-icon>check</mat-icon> {{ saving() ? 'Saving…' : 'Save changes' }}
@@ -92,6 +112,7 @@ export class CompanySettingsPage implements OnInit {
     place: [''],
     phone: [''],
     gstin: [''],
+    journal_allows_cash: [false],
   });
 
   hasPendingChanges(): boolean {
@@ -108,6 +129,7 @@ export class CompanySettingsPage implements OnInit {
           place: s.place,
           phone: s.phone ?? '',
           gstin: s.gstin ?? '',
+          journal_allows_cash: !!s.journal_allows_cash,
         });
       }
     } catch (err) {
@@ -124,6 +146,7 @@ export class CompanySettingsPage implements OnInit {
         place: v.place.trim(),
         phone: v.phone.trim() || null,
         gstin: v.gstin.trim().toUpperCase() || null,
+        journal_allows_cash: v.journal_allows_cash,
       });
       this.form.markAsPristine();
       this.notify.success('Company settings saved');

@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { voucherType } from './core/voucher-types';
 import { authGuard, roleGuard } from './core/guards';
 import { pendingChangesGuard } from './core/pending-changes';
 import { Shell } from './layout/shell';
@@ -24,18 +25,27 @@ export const routes: Routes = [
         title: 'Dashboard',
       },
 
+      // Receipt, Payment, Contra and Journal are one screen; the type is the route.
+      {
+        path: 'transactions/voucher/:type',
+        canActivate: [editors],
+        canDeactivate: [pendingChangesGuard],
+        loadComponent: () =>
+          import('./features/transactions/voucher-entry').then((m) => m.VoucherEntry),
+        title: (route) => `${voucherType(route.paramMap.get('type'))?.label ?? 'Voucher'} entry`,
+      },
+      {
+        path: 'transactions/voucher',
+        pathMatch: 'full',
+        redirectTo: 'transactions/voucher/receipt',
+      },
       {
         path: 'transactions/vouchers',
-        canDeactivate: [pendingChangesGuard],
-        loadComponent: () => import('./features/transactions/vouchers').then((m) => m.Vouchers),
-        title: 'Payments / Receipts',
+        loadComponent: () =>
+          import('./features/transactions/voucher-register').then((m) => m.VoucherRegister),
+        title: 'Voucher Register',
       },
-      {
-        path: 'transactions/journals',
-        canDeactivate: [pendingChangesGuard],
-        loadComponent: () => import('./features/transactions/journals').then((m) => m.Journals),
-        title: 'Journals & Transfers',
-      },
+      { path: 'transactions/journals', redirectTo: 'transactions/voucher/journal' },
       {
         path: 'transactions/daybook-posting',
         canActivate: [editors],

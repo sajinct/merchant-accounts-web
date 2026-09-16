@@ -21,17 +21,40 @@ export const NAV: NavGroup[] = [
     icon: 'swap_horiz',
     shortcut: 'T',
     items: [
+      // The four voucher types are one screen; the link carries the type.
       {
-        label: 'Payments / Receipts',
-        shortcut: 'P',
-        link: '/transactions/vouchers',
-        icon: 'receipt_long',
+        label: 'Receipt',
+        shortcut: 'R',
+        link: '/transactions/voucher/receipt',
+        icon: 'south_west',
+        editorsOnly: true,
       },
       {
-        label: 'Journals / Transfers',
+        label: 'Payment',
+        shortcut: 'P',
+        link: '/transactions/voucher/payment',
+        icon: 'north_east',
+        editorsOnly: true,
+      },
+      {
+        label: 'Contra',
+        shortcut: 'C',
+        link: '/transactions/voucher/contra',
+        icon: 'swap_horiz',
+        editorsOnly: true,
+      },
+      {
+        label: 'Journal',
         shortcut: 'J',
-        link: '/transactions/journals',
+        link: '/transactions/voucher/journal',
         icon: 'balance',
+        editorsOnly: true,
+      },
+      {
+        label: 'Voucher Register',
+        shortcut: 'V',
+        link: '/transactions/vouchers',
+        icon: 'receipt_long',
       },
       {
         label: 'Ledger Verification',
@@ -42,7 +65,7 @@ export const NAV: NavGroup[] = [
       },
       {
         label: 'Day Closing Balance',
-        shortcut: 'C',
+        shortcut: 'B',
         link: '/transactions/day-closing',
         icon: 'event_available',
       },
