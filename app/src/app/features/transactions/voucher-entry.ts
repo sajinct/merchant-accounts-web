@@ -769,28 +769,14 @@ export class VoucherEntry {
   }
 
   /**
-   * The four types share this component, so moving between them changes a route
-   * parameter rather than the page: Angular keeps the instance alive and the
-   * unsaved-changes guard never runs. The grid has to be cleared anyway, because
-   * each type has its own rules and account list, so ask first when there is work
-   * in it and return to the type the entry was started on if the answer is no.
+   * The four types share this component, so moving between them changes a route parameter
+   * rather than destroying the page. Angular's pendingChangesGuard intercept the navigation
+   * for us, so we only need to clear the grid and state when the new type is applied.
    */
   private async applyType(type: VoucherTypeConfig): Promise<void> {
     const previous = this.applied;
     if (previous === type.slug) return;
-    if (previous && this.hasPendingChanges()) {
-      const discard = await confirmAction(this.dialog, {
-        title: `Leave this ${voucherType(previous)?.label.toLowerCase()} without saving?`,
-        message: 'The lines you entered have not been saved and will be lost.',
-        confirmLabel: 'Discard and switch',
-        cancelLabel: 'Stay here',
-        destructive: true,
-      });
-      if (!discard) {
-        await this.router.navigate(['/transactions/voucher', previous]);
-        return;
-      }
-    }
+    
     this.applied = type.slug;
     this.advanced.set(false);
     this.opening.set(false);
