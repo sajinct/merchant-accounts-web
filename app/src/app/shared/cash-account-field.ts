@@ -9,14 +9,14 @@ import { NotifyService } from '../core/notify.service';
 @Component({
   selector: 'app-cash-account-field',
   imports: [ReactiveFormsModule, MatFormFieldModule, MatSelectModule],
-  template: `<mat-form-field>
+  template: `<mat-form-field subscriptSizing="dynamic">
     <mat-label>Cash / bank account</mat-label>
     <mat-select [formControl]="control()">
       @for (account of accounts(); track account.code) {
         <mat-option [value]="account.code">{{ account.name }}</mat-option>
       }
     </mat-select>
-    <mat-hint>{{
+    <mat-hint class="cash-hint">{{
       loading()
         ? 'Loading accounts…'
         : !accounts().length
@@ -30,6 +30,10 @@ import { NotifyService } from '../core/notify.service';
     mat-form-field {
       display: block;
       width: 100%;
+    }
+    /* Dynamic sizing keeps the wrapped hint inside the field's own row. */
+    .cash-hint {
+      line-height: 1.5;
     }
   `,
 })

@@ -4,7 +4,18 @@ import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
-import { Component, computed, inject, LOCALE_ID, OnInit, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  LOCALE_ID,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
@@ -32,6 +43,7 @@ interface VoucherLine extends Voucher {
 
 @Component({
   selector: 'app-vouchers',
+  host: { '(document:keydown)': 'onSaveShortcut($event)' },
   imports: [
     FinancialYearScope,
     FinancialYearNotice,
@@ -60,7 +72,6 @@ interface VoucherLine extends Voucher {
             Record daily transactions and keep every account in balance.
           </p>
         </div>
-        <span class="status-badge neutral"><mat-icon>receipt_long</mat-icon> Voucher entry</span>
       </div>
 
       <app-financial-year-notice />
@@ -117,9 +128,22 @@ interface VoucherLine extends Voucher {
               [loading]="loadingHeads()"
               (accountSelected)="loadAccount($event)"
             />
+            @if (selectedHead(); as head) {
+              <p class="account-balance" aria-live="polite">
+                @if (loadingAccount()) {
+                  <span class="hint">Loading balance for {{ head.name }}…</span>
+                } @else if (accountError()) {
+                  <span class="hint">Balance unavailable.</span>
+                } @else {
+                  <span class="hint">Balance for {{ head.name }}</span>
+                  <strong [class.danger]="balance() < 0">{{ balance() | number: '1.2-2' }}</strong>
+                }
+              </p>
+            }
             <mat-form-field>
               <mat-label>Amount</mat-label>
               <input
+                #amountField
                 matInput
                 type="number"
                 min="0.01"
@@ -144,11 +168,7 @@ interface VoucherLine extends Voucher {
           </div>
 
           <div class="form-actions">
-            <button
-              mat-flat-button
-              type="submit"
-              [disabled]="form.invalid || !selectedHead() || saving() || !auth.canEdit()"
-            >
+            <button mat-flat-button type="submit" [disabled]="!canSave()">
               <mat-icon>add</mat-icon>
               {{
                 saving()
@@ -161,6 +181,8 @@ interface VoucherLine extends Voucher {
             </button>
             @if (!auth.canEdit()) {
               <span class="hint">Your role can view vouchers but not enter them.</span>
+            } @else {
+              <span class="hint shortcut-hint">Ctrl + S saves and starts the next entry</span>
             }
           </div>
         </div>
@@ -318,6 +340,25 @@ interface VoucherLine extends Voucher {
     .voucher-form .form-actions {
       margin: 0;
     }
+    .account-balance {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      margin: 0 0 14px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      background: var(--app-surface-muted);
+    }
+    .account-balance strong {
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+    .shortcut-hint {
+      margin-left: auto;
+    }
     .account-summary {
       margin-bottom: 20px;
     }
@@ -393,6 +434,8 @@ export class Vouchers implements OnInit {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
   private readonly dialog = inject(MatDialog);
+  private readonly injector = inject(Injector);
+  private readonly amountField = viewChild<ElementRef<HTMLInputElement>>('amountField');
   private readonly locale = inject(LOCALE_ID);
 
   protected readonly heads = signal<AccountHead[]>([]);
@@ -506,6 +549,29 @@ export class Vouchers implements OnInit {
     }
   }
 
+  protected canSave(): boolean {
+    return !this.form.invalid && !!this.selectedHead() && !this.saving() && this.auth.canEdit();
+  }
+
+  /** Ctrl/Cmd + S saves without leaving the keyboard, like the desktop app. */
+  protected onSaveShortcut(event: KeyboardEvent): void {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      !(event.ctrlKey || event.metaKey) ||
+      event.altKey ||
+      event.key.toLowerCase() !== 's'
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (this.canSave()) void this.save();
+  }
+
+  private focusAmount(): void {
+    afterNextRender(() => this.amountField()?.nativeElement.focus(), { injector: this.injector });
+  }
+
   protected async save(): Promise<void> {
     const head = this.selectedHead();
     const { type, date, description, amount, cash } = this.form.getRawValue();
@@ -531,6 +597,8 @@ export class Vouchers implements OnInit {
       this.requestId = crypto.randomUUID();
       this.form.patchValue({ description: '', amount: null });
       this.form.controls.amount.markAsUntouched();
+      // The account stays selected so repeated entries only need an amount.
+      this.focusAmount();
       await this.loadAccount(head);
     } catch (err) {
       this.notify.error(err);
