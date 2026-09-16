@@ -83,12 +83,11 @@ import { EmptyState } from '../../shared/empty-state';
           </button>
         </form>
 
-        @if (!loading() && rows().length) {
+        @if (!loading() && groupedDays().length) {
           <div class="table-wrap" role="region" tabindex="0" aria-label="Day book entries">
             <table class="report-table">
               <thead>
                 <tr>
-                  <th>Date</th>
                   <th>Voucher</th>
                   <th>Account</th>
                   <th>Narration</th>
@@ -97,26 +96,41 @@ import { EmptyState } from '../../shared/empty-state';
                   <th class="num">Balance</th>
                 </tr>
               </thead>
-              <tbody>
-                @for (row of rows(); track row.seq) {
-                  <tr [class.opening]="row.row_kind === 'opening'">
-                    <td>{{ row.tran_date | date: 'dd-MMM-yyyy' }}</td>
-                    <td>{{ row.voucher_ref }}</td>
-                    <td>{{ row.head_name }}</td>
-                    <td>{{ row.narration }}</td>
-                    <td class="num">
-                      {{ row.row_kind === 'entry' ? (row.credit | number: '1.2-2') : '' }}
-                    </td>
-                    <td class="num">
-                      {{ row.row_kind === 'entry' ? (row.debit | number: '1.2-2') : '' }}
-                    </td>
-                    <td class="num">{{ row.balance | number: '1.2-2' }}</td>
+              
+              @for (day of groupedDays(); track day.date) {
+                <tbody>
+                  <tr class="opening">
+                    <td colspan="5"><strong>{{ day.date | date: 'dd-MMM-yyyy' }} - Opening Balance</strong></td>
+                    <td class="num"><strong>{{ day.openingBalance | number: '1.2-2' }}</strong></td>
                   </tr>
-                }
-              </tbody>
+                  
+                  @for (row of day.entries; track row.seq) {
+                    <tr>
+                      <td>{{ row.voucher_ref }}</td>
+                      <td>{{ row.head_name }}</td>
+                      <td>{{ row.narration }}</td>
+                      <td class="num">
+                        {{ row.credit ? (row.credit | number: '1.2-2') : '' }}
+                      </td>
+                      <td class="num">
+                        {{ row.debit ? (row.debit | number: '1.2-2') : '' }}
+                      </td>
+                      <td class="num">{{ row.balance | number: '1.2-2' }}</td>
+                    </tr>
+                  }
+                  
+                  <tr class="date-footer">
+                    <td colspan="3"><strong>Total for {{ day.date | date: 'dd-MMM-yyyy' }}</strong></td>
+                    <td class="num"><strong>{{ day.totalReceipt | number: '1.2-2' }}</strong></td>
+                    <td class="num"><strong>{{ day.totalPayment | number: '1.2-2' }}</strong></td>
+                    <td class="num"><strong>{{ day.closingBalance | number: '1.2-2' }}</strong></td>
+                  </tr>
+                </tbody>
+              }
+              
               <tfoot>
                 <tr>
-                  <td colspan="4">Total / closing balance</td>
+                  <td colspan="3">Total / closing balance</td>
                   <td class="num">{{ totals().credit | number: '1.2-2' }}</td>
                   <td class="num">{{ totals().debit | number: '1.2-2' }}</td>
                   <td class="num">{{ totals().closing | number: '1.2-2' }}</td>
@@ -160,6 +174,48 @@ export class DaybookReport {
   protected readonly form = inject(FormBuilder).nonNullable.group({
     from: [isoDate(), Validators.required],
     to: [isoDate(), Validators.required],
+  });
+
+  protected readonly groupedDays = computed(() => {
+    const allRows = this.rows();
+    if (!allRows.length) return [];
+    
+    const openingRow = allRows.find(r => r.row_kind === 'opening');
+    let currentBalance = Number(openingRow?.balance ?? 0);
+    
+    const entries = allRows.filter(r => r.row_kind === 'entry');
+    
+    const daysMap = new Map<string, { 
+      date: string; 
+      entries: DaybookRow[]; 
+      openingBalance: number; 
+      closingBalance: number; 
+      totalReceipt: number; 
+      totalPayment: number; 
+    }>();
+    
+    for (const entry of entries) {
+      if (!daysMap.has(entry.tran_date)) {
+        daysMap.set(entry.tran_date, {
+          date: entry.tran_date,
+          entries: [],
+          openingBalance: currentBalance,
+          closingBalance: 0,
+          totalReceipt: 0,
+          totalPayment: 0
+        });
+      }
+      
+      const day = daysMap.get(entry.tran_date)!;
+      day.entries.push(entry);
+      day.totalReceipt += Number(entry.credit);
+      day.totalPayment += Number(entry.debit);
+      
+      currentBalance = currentBalance + Number(entry.credit) - Number(entry.debit);
+      day.closingBalance = currentBalance;
+    }
+    
+    return Array.from(daysMap.values());
   });
 
   protected readonly totals = computed(() => {
