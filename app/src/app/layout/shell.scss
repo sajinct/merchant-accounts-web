@@ -5,7 +5,11 @@
   height: 100dvh;
 }
 .workspace-nav {
-  width: 238px;
+  // The drawer sizes itself to its longest label so menu text stays on one
+  // line, with bounds so a long label cannot squeeze the page content.
+  width: max-content;
+  min-width: 238px;
+  max-width: min(320px, 85vw);
   border: 0;
   border-radius: 0;
   background: var(--app-nav-bg);
@@ -178,7 +182,7 @@
 }
 @media (max-width: 959px) {
   .workspace-nav {
-    width: 260px;
+    min-width: 260px;
   }
   .nav-link {
     min-height: 44px;
@@ -276,8 +280,12 @@ button.nav-link:hover {
 button.nav-link.is-active {
   background: var(--app-nav-active-bg);
 }
+/* Labels stay on one line; they only ellipse if the drawer hits its cap. */
 .nav-link span {
   min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .nav-link kbd {
   flex-shrink: 0;
@@ -290,8 +298,17 @@ button.nav-link.is-active {
 }
 
 /* Menus render in an overlay, but the markup is still the shell's template. */
-.menu-check {
-  margin-left: auto;
-  padding-left: 16px;
-  color: var(--app-accent);
+/* A menu item projects every mat-icon into its leading slot, so the tick lands
+   beside the option icon unless it is ordered after the label. The label grows
+   to fill the row, which then carries the tick out to the trailing edge. */
+.mat-mdc-menu-item .menu-check {
+  order: 1;
+  margin-left: 12px;
+  margin-right: 0;
+  color: var(--app-accent-ink);
+}
+.mat-mdc-menu-item[aria-checked='true'] {
+  --mat-menu-item-label-text-weight: 600;
+  --mat-menu-item-label-text-color: var(--app-accent-ink);
+  background: var(--app-surface-selected);
 }
