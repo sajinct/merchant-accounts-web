@@ -11,7 +11,8 @@ describe('Journal entry', () => {
     const rpc = vi.fn().mockResolvedValue({ data: 12, error: null });
     const query: any = {
       select: () => query,
-      gte:()=>query, lte:()=>query,
+      gte: () => query,
+      lte: () => query,
       not: () => query,
       order: () => query,
       limit: () => query,
