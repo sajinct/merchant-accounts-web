@@ -82,7 +82,7 @@ import { fyLabel } from './fy';
     }
     .year-text span {
       color: var(--app-muted);
-      font-size: 10px;
+      font-size: 11px;
     }
     .year-control.is-closed .year-text span {
       color: inherit;
@@ -122,7 +122,7 @@ import { fyLabel } from './fy';
       border-radius: 5px;
       background: var(--app-warning-bg);
       color: var(--app-warning-ink);
-      font-size: 10px;
+      font-size: 11px;
       font-weight: 600;
     }
     .year-flag mat-icon {
@@ -131,7 +131,7 @@ import { fyLabel } from './fy';
       font-size: 12px;
     }
     .year-menu-heading {
-      font-size: 10px;
+      font-size: 11px;
       letter-spacing: 1px;
       text-transform: uppercase;
     }

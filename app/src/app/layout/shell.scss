@@ -35,7 +35,7 @@
   display: block;
   margin-top: 4px;
   color: var(--app-nav-dim);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 3px;
 }
@@ -108,7 +108,7 @@
 }
 .topbar-company > span,
 .user-details > span {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--app-muted);
   text-transform: capitalize;
 }
@@ -151,7 +151,7 @@
   gap: 9px;
   padding: 21px 28px 0;
   color: var(--app-muted);
-  font-size: 10px;
+  font-size: 11px;
 }
 .workspace-breadcrumb mat-icon {
   width: 14px;
@@ -197,7 +197,7 @@
   .workspace-breadcrumb {
     padding: 17px 16px 0;
     gap: 6px;
-    font-size: 9px;
+    font-size: 11px;
   }
 }
 button.nav-link {
@@ -237,7 +237,7 @@ button.nav-link {
   border-radius: 4px;
   color: var(--app-nav-key);
   font-family: inherit;
-  font-size: 9px;
+  font-size: 11px;
 }
 .nav-link .nav-chevron {
   width: 12px;

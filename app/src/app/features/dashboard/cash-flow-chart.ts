@@ -261,7 +261,7 @@ function column(x: number, top: number, width: number, baseline: number): string
       font-weight: 600;
     }
     .axis.date {
-      font-size: 10px;
+      font-size: 11px;
     }
     .value {
       fill: var(--app-ink);
