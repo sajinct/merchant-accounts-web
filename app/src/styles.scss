@@ -1,5 +1,24 @@
 @use '@angular/material' as mat;
 
+// Palette source. These feed both the Material theme and the --app-* tokens below,
+// so a colour is defined once. Everything else in the app references a token.
+$accent: #087f73;
+$accent-strong: #075c53;
+$accent-container: #e1f3ee;
+$secondary: #536973;
+$secondary-container: #e8f2ef;
+$on-secondary-container: #145c52;
+$surface: #ffffff;
+$surface-low: #f7f9fa;
+$surface-container: #f0f4f6;
+$surface-high: #eaf0f3;
+$surface-highest: #e3eaee;
+$ink: #172c39;
+$muted: #61727e;
+$outline: #cbd5dc;
+$outline-variant: #e2e8ed;
+$error: #b53e43;
+
 html {
   color-scheme: light;
   @include mat.theme(
@@ -14,24 +33,24 @@ html {
   );
   @include mat.theme-overrides(
     (
-      primary: #087f73,
+      primary: $accent,
       on-primary: #ffffff,
-      primary-container: #e1f3ee,
-      on-primary-container: #075c53,
-      secondary: #536973,
-      secondary-container: #e8f2ef,
-      on-secondary-container: #145c52,
-      surface: #ffffff,
-      surface-container-lowest: #ffffff,
-      surface-container-low: #f7f9fa,
-      surface-container: #f0f4f6,
-      surface-container-high: #eaf0f3,
-      surface-container-highest: #e3eaee,
-      on-surface: #172c39,
-      on-surface-variant: #61727e,
-      outline: #cbd5dc,
-      outline-variant: #e2e8ed,
-      error: #b53e43,
+      primary-container: $accent-container,
+      on-primary-container: $accent-strong,
+      secondary: $secondary,
+      secondary-container: $secondary-container,
+      on-secondary-container: $on-secondary-container,
+      surface: $surface,
+      surface-container-lowest: $surface,
+      surface-container-low: $surface-low,
+      surface-container: $surface-container,
+      surface-container-high: $surface-high,
+      surface-container-highest: $surface-highest,
+      on-surface: $ink,
+      on-surface-variant: $muted,
+      outline: $outline,
+      outline-variant: $outline-variant,
+      error: $error,
       body-large-size: 0.875rem,
       body-large-tracking: 0,
       body-medium-size: 0.8125rem,
@@ -73,12 +92,124 @@ html {
       icon-size: 20px,
     )
   );
-  --app-accent: #087f73;
-  --app-ink: #172c39;
-  --app-muted: #61727e;
-  --app-border: #e2e8ed;
+  /* Design tokens. Components reference these, never raw colours, so the palette
+     lives in one place and a second theme only has to redefine this block. */
+
+  /* Surfaces */
   --app-canvas: #f4f7f9;
+  --app-surface: #{$surface};
+  --app-surface-sunken: #f8fafb; /* table headers */
+  --app-surface-hover: #f8fbfa; /* table row hover */
+  --app-surface-muted: #f4f7f9; /* inset blocks inside panels */
+  --app-surface-selected: #eaf5f1;
+  --app-surface-total: #f4f8f7; /* table totals row */
+
+  /* Ink */
+  --app-ink: #{$ink};
+  --app-ink-soft: #4b626f;
+  --app-muted: #{$muted};
+  --app-faint: #8b9ca6;
+  --app-ink-table-head: #647480;
+
+  /* Lines */
+  --app-border: #{$outline-variant};
+  --app-border-strong: #{$outline};
+  --app-border-subtle: #edf1f4; /* between table rows */
+  --app-border-dashed: #cad7dc;
+
+  /* Accent */
+  --app-accent: #{$accent};
+  --app-accent-strong: #{$accent-strong};
+  --app-accent-ink: #297b6f;
+  --app-accent-soft: #eaf5f1;
+  --app-accent-tint: #f5fbf8;
+  --app-accent-border: #9cc9bf;
+  --app-accent-ring: #5dbeb3;
+  --app-selection-bg: #c9ebe3;
+
+  /* Status */
+  --app-success-ink: #237154;
+  --app-success-bg: #e6f5ee;
+  --app-warning-ink: #946516;
+  --app-warning-bg: #fff3df;
+  --app-neutral-ink: #536774;
+  --app-neutral-bg: #edf2f5;
+  --app-danger-bg: #fff0f0;
+  --app-confirm-ink: #17644c;
+  --app-confirm-bg: #edf8f3;
+  --app-confirm-border: #cde8df;
+
+  /* Receipts and payments */
+  --app-receipt-ink: #177054;
+  --app-receipt-bg: #eaf6f1;
+  --app-payment-ink: #945810;
+  --app-payment-bg: #fff5e7;
+  --app-payment-icon-ink: #ad670b;
+
+  /* Empty states and placeholders */
+  --app-empty-ink: #479083;
+  --app-empty-icon: #6a9a90;
+  --app-empty-bg: #f0f7f4;
+  --app-empty-border: #e2ebe8;
+  --app-skeleton-base: #edf1f4;
+  --app-skeleton-sheen: #f6f8fa;
+
+  /* Reports and capture */
+  --app-report-opening-ink: #61766e;
+  --app-report-opening-bg: #f5f9f7;
+  --app-camera-bg: #f6f9fa;
+
+  /* Notes and callouts */
+  --app-note-bg: #f5f8fa;
+  --app-note-border: #e5eaef;
+  --app-note-ink: #617083;
+  --app-note-icon: #64748b;
+  --app-symbol-ink: #80908e;
+
+  /* Navigation and other dark surfaces */
+  --app-nav-bg: #{$ink};
+  --app-nav-ink: #c1d0d9;
+  --app-nav-ink-soft: #d6e1e7;
+  --app-nav-ink-strong: #ffffff;
+  --app-nav-muted: #91a8b6;
+  --app-nav-dim: #9dadb8;
+  --app-nav-key: #a9bfc9;
+  --app-nav-hover: #ffffff09;
+  --app-nav-line: #ffffff26;
+  --app-nav-active-bg: #28524f;
+  --app-nav-active-ink: #d6fff3;
+  --app-nav-accent: #6ed3bd;
+  --app-avatar-bg: #e9f2ef;
+
+  /* Sign-in hero */
+  --app-hero-eyebrow: #8fc9be;
+  --app-hero-body: #abc0cb;
+  --app-hero-sub: #9eb4c0;
+  --app-hero-label: #edf5f7;
+  --app-hero-small: #9aafbb;
+  --app-hero-footer: #99adb9;
+  --app-hero-footer-strong: #829ca9;
+  --app-hero-icon: #8ebfb6;
+  --app-hero-icon-bg: #ffffff05;
+  --app-hero-icon-border: #ffffff0d;
+  --app-login-footer: #7b8c96;
+
+  /* Update pill */
+  --app-pill-bg: #f1fbf6;
+  --app-pill-border: #b9d8cf;
+  --app-pill-ink: #174b40;
+
+  /* Charts */
+  --app-flow-in: #00a38f;
+  --app-flow-out: #eb6834;
+  --app-chart-grid: #e8edf0;
+  --app-chart-axis: #c9d3d9;
+
+  /* Shape and depth */
   --app-radius: 10px;
+  --app-shadow-card: 0 2px 3px #172c3903;
+  --app-shadow-pop: 0 6px 18px #172c3914;
+  --app-shadow-pill: 0 4px 18px #172c3920;
 }
 
 *,
@@ -123,12 +254,12 @@ a {
 button:focus-visible,
 a:focus-visible,
 [tabindex='0']:focus-visible {
-  outline: 3px solid #5dbeb3;
+  outline: 3px solid var(--app-accent-ring);
   outline-offset: 3px;
 }
 ::selection {
-  color: #075c53;
-  background: #c9ebe3;
+  color: var(--app-accent-strong);
+  background: var(--app-selection-bg);
 }
 .spacer {
   flex: 1;
@@ -217,8 +348,8 @@ a:focus-visible,
   min-width: 0;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  background: #fff;
-  box-shadow: 0 2px 3px #172c3903;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-card);
 }
 .panel + .panel {
   margin-top: 20px;
@@ -252,7 +383,7 @@ a:focus-visible,
   padding: 14px 16px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius) var(--app-radius) 0 0;
-  background: #fff;
+  background: var(--app-surface);
 }
 .toolbar-panel + .table-wrap {
   border-top: 0;
@@ -286,7 +417,7 @@ mat-form-field {
 .form-error {
   padding: 10px 12px;
   border-radius: 7px;
-  background: #fff0f0;
+  background: var(--app-danger-bg);
   color: var(--mat-sys-error);
 }
 .hint {
@@ -333,7 +464,7 @@ mat-form-field {
   margin-bottom: 20px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  background: #fff;
+  background: var(--app-surface);
 }
 .member-form {
   display: grid;
@@ -382,7 +513,7 @@ mat-form-field {
   overscroll-behavior-x: contain;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  background: #fff;
+  background: var(--app-surface);
 }
 .data-table,
 .report-table {
@@ -394,14 +525,14 @@ mat-form-field {
   td {
     padding: 11px 16px;
     text-align: left;
-    border-bottom: 1px solid #edf1f4;
+    border-bottom: 1px solid var(--app-border-subtle);
     vertical-align: middle;
   }
   th {
     padding-top: 10px;
     padding-bottom: 10px;
-    background: #f8fafb;
-    color: #647480;
+    background: var(--app-surface-sunken);
+    color: var(--app-ink-table-head);
     font-size: 10px;
     font-weight: 650;
     letter-spacing: 0.55px;
@@ -422,7 +553,7 @@ mat-form-field {
     color: var(--app-muted);
   }
   tfoot td {
-    background: #f4f8f7;
+    background: var(--app-surface-total);
     font-weight: 650;
     border-top: 1px solid var(--app-border);
   }
@@ -432,13 +563,13 @@ mat-form-field {
     transition: background 120ms ease;
   }
   tbody tr:hover {
-    background: #f8fbfa;
+    background: var(--app-surface-hover);
   }
   tr.clickable {
     cursor: pointer;
   }
   tr.selected {
-    background: #eaf5f1;
+    background: var(--app-surface-selected);
   }
   tr.selected td:first-child {
     box-shadow: inset 3px 0 var(--app-accent);
@@ -481,24 +612,24 @@ mat-form-field {
   gap: 5px;
   padding: 3px 8px;
   border-radius: 5px;
-  color: #536774;
-  background: #edf2f5;
+  color: var(--app-neutral-ink);
+  background: var(--app-neutral-bg);
   font-size: 10px;
   line-height: 1.5;
   font-weight: 600;
   white-space: nowrap;
 }
 .status-badge.success {
-  background: #e6f5ee;
-  color: #237154;
+  background: var(--app-success-bg);
+  color: var(--app-success-ink);
 }
 .status-badge.warning {
-  background: #fff3df;
-  color: #946516;
+  background: var(--app-warning-bg);
+  color: var(--app-warning-ink);
 }
 .status-badge.neutral {
-  background: #edf2f5;
-  color: #536774;
+  background: var(--app-neutral-bg);
+  color: var(--app-neutral-ink);
 }
 .status-badge mat-icon {
   width: 14px;
@@ -521,7 +652,7 @@ mat-form-field {
   padding: 18px 20px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  background: #fff;
+  background: var(--app-surface);
 }
 .summary-card > div:first-child {
   min-width: 0;
@@ -553,7 +684,7 @@ mat-form-field {
   height: 32px;
   border-radius: 8px;
   color: var(--app-accent);
-  background: #eaf5f1;
+  background: var(--app-surface-selected);
 }
 .balance {
   color: var(--app-muted);
@@ -577,7 +708,13 @@ mat-form-field {
   max-width: 180px;
   height: 10px;
   border-radius: 5px;
-  background: linear-gradient(90deg, #edf1f4 25%, #f6f8fa 50%, #edf1f4 75%) 0 0 / 200% 100%;
+  background: linear-gradient(
+      90deg,
+      var(--app-border-subtle) 25%,
+      var(--app-skeleton-sheen) 50%,
+      var(--app-border-subtle) 75%
+    )
+    0 0 / 200% 100%;
   animation: skeleton-sweep 1.4s ease-in-out infinite;
 }
 .skeleton.short {
@@ -607,17 +744,17 @@ mat-form-field {
   width: 48px;
   height: 48px;
   margin-bottom: 14px;
-  border: 1px solid #e2ebe8;
+  border: 1px solid var(--app-empty-border);
   border-radius: 12px;
-  background: #f0f7f4;
-  color: #479083;
+  background: var(--app-empty-bg);
+  color: var(--app-empty-ink);
 }
 .empty-state > mat-icon {
   width: 28px;
   height: 28px;
   margin-bottom: 12px;
   font-size: 28px;
-  color: #6a9a90;
+  color: var(--app-empty-icon);
 }
 .empty-state h2,
 .empty-state h3 {
@@ -651,7 +788,7 @@ app-report-shell {
   margin-bottom: 20px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
-  background: #fff;
+  background: var(--app-surface);
 }
 .report-filters {
   flex: 1 1 auto;
@@ -677,7 +814,7 @@ app-report-shell {
 }
 .report-page {
   min-width: 0;
-  background: #fff;
+  background: var(--app-surface);
   color: var(--app-ink);
   padding: 24px;
   border: 1px solid var(--app-border);
@@ -706,9 +843,9 @@ app-report-shell {
   border-radius: 6px;
 }
 .report-table tr.opening td {
-  color: #61766e;
+  color: var(--app-report-opening-ink);
   font-style: italic;
-  background: #f5f9f7;
+  background: var(--app-report-opening-bg);
 }
 .report-table tr.negative td {
   color: var(--mat-sys-error);
@@ -732,10 +869,10 @@ app-report-shell {
   width: 240px;
   max-width: 100%;
   aspect-ratio: 4 / 3;
-  border: 1px dashed #cad7dc;
+  border: 1px dashed var(--app-border-dashed);
   border-radius: 8px;
   overflow: hidden;
-  background: #f6f9fa;
+  background: var(--app-camera-bg);
   display: grid;
   place-items: center;
 }
@@ -753,7 +890,7 @@ app-report-shell {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  color: #8b9ca6;
+  color: var(--app-faint);
   font-size: 12px;
 }
 .webcam-empty mat-icon {
@@ -978,6 +1115,7 @@ app-report-shell {
   }
 }
 @media print {
+  /* Paper, not theme: these stay literal black on white whatever the screen palette is. */
   @page {
     size: A4;
     margin: 12mm;

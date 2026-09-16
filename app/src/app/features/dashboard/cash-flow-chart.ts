@@ -191,10 +191,6 @@ function column(x: number, top: number, width: number, baseline: number): string
     :host {
       display: block;
       min-width: 0;
-      --flow-in: #00a38f;
-      --flow-out: #eb6834;
-      --chart-grid: #e8edf0;
-      --chart-axis: #c9d3d9;
     }
     .chart-head {
       display: flex;
@@ -225,11 +221,11 @@ function column(x: number, top: number, width: number, baseline: number): string
     }
     .swatch.in,
     .key.in {
-      background: var(--flow-in);
+      background: var(--app-flow-in);
     }
     .swatch.out,
     .key.out {
-      background: var(--flow-out);
+      background: var(--app-flow-out);
     }
     .plot {
       position: relative;
@@ -242,12 +238,12 @@ function column(x: number, top: number, width: number, baseline: number): string
       overflow: visible;
     }
     .grid {
-      stroke: var(--chart-grid);
+      stroke: var(--app-chart-grid);
       stroke-width: 1;
       shape-rendering: crispEdges;
     }
     .grid.baseline {
-      stroke: var(--chart-axis);
+      stroke: var(--app-chart-axis);
     }
     text {
       fill: var(--app-muted);
@@ -277,10 +273,10 @@ function column(x: number, top: number, width: number, baseline: number): string
       fill: var(--mat-sys-surface-container-low);
     }
     .bar.in {
-      fill: var(--flow-in);
+      fill: var(--app-flow-in);
     }
     .bar.out {
-      fill: var(--flow-out);
+      fill: var(--app-flow-out);
     }
     .hit {
       fill: transparent;
@@ -299,8 +295,8 @@ function column(x: number, top: number, width: number, baseline: number): string
       padding: 8px 10px;
       border: 1px solid var(--app-border);
       border-radius: 8px;
-      background: #fff;
-      box-shadow: 0 6px 18px #172c3914;
+      background: var(--app-surface);
+      box-shadow: var(--app-shadow-pop);
       transform: translateX(-50%);
       pointer-events: none;
       font-size: 12px;

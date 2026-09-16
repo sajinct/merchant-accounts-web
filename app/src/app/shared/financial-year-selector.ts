@@ -29,7 +29,7 @@ import { fyLabel } from './fy';
       max-width: 160px;
       border: 1px solid var(--app-border);
       border-radius: 6px;
-      background: var(--app-surface, #fff);
+      background: var(--app-surface);
       color: var(--app-ink);
       padding: 4px 8px;
       font: inherit;

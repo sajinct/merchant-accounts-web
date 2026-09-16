@@ -142,15 +142,15 @@ import { addDays, isoDate } from '../../shared/dates';
       margin: 4px 0 0;
     }
     .panel-symbol {
-      color: #80908e;
+      color: var(--app-symbol-ink);
     }
     .posting-note {
       display: flex;
       align-items: flex-start;
       gap: 10px;
       padding: 13px 15px;
-      background: #f5f8fa;
-      border: 1px solid #e5eaef;
+      background: var(--app-note-bg);
+      border: 1px solid var(--app-note-border);
       border-radius: 8px;
       margin-bottom: 20px;
     }
@@ -158,12 +158,12 @@ import { addDays, isoDate } from '../../shared/dates';
       flex: 0 0 19px;
       font-size: 19px;
       height: 19px;
-      color: #64748b;
+      color: var(--app-note-icon);
       margin-top: 1px;
     }
     .posting-note p {
       margin: 0;
-      color: #617083;
+      color: var(--app-note-ink);
       font-size: 12px;
       line-height: 1.7;
     }
@@ -176,10 +176,10 @@ import { addDays, isoDate } from '../../shared/dates';
       align-items: center;
       padding: 16px 18px;
       margin-top: 18px;
-      border: 1px solid #cde8df;
-      background: #edf8f3;
+      border: 1px solid var(--app-confirm-border);
+      background: var(--app-confirm-bg);
       border-radius: 10px;
-      color: #17644c;
+      color: var(--app-confirm-ink);
       font-size: 13px;
     }
     .posting-result p {

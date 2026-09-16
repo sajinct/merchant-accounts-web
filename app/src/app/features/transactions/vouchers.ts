@@ -322,8 +322,8 @@ interface VoucherLine extends Voucher {
       margin-bottom: 20px;
     }
     .payment-icon {
-      background: #fff5e7;
-      color: #ad670b;
+      background: var(--app-payment-bg);
+      color: var(--app-payment-icon-ink);
     }
     .ledger-table-wrap {
       border: 0;
@@ -336,15 +336,15 @@ interface VoucherLine extends Voucher {
       display: inline-flex;
       padding: 3px 7px;
       border-radius: 4px;
-      background: #fff5e7;
-      color: #945810;
+      background: var(--app-payment-bg);
+      color: var(--app-payment-ink);
       font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
     }
     .receipt-ref {
-      background: #eaf6f1;
-      color: #177054;
+      background: var(--app-receipt-bg);
+      color: var(--app-receipt-ink);
     }
     .ledger-balance {
       font-weight: 600;

@@ -249,8 +249,6 @@ interface Dues {
   `,
   styles: `
     :host {
-      --flow-in: #00a38f;
-      --flow-out: #eb6834;
     }
     .loading-slot {
       height: 4px;
@@ -270,13 +268,13 @@ interface Dues {
       padding: 16px 18px;
       border: 1px solid var(--app-border);
       border-radius: var(--app-radius);
-      background: #fff;
+      background: var(--app-surface);
       color: var(--app-ink);
       text-decoration: none;
       transition: border-color 120ms ease;
     }
     .kpi:hover {
-      border-color: #9cc9bf;
+      border-color: var(--app-accent-border);
     }
     .kpi:focus-visible {
       outline: 2px solid var(--app-accent);
@@ -303,10 +301,10 @@ interface Dues {
       border-radius: 2px;
     }
     .dot.in {
-      background: var(--flow-in);
+      background: var(--app-flow-in);
     }
     .dot.out {
-      background: var(--flow-out);
+      background: var(--app-flow-out);
     }
     .kpi-value {
       font-size: clamp(20px, 2vw, 25px);
@@ -369,15 +367,15 @@ interface Dues {
       display: inline-flex;
       padding: 3px 7px;
       border-radius: 4px;
-      background: #fff5e7;
-      color: #945810;
+      background: var(--app-payment-bg);
+      color: var(--app-payment-ink);
       font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
     }
     .voucher-ref.receipt {
-      background: #eaf6f1;
-      color: #177054;
+      background: var(--app-receipt-bg);
+      color: var(--app-receipt-ink);
     }
     .nowrap {
       white-space: nowrap;
@@ -412,14 +410,14 @@ interface Dues {
       padding: 0 14px;
       border: 1px solid var(--app-border);
       border-radius: 8px;
-      background: #fff;
+      background: var(--app-surface);
       color: var(--app-ink);
       font-weight: 500;
       text-decoration: none;
     }
     .quick-link:hover {
-      border-color: #9cc9bf;
-      background: #f5fbf8;
+      border-color: var(--app-accent-border);
+      background: var(--app-accent-tint);
     }
     .quick-link:focus-visible {
       outline: 2px solid var(--app-accent);
