@@ -6,9 +6,19 @@ The upgrade starts fresh, as requested: existing financial entries were demo dat
 
 1. In Masters → Account heads, classify accounts as asset, liability, equity, income or expense. Existing account names are retained, but unknown classifications are not guessed. The configured membership subscription account is classified as income.
 2. A Cash in hand asset is created by the migration. Add actual bank accounts as assets and select Yes for Cash / bank account.
-3. Enter any real opening balances as an admin in Transactions → Journals / Transfers → Opening balances. Debits and credits must match. Do not enter invented balances just to make totals match.
-4. Receipts and payments require a cash/bank account and a different counterpart. Saving posts both sides immediately. Subscription collection uses the same balanced posting path.
-5. For a bank transfer, debit the destination and credit the source in Journals / Transfers. The screen also supports multi-line journals.
+3. Enter any real opening balances as an admin in Transactions → Journal → Entry type → Opening balances. Debits and credits must match. Do not enter invented balances just to make totals match.
+4. Enter money received in Transactions → Receipt and money paid in Transactions → Payment. Choose the cash or bank account once, then one line per account head; the cash side is generated. Saving posts both sides immediately. Subscription collection uses the same posting engine.
+5. Move money between your own accounts in Transactions → Contra, and post adjustments with no money moving in Transactions → Journal.
+
+## The voucher module
+
+Receipt, Payment, Contra and Journal are one screen, one service, one set of validations and one database structure; the voucher type in the route drives the differences. A voucher is a header in `vouchers` and any number of debit/credit lines in `daybook`, so a single receipt can carry membership fee, welfare fund, late fee and donation in one transaction.
+
+`post_voucher` is the only way a voucher is written. It re-validates every account, generates the cash counterpart for simplified receipts and payments, checks that debits equal credits, allocates the number under the counter's row lock, writes the header and lines, and rolls back the whole transaction on any failure. The frontend never decides which side an amount posts to. Modules added later — fee collection, supplier payment, payroll, loan collection, bank reconciliation — post through the same function instead of implementing accounting of their own.
+
+Two entry modes exist for receipts and payments. Simplified mode shows one amount column and hides the cash side; *Advanced accounting view* shows debit and credit columns with a running difference and refuses to save until it is zero. Contra and journal vouchers always use the debit/credit grid. Which accounts a line may use follows the voucher type: contras are limited to cash and bank, journals exclude them unless an admin turns on *Allow cash and bank accounts in journal vouchers* in Company settings, and group (control) heads and retired accounts take no entries at all.
+
+Opening balances remain separate from vouchers: they open the books rather than record a transaction, so they carry no voucher number, are restricted to admins, and may use cash and bank accounts.
 
 ## Ledger rules
 
@@ -23,7 +33,7 @@ Subscription dues remain membership tracking; fees are recorded as income when p
 - General ledger uses actual debit/credit lines. Its existing signed balance convention remains credit minus debit; the page explains that negative balances are debit balances.
 - Trial balance includes the cash/bank counterparts; the difference must be zero.
 - Day book and day closing show combined cash/bank movements and balances, not a sum of every ledger account. The cash book retains Receipt / Payment column labels. Use the account ledger for an individual cash or bank account.
-- Journals / Transfers shows the latest 100 journals, including their lines and reversal references; historical date ranges remain available in ledger reports.
+- The Voucher Register pages through the year's entries, filtered by voucher type, with each voucher's lines, reference, party and reversal links; historical date ranges remain available in ledger reports.
 - Ledger Verification replaces the old rebuilding/posting operation. It checks balance integrity without deleting or duplicating entries.
 
 ## Migration and verification
@@ -32,6 +42,6 @@ The migration has been applied to the linked Supabase project. Post-migration ch
 
 Migration: supabase/migrations/20260916000000_double_entry.sql. It refuses to run when financial entries remain. For an explicitly authorized demo-only reset, run supabase/scripts/reset-demo-ledger.sql first. It clears transactional records and voucher counters while retaining users, company settings, members, accounts and fee configuration. Never use it to convert real financial history.
 
-The active database suite is supabase/tests/database/04_double_entry.test.sql. The previous single-entry tests are retained in supabase/legacy-tests for historical migrations and must not run against the new schema. Run database tests only in an isolated, empty development database. The local integration run covers receipts, payments, transfers, opening balances, reversals, subscription integration, permissions, immutable entries, request retries and reporting. A separate simultaneous-request check verifies one voucher and two balanced lines for three concurrent requests with the same ID.
+The active database suites are supabase/tests/database/04_double_entry.test.sql and 07_voucher_module.test.sql, which covers multi-head receipts and payments, contras, journals, the account restrictions per type, idempotent retries, numbering per type and cancellation. The previous single-entry tests are retained in supabase/legacy-tests for historical migrations and must not run against the new schema. Run database tests only in an isolated, empty development database. The local integration run covers receipts, payments, transfers, opening balances, reversals, subscription integration, permissions, immutable entries, request retries and reporting. A separate simultaneous-request check verifies one voucher and two balanced lines for three concurrent requests with the same ID.
 
 The Angular application and database migration must be released together. Old cached clients receive an explicit update-required error instead of creating single-entry vouchers. Updating GitHub Pages alone does not migrate Supabase.

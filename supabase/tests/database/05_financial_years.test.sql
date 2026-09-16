@@ -30,7 +30,7 @@ select is((select balance from rpt_ledger(83001,'1991-04-01','1992-03-31') where
 select lives_ok($$select close_financial_year(1990,83004)$$,'repeated close is idempotent');
 select is((select count(*)::integer from journals where kind='year_closing' and entry_date='1991-03-31'),1,'only one closing journal');
 select throws_ok($$select create_voucher(1,'1990-06-01',83002,'locked',10,83001,gen_random_uuid())$$,'P0001','Financial year 1990-91 is closed','closed-year posting blocked');
-select throws_ok($$select cancel_voucher((select id from vouchers where description='first day'),'cancel closed')$$,'P0001','Financial year 1990-91 is closed','closed-year cancellation blocked');
+select throws_ok($$select cancel_voucher((select id from vouchers where narration='first day'),'cancel closed')$$,'P0001','Financial year 1990-91 is closed','closed-year cancellation blocked');
 select throws_ok($$select reverse_journal((select closing_journal_id from financial_years where start_year=1990),'1991-04-01','bypass')$$,'P0001','Reopen the financial year to reverse its closing entry','closing cannot be reversed directly');
 select throws_ok($$select create_financial_year(1989)$$,'P0001','Cannot create a financial year before a closed year','cannot add a backdated year behind a closure');
 select lives_ok($$select close_financial_year(1991,83004)$$,'empty next year closes without a journal');

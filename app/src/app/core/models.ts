@@ -16,11 +16,17 @@ export interface CompanySettings {
   place: string;
   phone: string | null;
   gstin: string | null;
+  /** Whether a journal voucher may post to cash and bank accounts. */
+  journal_allows_cash: boolean;
 }
 
 export interface AccountHead {
   account_type?: string | null;
   is_cash_bank?: boolean;
+  /** Retired accounts keep their history but take no new entries. */
+  is_active?: boolean;
+  /** Group (control) heads organise the chart; entries belong on the ledgers below them. */
+  is_group?: boolean;
   code: number;
   name: string;
 }
@@ -90,18 +96,36 @@ export interface SubscriptionDuesSummary {
   members: number;
 }
 
-/** 1 = receipt, 2 = payment. */
-export type VoucherType = 1 | 2;
+/** 1 = receipt, 2 = payment, 3 = contra, 4 = journal. */
+export type VoucherType = 1 | 2 | 3 | 4;
 
+/** A voucher header. Its debit and credit lines live in `daybook`. */
 export interface Voucher {
   id: number;
   voucher_type: VoucherType;
   voucher_no: number;
   voucher_date: string;
-  head_code: number;
-  description: string;
-  amount: number;
+  reference_no: string | null;
+  party_code: number | null;
+  narration: string;
+  total_amount: number;
+  fy_start: number;
+  status: 'posted' | 'cancelled';
+  is_cancelled: boolean;
   cancelled_at: string | null;
+  cancel_reason: string | null;
+  created_at?: string;
+}
+
+/** One debit or credit line of a voucher (a `daybook` row). */
+export interface VoucherDetail {
+  id: number;
+  line_no: number;
+  head_code: number;
+  debit: number;
+  credit: number;
+  narration: string | null;
+  reference_id: number | null;
 }
 
 export interface DaybookRow {

@@ -43,7 +43,7 @@ select is(post_daybook('2026-09-15','2026-09-15'),3,'verification does not dupli
 set local role postgres;
 select throws_ok($$update daybook set debit=99 where head_code=81001$$,'P0001','Posted entries cannot be changed or deleted; create a reversal','posted lines immutable');
 select throws_ok($$update account_heads set is_cash_bank=false where code=81001$$,'P0001','Classification cannot change after an account has entries','cash classification locked');
-select lives_ok($$select cancel_voucher((select id from vouchers where description='payment'),'entered twice')$$,'cancellation creates reversal');
+select lives_ok($$select cancel_voucher((select id from vouchers where narration='payment'),'entered twice')$$,'cancellation creates reversal');
 select is((select sum(debit-credit) from daybook where head_code=81004),0::numeric,'reversal clears expense');
 select is((select count(*)::integer from journals where reversal_of is not null),1,'original is retained with reversal link');
 select lives_ok($$select record_subscription_payment(81001,2026,40,'2026-09-15','test',81001,'00000000-0000-0000-0000-000000000004')$$,'subscription posts balanced receipt');

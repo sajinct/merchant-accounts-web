@@ -170,7 +170,7 @@ describe('Shell navigation', () => {
     // Clicking the open group collapses it again.
     element.querySelector<HTMLButtonElement>('[data-group="T"]')!.click();
     fixture.detectChanges();
-    expect(element.querySelectorAll('nav a').length).toBe(4);
+    expect(element.querySelectorAll('nav a').length).toBe(7);
     element.querySelector<HTMLButtonElement>('[data-group="T"]')!.click();
     fixture.detectChanges();
     expect(element.querySelector('nav a')).toBeNull();

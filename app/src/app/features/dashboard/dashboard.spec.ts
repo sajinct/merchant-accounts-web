@@ -46,9 +46,9 @@ describe('Dashboard', () => {
               voucher_type: 1,
               voucher_no: 42,
               voucher_date: today,
-              amount: 2500,
-              description: 'Rent',
-              head: { name: 'Rent received' },
+              total_amount: 2500,
+              narration: 'Rent received',
+              reference_no: 'RCPT/9',
             },
           ],
           error: null,
@@ -91,6 +91,7 @@ describe('Dashboard', () => {
     expect(text()).toContain('Net deficit');
     expect(text()).toContain('R-42');
     expect(text()).toContain('Rent received');
+    expect(text()).toContain('RCPT/9');
     expect(fixture.nativeElement.querySelectorAll('app-cash-flow-chart path.bar').length).toBe(2);
     const fy = TestBed.inject(FinancialYearService);
     expect(rpc).toHaveBeenCalledWith('financial_year_summary', { p_start_year: fy.selected() });

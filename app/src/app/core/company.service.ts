@@ -12,7 +12,7 @@ export class CompanyService {
     const settings = await must(
       this.sb
         .from('company_settings')
-        .select('name, place, phone, gstin')
+        .select('name, place, phone, gstin, journal_allows_cash')
         .maybeSingle<CompanySettings>(),
     );
     this.settings.set(settings);

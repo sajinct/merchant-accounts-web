@@ -1,6 +1,6 @@
 # Merchant Accounts (web)
 
-Double-entry accounting for Merchant Accounts: balanced receipts/payments, journals, transfers, opening balances, subscriptions, and cash book / ledger / trial balance reports.
+Double-entry accounting for Merchant Accounts: receipt, payment, contra and journal vouchers on one entry screen, opening balances, subscriptions, and cash book / ledger / trial balance reports.
 
 - **Backend:** Supabase cloud (Postgres, Auth, Storage, Edge Functions)
 - **Frontend:** Angular 21 + Angular Material (`app/`)
@@ -98,10 +98,10 @@ Colours live in one place: the `scheme-light` and `scheme-dark` mixins in `app/s
 | Role | Can |
 |---|---|
 | `viewer` | read everything, run reports |
-| `accountant` | + account heads, members, vouchers, subscription payments, day book posting, manual day book rows |
+| `accountant` | + account heads, members, vouchers of every type, subscription payments, ledger verification |
 | `admin` | + cancel vouchers and subscription payments, subscription fees, delete members, company settings, manage users |
 
-Vouchers are only written through the `create_voucher` / `cancel_voucher` RPCs. Numbers come from `voucher_counters`, one sequence per type (1 receipt, 2 payment). Cancelling a voucher does not change the day book until that date is posted again.
+Vouchers are only written through the `post_voucher` / `cancel_voucher` RPCs. Numbers come from `voucher_counters`, one sequence per type (1 receipt, 2 payment, 3 contra, 4 journal). Cancelling a voucher posts a balancing reversal and keeps the original.
 
 ## Member directory
 
@@ -116,19 +116,46 @@ Members pay one yearly subscription per **financial year (1 April – 31 March)*
 - **Fees:** an admin sets the fee for each year under Membership → Subscription Fees. Everyone pays the same fee for a given year, and changing a year's fee changes the balances for that year.
 - **Who owes what:** a member owes the fee for every year from the financial year of *Joined on* up to the financial year of *Left on*. A member with no join date owes all years that have a fee.
 - **Payments:** on the member's page, record a payment against a year. Part payments are allowed, but a payment can't exceed that year's balance. Unpaid balances carry forward as **arrears**.
-- **Accounts:** each payment creates a receipt voucher against the subscription account head. The migration creates a `MEMBERSHIP SUBSCRIPTION` head and selects it; you can change it on the Subscription Fees page. Receipts reach the day book and reports after **Day Book Posting**, like any other voucher.
-- **Cancelling:** only admins can cancel a payment, from the member's page. That also cancels its receipt voucher. Subscription receipts can't be cancelled from the Payments / Receipts screen.
+- **Accounts:** each payment creates a receipt voucher against the subscription account head, through the same posting engine as any other receipt. The migration creates a `MEMBERSHIP SUBSCRIPTION` head and selects it; you can change it on the Subscription Fees page. Receipts reach the day book and reports after **Day Book Posting**, like any other voucher.
+- **Cancelling:** only admins can cancel a payment, from the member's page. That also cancels its receipt voucher. Subscription receipts can't be cancelled from the voucher register.
 - **Reports:** Membership → Subscriptions lists every member for a year with fee, paid, balance, arrears and total due. It can be filtered to *Owing* or *Paid up*, printed, or exported to CSV.
 
 - **Dashboard:** the *Subscription dues* figure comes from `subscription_dues_summary`, which totals the outstanding balances in the database and returns a single row. The per-member report behind the Subscriptions page is unchanged; only the dashboard stopped downloading it.
 
 Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`, `subscription_dues_summary`.
 
+## Vouchers
+
+Receipt, Payment, Contra and Journal are four menu entries, four routes and **one screen**: `VoucherEntry` at `/transactions/voucher/<type>`. The voucher type decides the headings, which accounts the lines may use, whether simplified entry is offered and which rules apply; everything else — account lookup, numbering, narration, validation, saving, printing, the audit trail — is shared.
+
+A voucher is a header (`vouchers`) and any number of debit/credit lines (`daybook`), so one voucher can carry many account heads. There is no "from account / to account".
+
+| Voucher | Posts | Line accounts |
+|---|---|---|
+| Receipt (R) | Cash/bank Dr, heads Cr | anything except the cash side itself |
+| Payment (P) | Heads Dr, cash/bank Cr | anything except the cash side itself |
+| Contra (C) | Between your own accounts | cash and bank only |
+| Journal (V) | A general adjustment | no cash/bank unless an admin enables it |
+
+**Simplified and advanced entry.** Receipts and payments open in simplified mode: choose the cash or bank account once, then enter one amount per head. A member paying ₹1,000 membership, ₹500 welfare fund, ₹100 late fee and ₹400 donation is four lines and one total; the ₹2,000 cash debit is generated. *Advanced accounting view* shows the same voucher as debit and credit columns with a running difference, and saving is refused until the difference is zero. Contra and journal vouchers always use the debit/credit grid. Amounts typed in one mode carry over to the other.
+
+**The posting engine.** The browser prepares the transaction; `post_voucher` does the accounting. In one database transaction it re-validates every account, generates the cash counterpart in simplified mode, checks that debits equal credits, allocates the voucher number under the counter's row lock, writes the header and the lines, and rolls the lot back if any step fails. Repeating a save with the same request id returns the first voucher instead of posting a second — a lost connection cannot double-post. Future modules (fee collection, supplier payment, payroll, loan collection) post through the same function rather than writing their own entries; subscription collection already does, through the single-head `create_voucher` wrapper.
+
+**Account heads** carry a classification (asset, liability, equity, income, expense), a cash/bank flag, and a *Posting* setting: *Ledger* accounts take entries, *Group* accounts only organise the chart, and *Retired* accounts keep their history but take no new entries. Group and retired accounts are left out of voucher account lists and refused by the posting engine; a reversal can still reach a retired account, so cancelling an old voucher never gets stuck.
+
+**Validation**, in the database and mirrored in the screen so mistakes are caught before a round trip: at least two ledger entries, equal debits and credits, positive amounts with at most two decimals, classified and active non-group accounts, a cash/bank debit on a receipt and a credit on a payment, cash and bank only on a contra, configurable restrictions on a journal, a date inside an open financial year, and unique numbers per type. Posted vouchers are never edited or deleted: cancellation writes a balancing reversal on the original date and keeps both.
+
+**Opening balances** stay on the Journal screen, for admins, under *Entry type*. They open the books rather than record a transaction, so they take no voucher number and may touch cash and bank accounts.
+
+**Voucher Register** lists everything posted in the year, filtered by type, with each voucher's lines, its reference, party and cancellation reason. Admins cancel vouchers and reverse journals from there.
+
+Database objects: `vouchers` (header), `daybook` (details), `journals` (posting, idempotency, immutability), `post_voucher`, `create_voucher`, `cancel_voucher`, `next_voucher_no`, `voucher_counters`.
+
 ## Screens (from the desktop menu)
 
 | Desktop | Web |
 |---|---|
-| Payment/Receipts Entry | Transactions → Payments / Receipts |
+| Payment/Receipts Entry | Transactions → Receipt / Payment |
 | Day Book Posting | Transactions → Day Book Posting |
 | Day Closing Balance | Transactions → Day Closing Balance |
 | Day Book, Ledger, Trial Balance (Crystal) | Reports → print to A4 / PDF, or export CSV |
