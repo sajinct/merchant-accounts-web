@@ -14,10 +14,14 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { downloadCsv } from '../../shared/csv';
 import { displayDate, isoDate } from '../../shared/dates';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 @Component({
   selector: 'app-daybook-report',
   imports: [
+    EmptyState,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -32,16 +36,12 @@ import { ReportShell } from '../../shared/report-shell';
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Reports</span>
-          <h1>Day book</h1>
-          <p class="page-description">
-            All cash and bank accounts combined. Review receipts, payments and running balances for
-            any period.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Reports"
+        heading="Day book"
+        description="All cash and bank accounts combined. Review receipts, payments and running balances for any period."
+      />
       <app-report-shell
         title="Day Book"
         [subtitle]="subtitle()"
@@ -127,21 +127,22 @@ import { ReportShell } from '../../shared/report-shell';
         }
 
         @if (ran() && !loading() && !rows().length) {
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>event_busy</mat-icon></div>
-            <h3>No entries in this period</h3>
-            <p>Try a different date range to find day book activity.</p>
-          </div>
+          <app-empty-state
+            icon="event_busy"
+            heading="No entries in this period"
+            message="Try a different date range to find day book activity."
+          />
         }
 
         @if (loading()) {
-          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+          <app-empty-state class="no-print" message="Preparing your report…" status />
         } @else if (!ran()) {
-          <div class="empty-state no-print">
-            <div class="empty-icon"><mat-icon>receipt_long</mat-icon></div>
-            <h3>Your report starts here</h3>
-            <p>Choose your filters and run the report to review your account data.</p>
-          </div>
+          <app-empty-state
+            class="no-print"
+            icon="receipt_long"
+            heading="Your report starts here"
+            message="Choose your filters and run the report to review your account data."
+          />
         }
       </app-report-shell>
     </div>

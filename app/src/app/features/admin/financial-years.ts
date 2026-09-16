@@ -12,10 +12,12 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { NotifyService } from '../../core/notify.service';
 import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
 
 @Component({
   selector: 'app-financial-years',
   imports: [
+    PageHeader,
     FormsModule,
     DatePipe,
     DecimalPipe,
@@ -25,15 +27,11 @@ import { confirmAction } from '../../shared/confirm-dialog';
     MatSelectModule,
   ],
   template: `<div class="page narrow-page">
-    <div class="page-header">
-      <div class="page-heading">
-        <span class="eyebrow">Accounting setup</span>
-        <h1>Financial years</h1>
-        <p class="page-description">
-          April 1 to March 31. Close a year to transfer its result to equity and lock its entries.
-        </p>
-      </div>
-    </div>
+    <app-page-header
+      eyebrow="Accounting setup"
+      heading="Financial years"
+      description="April 1 to March 31. Close a year to transfer its result to equity and lock its entries."
+    />
     <section class="panel">
       <div class="panel-body">
         <div class="form-grid">

@@ -16,6 +16,7 @@ import { WebcamCapture } from '../../shared/webcam-capture';
 import { isoDate } from '../../shared/dates';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { MemberSubscription } from '../membership/member-subscription';
+import { PageHeader } from '../../shared/page-header';
 
 const PHOTO_BUCKET = 'customer-photos';
 const TEXT_FIELDS = [
@@ -34,6 +35,7 @@ const TEXT_FIELDS = [
 @Component({
   selector: 'app-member-form',
   imports: [
+    PageHeader,
     ReactiveFormsModule,
     RouterLink,
     MatButtonModule,
@@ -47,28 +49,21 @@ const TEXT_FIELDS = [
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Member directory</span>
-          <h1>
-            {{
-              isNew()
-                ? 'New member'
-                : form.controls.name.value || 'Member ' + form.controls.code.value
-            }}
-          </h1>
-          <p class="page-description">
-            {{
-              isNew()
-                ? 'Create a member profile with contact and identity details.'
-                : 'View and maintain this member’s profile.'
-            }}
-          </p>
-        </div>
+      <app-page-header
+        eyebrow="Member directory"
+        [heading]="
+          isNew() ? 'New member' : form.controls.name.value || 'Member ' + form.controls.code.value
+        "
+        [description]="
+          isNew()
+            ? 'Create a member profile with contact and identity details.'
+            : 'View and maintain this member’s profile.'
+        "
+      >
         <a mat-stroked-button routerLink="/masters/members"
           ><mat-icon>arrow_back</mat-icon> All members</a
         >
-      </div>
+      </app-page-header>
 
       <form class="member-form" [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
         <div class="form-section-stack">

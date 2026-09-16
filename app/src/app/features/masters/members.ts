@@ -11,6 +11,8 @@ import { AuthService } from '../../core/auth.service';
 import { Customer } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { SupabaseService } from '../../core/supabase.service';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 type MemberSummary = Pick<
   Customer,
@@ -24,6 +26,8 @@ export const PAGE_SIZES = [25, 50, 100];
 @Component({
   selector: 'app-members',
   imports: [
+    EmptyState,
+    PageHeader,
     RouterLink,
     MatButtonModule,
     MatFormFieldModule,
@@ -34,20 +38,17 @@ export const PAGE_SIZES = [25, 50, 100];
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Member directory</span>
-          <h1>Members</h1>
-          <p class="page-description">
-            Manage member details, contact information and identification.
-          </p>
-        </div>
+      <app-page-header
+        eyebrow="Member directory"
+        heading="Members"
+        description="Manage member details, contact information and identification."
+      >
         @if (auth.canEdit()) {
           <a mat-flat-button routerLink="/masters/members/new"
             ><mat-icon>person_add</mat-icon> New member</a
           >
         }
-      </div>
+      </app-page-header>
 
       <section class="panel" aria-label="Member directory">
         <div class="toolbar-panel">
@@ -117,17 +118,16 @@ export const PAGE_SIZES = [25, 50, 100];
                 } @empty {
                   <tr>
                     <td colspan="4">
-                      <div class="empty-state" role="status">
-                        <div class="empty-icon"><mat-icon>group</mat-icon></div>
-                        <h3>No members found</h3>
-                        <p>
-                          {{
-                            query()
-                              ? 'Try a different name, member code or phone number.'
-                              : 'Add your first member to start building your directory.'
-                          }}
-                        </p>
-                      </div>
+                      <app-empty-state
+                        icon="group"
+                        heading="No members found"
+                        [message]="
+                          query()
+                            ? 'Try a different name, member code or phone number.'
+                            : 'Add your first member to start building your directory.'
+                        "
+                        status
+                      />
                     </td>
                   </tr>
                 }

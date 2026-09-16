@@ -22,10 +22,14 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 @Component({
   selector: 'app-subscription-fees',
   imports: [
+    EmptyState,
+    PageHeader,
     DecimalPipe,
     ReactiveFormsModule,
     MatButtonModule,
@@ -37,16 +41,11 @@ import { confirmAction } from '../../shared/confirm-dialog';
   ],
   template: `
     <div class="page narrow-page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Membership</span>
-          <h1>Subscription fees</h1>
-          <p class="page-description">
-            Set the yearly subscription fee for each financial year (April to March). Every member
-            owes the fee for each year from when they joined until they leave.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Membership"
+        heading="Subscription fees"
+        description="Set the yearly subscription fee for each financial year (April to March). Every member owes the fee for each year from when they joined until they leave."
+      />
 
       <section class="panel" aria-labelledby="fee-years-heading">
         <div class="panel-header">
@@ -135,11 +134,12 @@ import { confirmAction } from '../../shared/confirm-dialog';
               } @empty {
                 <tr>
                   <td colspan="3">
-                    <div class="empty-state" role="status">
-                      <mat-icon class="empty-icon">event_repeat</mat-icon>
-                      <h3>{{ loading() ? 'Loading fees' : 'No subscription years yet' }}</h3>
-                      <p>Add the current financial year below to start collecting subscriptions.</p>
-                    </div>
+                    <app-empty-state
+                      icon="event_repeat"
+                      [heading]="loading() ? 'Loading fees' : 'No subscription years yet'"
+                      message="Add the current financial year below to start collecting subscriptions."
+                      status
+                    />
                   </td>
                 </tr>
               }

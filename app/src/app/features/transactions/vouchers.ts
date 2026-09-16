@@ -34,6 +34,9 @@ import { isoDate } from '../../shared/dates';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { AccountPicker } from '../../shared/account-picker';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
+import { StatCard } from '../../shared/stat-card';
 
 interface VoucherLine extends Voucher {
   receipt: number;
@@ -45,6 +48,9 @@ interface VoucherLine extends Voucher {
   selector: 'app-vouchers',
   host: { '(document:keydown)': 'onSaveShortcut($event)' },
   imports: [
+    EmptyState,
+    StatCard,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     CashAccountField,
@@ -64,15 +70,11 @@ interface VoucherLine extends Voucher {
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Transactions</span>
-          <h1>Payments & receipts</h1>
-          <p class="page-description">
-            Record daily transactions and keep every account in balance.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Transactions"
+        heading="Payments & receipts"
+        description="Record daily transactions and keep every account in balance."
+      />
 
       <app-financial-year-notice />
       <form
@@ -191,29 +193,23 @@ interface VoucherLine extends Voucher {
       @if (selectedHead(); as head) {
         @if (!loadingAccount() && !accountError()) {
           <div class="summary-grid account-summary">
-            <div class="summary-card">
-              <div class="summary-icon"><mat-icon>south_west</mat-icon></div>
-              <div>
-                <span class="summary-label">Total receipts</span
-                ><strong class="summary-value">{{ totalReceipts() | number: '1.2-2' }}</strong>
-              </div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-icon payment-icon"><mat-icon>north_east</mat-icon></div>
-              <div>
-                <span class="summary-label">Total payments</span
-                ><strong class="summary-value">{{ totalPayments() | number: '1.2-2' }}</strong>
-              </div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-icon"><mat-icon>account_balance_wallet</mat-icon></div>
-              <div>
-                <span class="summary-label">Net receipts / payments</span
-                ><strong class="summary-value" [class.danger]="balance() < 0">{{
-                  balance() | number: '1.2-2'
-                }}</strong>
-              </div>
-            </div>
+            <app-stat-card
+              label="Total receipts"
+              icon="south_west"
+              [value]="totalReceipts() | number: '1.2-2'"
+            />
+            <app-stat-card
+              label="Total payments"
+              icon="north_east"
+              tone="payment"
+              [value]="totalPayments() | number: '1.2-2'"
+            />
+            <app-stat-card
+              label="Net receipts / payments"
+              icon="account_balance_wallet"
+              [value]="balance() | number: '1.2-2'"
+              [negative]="balance() < 0"
+            />
           </div>
         }
         <section class="panel account-ledger" [attr.aria-busy]="loadingAccount()">
@@ -230,16 +226,18 @@ interface VoucherLine extends Voucher {
           </div>
           @if (loadingAccount()) {
             <mat-progress-bar mode="indeterminate" />
-            <div class="empty-state" role="status"><p>Loading account transactions…</p></div>
+            <app-empty-state message="Loading account transactions…" status />
           } @else if (accountError()) {
-            <div class="empty-state" role="status">
-              <div class="empty-icon"><mat-icon>cloud_off</mat-icon></div>
-              <h3>Transactions could not be loaded</h3>
-              <p>Try again to view this account’s current balance.</p>
+            <app-empty-state
+              icon="cloud_off"
+              heading="Transactions could not be loaded"
+              message="Try again to view this account’s current balance."
+              status
+            >
               <button mat-stroked-button type="button" (click)="loadAccount(head)">
                 <mat-icon>refresh</mat-icon> Try again
               </button>
-            </div>
+            </app-empty-state>
           } @else if (lines().length) {
             <div
               class="table-wrap ledger-table-wrap"
@@ -295,20 +293,20 @@ interface VoucherLine extends Voucher {
               </table>
             </div>
           } @else {
-            <div class="empty-state">
-              <div class="empty-icon"><mat-icon>receipt_long</mat-icon></div>
-              <h3>No transactions yet</h3>
-              <p>The first receipt or payment for {{ head.name }} will appear here.</p>
-            </div>
+            <app-empty-state
+              icon="receipt_long"
+              heading="No transactions yet"
+              [message]="'The first receipt or payment for ' + head.name + ' will appear here.'"
+            />
           }
         </section>
       } @else {
         <section class="panel account-placeholder">
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>account_balance_wallet</mat-icon></div>
-            <h3>Your account activity, in one place</h3>
-            <p>Select an account above to see its receipts, payments and running balance.</p>
-          </div>
+          <app-empty-state
+            icon="account_balance_wallet"
+            heading="Your account activity, in one place"
+            message="Select an account above to see its receipts, payments and running balance."
+          />
         </section>
       }
     </div>
@@ -361,10 +359,6 @@ interface VoucherLine extends Voucher {
     }
     .account-summary {
       margin-bottom: 20px;
-    }
-    .payment-icon {
-      background: var(--app-payment-bg);
-      color: var(--app-payment-icon-ink);
     }
     .ledger-table-wrap {
       border: 0;

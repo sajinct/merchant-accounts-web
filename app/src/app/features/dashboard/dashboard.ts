@@ -12,6 +12,8 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { addDays, isoDate } from '../../shared/dates';
 import { CashFlowChart } from './cash-flow-chart';
 import { CashSummary, summariseCash } from './dashboard-data';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 const CHART_DAYS = 7;
 const RECENT_LIMIT = 6;
@@ -40,6 +42,8 @@ interface Dues {
 @Component({
   selector: 'app-dashboard',
   imports: [
+    EmptyState,
+    PageHeader,
     DatePipe,
     DecimalPipe,
     RouterLink,
@@ -50,24 +54,23 @@ interface Dues {
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">{{ today | date: 'EEEE, d MMMM yyyy' }}</span>
-          <h1>Welcome back, {{ firstName() }}</h1>
-          <p class="page-description">
-            @if (isToday()) {
-              Here is where your accounts stand today.
-            } @else {
-              Showing figures as on <strong>{{ asOn() | date: 'dd-MMM-yyyy' }}</strong
-              >, the nearest date in the selected financial year.
-            }
-          </p>
-        </div>
+      <app-page-header
+        [eyebrow]="(today | date: 'EEEE, d MMMM yyyy') ?? ''"
+        [heading]="'Welcome back, ' + firstName()"
+      >
+        <p description class="page-description">
+          @if (isToday()) {
+            Here is where your accounts stand today.
+          } @else {
+            Showing figures as on <strong>{{ asOn() | date: 'dd-MMM-yyyy' }}</strong
+            >, the nearest date in the selected financial year.
+          }
+        </p>
         <span class="status-badge" [class.success]="!fy.closed()" [class.warning]="fy.closed()">
           <mat-icon>{{ fy.closed() ? 'lock' : 'lock_open' }}</mat-icon>
           FY {{ fy.label() }} · {{ fy.closed() ? 'Closed' : 'Open' }}
         </span>
-      </div>
+      </app-page-header>
 
       <div class="loading-slot" aria-hidden="true">
         @if (loading()) {
@@ -138,9 +141,10 @@ interface Dues {
             @if (cash(); as summary) {
               <app-cash-flow-chart [days]="summary.days" />
             } @else {
-              <div class="empty-state" role="status">
-                <p>{{ loading() ? 'Loading cash movement…' : 'Cash movement is unavailable.' }}</p>
-              </div>
+              <app-empty-state
+                [message]="loading() ? 'Loading cash movement…' : 'Cash movement is unavailable.'"
+                status
+              />
             }
           </div>
         </section>
@@ -221,11 +225,12 @@ interface Dues {
             </table>
           </div>
         } @else {
-          <div class="empty-state" role="status">
-            <div class="empty-icon"><mat-icon>receipt_long</mat-icon></div>
-            <h3>{{ loading() ? 'Loading vouchers' : 'No vouchers yet' }}</h3>
-            <p>Receipts and payments for this financial year will appear here.</p>
-          </div>
+          <app-empty-state
+            icon="receipt_long"
+            [heading]="loading() ? 'Loading vouchers' : 'No vouchers yet'"
+            message="Receipts and payments for this financial year will appear here."
+            status
+          />
         }
       </section>
 

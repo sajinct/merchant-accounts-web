@@ -7,10 +7,12 @@ import { MatInputModule } from '@angular/material/input';
 import { CompanyService } from '../../core/company.service';
 import { NotifyService } from '../../core/notify.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { PageHeader } from '../../shared/page-header';
 
 @Component({
   selector: 'app-company-settings',
   imports: [
+    PageHeader,
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -20,13 +22,11 @@ import { EnterToNext } from '../../shared/enter-to-next.directive';
   ],
   template: `
     <div class="page narrow-page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Administration</span>
-          <h1>Company settings</h1>
-          <p class="page-description">Keep your business identity and report details up to date.</p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Administration"
+        heading="Company settings"
+        description="Keep your business identity and report details up to date."
+      />
       <form [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
         <section class="panel" aria-labelledby="company-details-heading">
           <div class="panel-header">

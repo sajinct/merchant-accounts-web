@@ -13,12 +13,16 @@ import { Profile, Role } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
 
 @Component({
   selector: 'app-users',
   imports: [
+    EmptyState,
+    PageHeader,
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -30,19 +34,16 @@ const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Administration</span>
-          <h1>Users & access</h1>
-          <p class="page-description">
-            Manage your team’s accounts, roles and access to the workspace.
-          </p>
-        </div>
+      <app-page-header
+        eyebrow="Administration"
+        heading="Users & access"
+        description="Manage your team’s accounts, roles and access to the workspace."
+      >
         <button mat-flat-button type="button" (click)="showForm.set(!showForm())">
           <mat-icon>{{ showForm() ? 'close' : 'person_add' }}</mat-icon>
           {{ showForm() ? 'Close form' : 'Add user' }}
         </button>
-      </div>
+      </app-page-header>
 
       @if (showForm()) {
         <form
@@ -186,19 +187,16 @@ const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
               } @empty {
                 <tr>
                   <td colspan="5">
-                    <div class="empty-state" role="status">
-                      <mat-icon class="empty-icon">{{
-                        loading() ? 'hourglass_empty' : 'manage_accounts'
-                      }}</mat-icon>
-                      <h3>{{ loading() ? 'Loading your team' : 'No users found' }}</h3>
-                      <p>
-                        {{
-                          loading()
-                            ? 'User accounts and access roles will appear here.'
-                            : 'Add a user to give your team access to the workspace.'
-                        }}
-                      </p>
-                    </div>
+                    <app-empty-state
+                      [icon]="loading() ? 'hourglass_empty' : 'manage_accounts'"
+                      [heading]="loading() ? 'Loading your team' : 'No users found'"
+                      [message]="
+                        loading()
+                          ? 'User accounts and access roles will appear here.'
+                          : 'Add a user to give your team access to the workspace.'
+                      "
+                      status
+                    />
                   </td>
                 </tr>
               }

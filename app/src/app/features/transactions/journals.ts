@@ -16,6 +16,7 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { AccountPicker } from '../../shared/account-picker';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
 
 const PAGE_SIZE = 25;
 
@@ -37,6 +38,7 @@ interface Journal {
 @Component({
   selector: 'app-journals',
   imports: [
+    PageHeader,
     FinancialYearNotice,
     AccountPicker,
     FormsModule,
@@ -49,16 +51,11 @@ interface Journal {
     MatSelectModule,
   ],
   template: ` <div class="page">
-    <div class="page-header">
-      <div class="page-heading">
-        <span class="eyebrow">Double-entry accounting</span>
-        <h1>Journals & transfers</h1>
-        <p class="page-description">
-          Every entry must have equal debits and credits. For a bank transfer, debit the destination
-          and credit the source.
-        </p>
-      </div>
-    </div>
+    <app-page-header
+      eyebrow="Double-entry accounting"
+      heading="Journals & transfers"
+      description="Every entry must have equal debits and credits. For a bank transfer, debit the destination and credit the source."
+    />
     <app-financial-year-notice />
     @if (auth.canEdit()) {
       <section class="panel">

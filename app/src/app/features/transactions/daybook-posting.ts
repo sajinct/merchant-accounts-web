@@ -11,10 +11,12 @@ import { MatInputModule } from '@angular/material/input';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { addDays, isoDate } from '../../shared/dates';
+import { PageHeader } from '../../shared/page-header';
 
 @Component({
   selector: 'app-daybook-posting',
   imports: [
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -27,16 +29,11 @@ import { addDays, isoDate } from '../../shared/dates';
   ],
   template: `
     <div class="page narrow-page posting-page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Transactions</span>
-          <h1>Ledger verification</h1>
-          <p class="page-description">
-            Entries post immediately with balanced debits and credits. Verify a selected period
-            here.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Transactions"
+        heading="Ledger verification"
+        description="Entries post immediately with balanced debits and credits. Verify a selected period here."
+      />
 
       <div class="panel posting-status">
         <div class="summary-icon"><mat-icon>event_available</mat-icon></div>

@@ -16,6 +16,8 @@ import { downloadCsv } from '../../shared/csv';
 import { displayDate, firstOfMonth, isoDate } from '../../shared/dates';
 import { DrCrPipe } from '../../shared/dr-cr.pipe';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 interface LedgerGroup {
   code: number;
@@ -32,6 +34,8 @@ const ALL = 0;
 @Component({
   selector: 'app-ledger-report',
   imports: [
+    EmptyState,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -48,15 +52,12 @@ const ALL = 0;
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Reports</span>
-          <h1>General ledger</h1>
-          <p class="page-description">
-            Explore account activity with running debit (Dr) and credit (Cr) balances.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Reports"
+        heading="General ledger"
+        description="Explore account activity with running debit (Dr) and credit (Cr) balances."
+      />
       <app-report-shell
         title="General Ledger"
         [subtitle]="subtitle()"
@@ -108,11 +109,11 @@ const ALL = 0;
         </form>
 
         @if (ran() && !loading() && !groups().length) {
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>search_off</mat-icon></div>
-            <h3>No matching entries</h3>
-            <p>Try another account or date range to find ledger activity.</p>
-          </div>
+          <app-empty-state
+            icon="search_off"
+            heading="No matching entries"
+            message="Try another account or date range to find ledger activity."
+          />
         }
         @for (group of loading() ? [] : groups(); track group.code) {
           <div class="ledger-group">
@@ -159,13 +160,14 @@ const ALL = 0;
         }
 
         @if (loading()) {
-          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+          <app-empty-state class="no-print" message="Preparing your report…" status />
         } @else if (!ran()) {
-          <div class="empty-state no-print">
-            <div class="empty-icon"><mat-icon>menu_book</mat-icon></div>
-            <h3>Your report starts here</h3>
-            <p>Choose your filters and run the report to review your account data.</p>
-          </div>
+          <app-empty-state
+            class="no-print"
+            icon="menu_book"
+            heading="Your report starts here"
+            message="Choose your filters and run the report to review your account data."
+          />
         }
       </app-report-shell>
     </div>
