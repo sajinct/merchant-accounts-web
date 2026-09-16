@@ -195,9 +195,10 @@ export class DaybookReport {
     }>();
     
     for (const entry of entries) {
-      if (!daysMap.has(entry.tran_date)) {
-        daysMap.set(entry.tran_date, {
-          date: entry.tran_date,
+      const dateKey = entry.tran_date ?? '';
+      if (!daysMap.has(dateKey)) {
+        daysMap.set(dateKey, {
+          date: dateKey,
           entries: [],
           openingBalance: currentBalance,
           closingBalance: 0,
@@ -206,7 +207,7 @@ export class DaybookReport {
         });
       }
       
-      const day = daysMap.get(entry.tran_date)!;
+      const day = daysMap.get(dateKey)!;
       day.entries.push(entry);
       day.totalReceipt += Number(entry.credit);
       day.totalPayment += Number(entry.debit);
