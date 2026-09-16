@@ -4,12 +4,14 @@ import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { BreakpointObserver, BreakpointState } from '@angular/cdk/layout';
 import { By } from '@angular/platform-browser';
+import { MatDialog } from '@angular/material/dialog';
 import { MatSidenav } from '@angular/material/sidenav';
 import { Router, provideRouter, withHashLocation } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
+import { ShortcutsService } from '../core/shortcuts.service';
 import { Shell } from './shell';
 
 @Component({ template: '<form><input aria-label="Test field" /></form>' })
@@ -69,6 +71,7 @@ describe('Shell navigation', () => {
         { provide: NotifyService, useValue: { error: () => {} } },
       ],
     }).compileComponents();
+    localStorage.clear();
     const fixture = TestBed.createComponent(Shell);
     fixture.detectChanges();
     await fixture.whenStable();
@@ -134,7 +137,7 @@ describe('Shell navigation', () => {
     expect(element.querySelector('a[href="/admin/users"]')).toBeNull();
     expect(element.querySelector('a[href="/transactions/daybook-posting"]')).toBeNull();
     for (const key of ['t', 'r', 'u']) {
-      if (element.querySelector('.nav-back'))
+      if (element.querySelector('.nav-group.is-open'))
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       fixture.detectChanges();
       document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
@@ -156,16 +159,21 @@ describe('Shell navigation', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(element.querySelectorAll('nav a').length).toBe(3);
-    expect(element.querySelector('.nav-group')).toBeNull();
+    // Every group stays visible, with Reports expanded in place.
+    expect(element.querySelectorAll('.nav-group').length).toBe(5);
+    expect(element.querySelector('.nav-group.is-open')!.getAttribute('data-group')).toBe('R');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
     expect(element.querySelectorAll('.nav-group').length).toBe(5);
     expect(document.activeElement).toBe(element.querySelector('[data-group="R"]'));
+    // Clicking the open group collapses it again.
     element.querySelector<HTMLButtonElement>('[data-group="T"]')!.click();
     fixture.detectChanges();
-    element.querySelector<HTMLButtonElement>('.nav-back')!.click();
+    expect(element.querySelectorAll('nav a').length).toBe(4);
+    element.querySelector<HTMLButtonElement>('[data-group="T"]')!.click();
     fixture.detectChanges();
+    expect(element.querySelector('nav a')).toBeNull();
     expect(element.querySelectorAll('.nav-group').length).toBe(5);
   });
 
@@ -178,7 +186,7 @@ describe('Shell navigation', () => {
     fixture.detectChanges();
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
     fixture.detectChanges();
-    expect(element.querySelector('.nav-back')).toBeNull();
+    expect(element.querySelector('.nav-group.is-open')).toBeNull();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
@@ -186,12 +194,43 @@ describe('Shell navigation', () => {
       .componentInstance as MatSidenav;
     expect(drawer.opened).toBe(true);
     element
-      .querySelector<HTMLButtonElement>('.nav-back')!
+      .querySelector<HTMLButtonElement>('.nav-group.is-open')!
       .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
     expect(drawer.opened).toBe(true);
     expect(element.querySelectorAll('.nav-group').length).toBe(5);
+  });
+
+  it('switches between groups while one is open', async () => {
+    const fixture = await createShell(false);
+    const element = fixture.nativeElement as HTMLElement;
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
+    fixture.detectChanges();
+    expect(element.querySelector('.nav-group.is-open')!.getAttribute('data-group')).toBe('R');
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'm', bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(element.querySelector('.nav-group.is-open')!.getAttribute('data-group')).toBe('M');
+    expect(element.querySelector('a[href="/masters/members"]')).not.toBeNull();
+  });
+
+  it('opens the shortcut help with ? and remembers the letter preference', async () => {
+    const fixture = await createShell(false);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(document.querySelector('app-shortcuts-dialog')).not.toBeNull();
+    });
+    const toggle = document.querySelector<HTMLElement>(
+      'app-shortcuts-dialog mat-slide-toggle button',
+    )!;
+    expect(toggle.getAttribute('aria-checked')).toBe('true');
+    toggle.click();
+    fixture.detectChanges();
+    expect(TestBed.inject(ShortcutsService).letterShortcuts()).toBe(false);
+    expect(localStorage.getItem('merchant-accounts.letter-shortcuts')).toBe('off');
+    TestBed.inject(MatDialog).closeAll();
   });
 
   it('gives every visible item a unique letter and navigates to every child', async () => {
@@ -248,13 +287,13 @@ describe('Shell navigation', () => {
         new KeyboardEvent('keydown', { key: 'r', bubbles: true, ...modifiers }),
       );
       fixture.detectChanges();
-      expect(element.querySelector('.nav-back')).toBeNull();
+      expect(element.querySelector('.nav-group.is-open')).toBeNull();
     }
-    element.querySelector<HTMLInputElement>('.shortcut-toggle input')!.click();
+    TestBed.inject(ShortcutsService).toggle();
     fixture.detectChanges();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
     fixture.detectChanges();
-    expect(element.querySelector('.nav-back')).toBeNull();
+    expect(element.querySelector('.nav-group.is-open')).toBeNull();
   });
 
   for (const mobile of [false, true]) {
@@ -288,7 +327,7 @@ describe('Shell navigation', () => {
         fixture.detectChanges();
         await fixture.whenStable();
         expect(drawer.opened).toBe(true);
-        expect(element.querySelector('.nav-heading')!.textContent).toContain('Reports');
+        expect(element.querySelector('.nav-group.is-open span')!.textContent).toContain('Reports');
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', bubbles: true }));
         fixture.detectChanges();
         await fixture.whenStable();
@@ -364,17 +403,17 @@ describe('Shell navigation', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
       fixture.detectChanges();
       await fixture.whenStable();
-      expect(element.querySelector('.nav-heading')!.textContent).toBe('Reports');
+      expect(element.querySelector('.nav-group.is-open span')!.textContent).toBe('Reports');
       for (const role of ['dialog', 'menu', 'listbox']) {
         overlay.firstElementChild!.setAttribute('role', role);
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         fixture.detectChanges();
-        expect(element.querySelector('.nav-back')).not.toBeNull();
+        expect(element.querySelector('.nav-group.is-open')).not.toBeNull();
       }
       overlay.firstElementChild!.setAttribute('role', 'tooltip');
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       fixture.detectChanges();
-      expect(element.querySelector('.nav-back')).toBeNull();
+      expect(element.querySelector('.nav-group.is-open')).toBeNull();
     } finally {
       overlay.remove();
     }
@@ -401,7 +440,7 @@ describe('Shell navigation', () => {
     element.append(combo);
     combo.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
     fixture.detectChanges();
-    expect(element.querySelector('.nav-back')).toBeNull();
+    expect(element.querySelector('.nav-group.is-open')).toBeNull();
   });
 
   it('synchronizes the menu and focus after navigation outside the sidebar', async () => {
@@ -424,8 +463,8 @@ describe('Shell navigation', () => {
       .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(element.querySelector('.nav-heading')!.textContent).toBe('Membership');
-    expect(document.activeElement).toBe(element.querySelector('.nav-back'));
+    expect(element.querySelector('.nav-group.is-open span')!.textContent).toBe('Membership');
+    expect(document.activeElement).toBe(element.querySelector('[data-group="M"]'));
   });
 
   it('focuses navigation when opened with the toggle and restores the toggle on close', async () => {
@@ -462,7 +501,7 @@ describe('Shell navigation', () => {
     await Promise.resolve();
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(element.querySelector('.nav-heading')!.textContent).toBe('Reports');
+    expect(element.querySelector('.nav-group.is-open span')!.textContent).toBe('Reports');
     expect(
       element
         .querySelector('[aria-controls="workspace-navigation"]')!

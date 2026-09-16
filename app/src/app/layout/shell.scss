@@ -42,14 +42,6 @@
 .sidebar-links {
   padding: 9px 12px 15px;
 }
-.nav-heading {
-  padding: 17px 12px 7px;
-  color: var(--app-nav-muted);
-  font-size: 9px;
-  letter-spacing: 1.3px;
-  font-weight: 650;
-  text-transform: uppercase;
-}
 .nav-link {
   display: flex;
   align-items: center;
@@ -249,16 +241,34 @@ button.nav-link {
 }
 .nav-link .nav-chevron {
   width: 12px;
-  font-size: 14px;
+  font-size: 16px;
+  transition: transform 140ms ease;
 }
-.nav-back {
-  margin-bottom: 12px;
+.nav-group.is-open .nav-chevron {
+  transform: rotate(180deg);
 }
-.nav-hint {
-  margin: 22px 12px 0;
+/* Items sit under their group, tied to it by an indent rule. */
+.nav-items {
+  margin: 2px 0 8px;
+  padding-left: 12px;
+  border-left: 1px solid var(--app-nav-line);
+  margin-left: 21px;
+}
+.nav-item {
+  min-height: 36px;
+  font-size: 12px;
+}
+.nav-item mat-icon {
+  width: 16px;
+  height: 16px;
+  font-size: 16px;
+}
+.nav-group.is-open {
+  color: var(--app-nav-ink-strong);
+}
+.nav-help {
+  margin-top: 14px;
   color: var(--app-nav-muted);
-  font-size: 10px;
-  line-height: 1.8;
 }
 button.nav-link:hover {
   background: var(--app-nav-hover);
@@ -266,20 +276,15 @@ button.nav-link:hover {
 button.nav-link.is-active {
   background: var(--app-nav-active-bg);
 }
-.shortcut-toggle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
-  margin-top: 8px;
-  cursor: pointer;
-}
-.shortcut-toggle input {
-  accent-color: var(--app-nav-accent);
-}
 .nav-link span {
   min-width: 0;
 }
 .nav-link kbd {
   flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-link .nav-chevron {
+    transition: none;
+  }
 }
