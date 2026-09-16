@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
+import { PageHeader } from '../../shared/page-header';
 
 function passwordsMatch(group: AbstractControl): ValidationErrors | null {
   return group.get('password')?.value === group.get('confirm')?.value ? null : { mismatch: true };
@@ -20,6 +21,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
 @Component({
   selector: 'app-change-password',
   imports: [
+    PageHeader,
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
@@ -28,13 +30,11 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
   ],
   template: `
     <div class="page narrow-page">
-      <div class="page-header">
-        <div>
-          <span class="eyebrow">YOUR ACCOUNT</span>
-          <h1>Change password</h1>
-          <p class="page-description">Keep your account secure with a strong password.</p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Your account"
+        heading="Change password"
+        description="Keep your account secure with a strong password."
+      />
       <section class="panel">
         <div class="panel-body">
           <form [formGroup]="form" (ngSubmit)="save()">

@@ -1,22 +1,27 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { DaybookRow } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { downloadCsv } from '../../shared/csv';
-import { isoDate } from '../../shared/dates';
+import { displayDate, isoDate } from '../../shared/dates';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 @Component({
   selector: 'app-daybook-report',
   imports: [
+    EmptyState,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -24,22 +29,19 @@ import { ReportShell } from '../../shared/report-shell';
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatIconModule,
     ReportShell,
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Reports</span>
-          <h1>Day book</h1>
-          <p class="page-description">
-            All cash and bank accounts combined. Review receipts, payments and running balances for
-            any period.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Reports"
+        heading="Day book"
+        description="All cash and bank accounts combined. Review receipts, payments and running balances for any period."
+      />
       <app-report-shell
         title="Day Book"
         [subtitle]="subtitle()"
@@ -57,10 +59,24 @@ import { ReportShell } from '../../shared/report-shell';
           class="filter-row"
         >
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>From date</mat-label><input matInput type="date" formControlName="from"
+            ><mat-label>From date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="fromPicker"
+              formControlName="from"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="fromPicker" /><mat-datepicker #fromPicker
           /></mat-form-field>
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>To date</mat-label><input matInput type="date" formControlName="to"
+            ><mat-label>To date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="toPicker"
+              formControlName="to"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="toPicker" /><mat-datepicker #toPicker
           /></mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
             <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}
@@ -111,21 +127,22 @@ import { ReportShell } from '../../shared/report-shell';
         }
 
         @if (ran() && !loading() && !rows().length) {
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>event_busy</mat-icon></div>
-            <h3>No entries in this period</h3>
-            <p>Try a different date range to find day book activity.</p>
-          </div>
+          <app-empty-state
+            icon="event_busy"
+            heading="No entries in this period"
+            message="Try a different date range to find day book activity."
+          />
         }
 
         @if (loading()) {
-          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+          <app-empty-state class="no-print" message="Preparing your report…" status />
         } @else if (!ran()) {
-          <div class="empty-state no-print">
-            <div class="empty-icon"><mat-icon>receipt_long</mat-icon></div>
-            <h3>Your report starts here</h3>
-            <p>Choose your filters and run the report to review your account data.</p>
-          </div>
+          <app-empty-state
+            class="no-print"
+            icon="receipt_long"
+            heading="Your report starts here"
+            message="Choose your filters and run the report to review your account data."
+          />
         }
       </app-report-shell>
     </div>
@@ -134,6 +151,7 @@ import { ReportShell } from '../../shared/report-shell';
 export class DaybookReport {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly rows = signal<DaybookRow[]>([]);
   protected readonly loading = signal(false);
@@ -170,7 +188,9 @@ export class DaybookReport {
         this.rows.set([]);
         return;
       }
-      this.subtitle.set(`From ${from} to ${to}`);
+      this.subtitle.set(
+        `From ${displayDate(from, this.locale)} to ${displayDate(to, this.locale)}`,
+      );
       this.ran.set(true);
     } catch (err) {
       this.notify.error(err);

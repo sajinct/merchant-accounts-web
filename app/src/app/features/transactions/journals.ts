@@ -1,18 +1,24 @@
 import { effect } from '@angular/core';
 import { FinancialYearService } from '../../core/financial-year.service';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
-import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
+import { Component, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { AccountHead } from '../../core/models';
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
-import { isoDate } from '../../shared/dates';
+import { AccountPicker } from '../../shared/account-picker';
+import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
+
+const PAGE_SIZE = 25;
 
 interface Line {
   account: number | null;
@@ -32,26 +38,24 @@ interface Journal {
 @Component({
   selector: 'app-journals',
   imports: [
+    PageHeader,
     FinancialYearNotice,
+    AccountPicker,
     FormsModule,
     DatePipe,
     DecimalPipe,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatSelectModule,
   ],
   template: ` <div class="page">
-    <div class="page-header">
-      <div class="page-heading">
-        <span class="eyebrow">Double-entry accounting</span>
-        <h1>Journals & transfers</h1>
-        <p class="page-description">
-          Every entry must have equal debits and credits. For a bank transfer, debit the destination
-          and credit the source.
-        </p>
-      </div>
-    </div>
+    <app-page-header
+      eyebrow="Double-entry accounting"
+      heading="Journals & transfers"
+      description="Every entry must have equal debits and credits. For a bank transfer, debit the destination and credit the source."
+    />
     <app-financial-year-notice />
     @if (auth.canEdit()) {
       <section class="panel">
@@ -60,7 +64,16 @@ interface Journal {
           <div class="form-grid">
             <mat-form-field
               ><mat-label>Date</mat-label
-              ><input matInput type="date" [(ngModel)]="date" [disabled]="saving()"
+              ><input
+                matInput
+                [matDatepicker]="datePicker"
+                [(ngModel)]="date"
+                [disabled]="saving()"
+                [min]="fy.start()"
+                [max]="fy.end()"
+                placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+                matIconSuffix
+                [for]="datePicker" /><mat-datepicker #datePicker
             /></mat-form-field>
             <mat-form-field
               ><mat-label>Entry type</mat-label
@@ -78,14 +91,13 @@ interface Journal {
           </div>
           @for (line of lines; track $index; let i = $index) {
             <div class="journal-line">
-              <mat-form-field
-                ><mat-label>Account {{ i + 1 }}</mat-label
-                ><mat-select [(ngModel)]="line.account" [disabled]="saving()">
-                  @for (head of accounts(); track head.code) {
-                    <mat-option [value]="head.code">{{ head.code }} · {{ head.name }}</mat-option>
-                  }
-                </mat-select></mat-form-field
-              >
+              <app-account-picker
+                [label]="'Account ' + (i + 1)"
+                [accounts]="accounts()"
+                [loading]="loading()"
+                [(ngModel)]="line.account"
+                [disabled]="saving()"
+              />
               <mat-form-field
                 ><mat-label>Debit</mat-label
                 ><input
@@ -141,10 +153,7 @@ interface Journal {
       <div class="panel-header">
         <div>
           <h2>Journal register</h2>
-          <p>
-            Latest 100 entries in the selected financial year, including receipts, payments and
-            reversals.
-          </p>
+          <p>Entries in the selected financial year, including receipts, payments and reversals.</p>
         </div>
         <button mat-button (click)="load()" [disabled]="loading()">Refresh</button>
       </div>
@@ -184,6 +193,18 @@ interface Journal {
       } @empty {
         <div class="panel-body">{{ loading() ? 'Loading…' : 'No journal entries yet.' }}</div>
       }
+      @if (entries().length) {
+        <div class="register-footer">
+          <span class="toolbar-count" aria-live="polite"
+            >Showing {{ entries().length }} of {{ totalEntries() }}</span
+          >
+          @if (entries().length < totalEntries()) {
+            <button mat-stroked-button (click)="loadMore()" [disabled]="loadingMore()">
+              {{ loadingMore() ? 'Loading…' : 'Load more' }}
+            </button>
+          }
+        </div>
+      }
     </section>
   </div>`,
   styles: `
@@ -204,11 +225,20 @@ interface Journal {
       cursor: pointer;
       min-height: 32px;
     }
+    .register-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      border-top: 1px solid var(--app-border);
+    }
     @media (max-width: 640px) {
       .journal-line {
         grid-template-columns: 1fr 1fr;
       }
-      .journal-line mat-form-field:first-child {
+      .journal-line > :first-child {
         grid-column: 1/-1;
       }
     }
@@ -218,8 +248,12 @@ export class Journals {
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
+  private readonly locale = inject(LOCALE_ID);
   protected readonly accounts = signal<AccountHead[]>([]);
   protected readonly entries = signal<Journal[]>([]);
+  protected readonly totalEntries = signal(0);
+  protected readonly loadingMore = signal(false);
   protected readonly saving = signal(false);
   protected readonly loading = signal(false);
   protected readonly fy = inject(FinancialYearService);
@@ -241,6 +275,13 @@ export class Journals {
     });
   }
 
+  hasPendingChanges(): boolean {
+    return (
+      !this.saving() &&
+      (!!this.narration.trim() ||
+        this.lines.some((line) => line.account !== null || !!line.debit || !!line.credit))
+    );
+  }
   protected total(side: 'debit' | 'credit') {
     return this.lines.reduce((sum, line) => sum + Math.round(Number(line[side] ?? 0) * 100), 0);
   }
@@ -284,12 +325,44 @@ export class Journals {
   protected accountName(code: number) {
     return this.accounts().find((a) => a.code === code)?.name ?? String(code);
   }
+  /** Entries older than the last one shown, so new postings never shift a loaded page. */
+  protected async loadMore() {
+    const loadId = this.loadId;
+    const oldest = this.entries().at(-1)?.id;
+    if (!oldest || this.loadingMore()) return;
+    this.loadingMore.set(true);
+    try {
+      const { data, error } = await this.entryQuery().lt('id', oldest);
+      if (error) throw error;
+      if (loadId !== this.loadId) return;
+      this.entries.update((entries) => [...entries, ...((data ?? []) as Journal[])]);
+    } catch (error) {
+      this.notify.error(error);
+    } finally {
+      if (loadId === this.loadId) this.loadingMore.set(false);
+    }
+  }
+
+  private entryQuery() {
+    return this.sb
+      .from('journals')
+      .select(
+        'id,entry_date,narration,kind,reversal_of,voucher_id,daybook(head_code,debit,credit)',
+        { count: 'exact' },
+      )
+      .gte('entry_date', this.fy.start())
+      .lte('entry_date', this.fy.end())
+      .order('id', { ascending: false })
+      .limit(PAGE_SIZE);
+  }
+
   protected async load() {
     const loadId = ++this.loadId;
     this.entries.set([]);
+    this.totalEntries.set(0);
     this.loading.set(true);
     try {
-      const [accounts, entries] = await Promise.all([
+      const [accounts, page] = await Promise.all([
         must(
           this.sb
             .from('account_heads')
@@ -297,27 +370,20 @@ export class Journals {
             .not('account_type', 'is', null)
             .order('name'),
         ),
-        must(
-          this.sb
-            .from('journals')
-            .select(
-              'id,entry_date,narration,kind,reversal_of,voucher_id,daybook(head_code,debit,credit)',
-            )
-            .gte('entry_date', this.fy.start())
-            .lte('entry_date', this.fy.end())
-            .order('id', { ascending: false })
-            .limit(100),
-        ),
+        this.entryQuery(),
       ]);
+      if (page.error) throw page.error;
       if (loadId !== this.loadId) return;
       this.accounts.set(accounts);
-      this.entries.set(entries as Journal[]);
+      this.entries.set((page.data ?? []) as Journal[]);
+      this.totalEntries.set(page.count ?? 0);
     } catch (error) {
       this.notify.error(error);
     } finally {
       if (loadId === this.loadId) this.loading.set(false);
     }
   }
+
   protected async post() {
     if (this.saving() || !this.valid()) return;
     this.saving.set(true);
@@ -341,14 +407,39 @@ export class Journals {
     }
   }
   protected async reverse(entry: Journal) {
-    const reason = prompt(`Reason for reversing J-${entry.id}:`);
-    if (!reason?.trim()) return;
-    const date = prompt('Reversal date (YYYY-MM-DD):', isoDate());
-    if (!date) return;
+    const debit = entry.daybook.reduce((sum, line) => sum + Number(line.debit), 0);
+    const result = await confirmAction(this.dialog, {
+      title: `Reverse journal J-${entry.id}?`,
+      message: 'A balancing entry with opposite debits and credits is posted on the chosen date.',
+      details: [
+        { label: 'Entry date', value: formatDate(entry.entry_date, 'dd-MMM-yyyy', this.locale) },
+        { label: 'Narration', value: entry.narration || '—' },
+        { label: 'Total debit', value: formatNumber(debit, this.locale, '1.2-2') },
+      ],
+      fields: [
+        { key: 'reason', label: 'Reason for reversing', required: true, maxLength: 500 },
+        {
+          key: 'date',
+          label: 'Reversal date',
+          type: 'date',
+          value: this.fy.entryDate(),
+          required: true,
+          min: this.fy.start(),
+          max: this.fy.end(),
+        },
+      ],
+      confirmLabel: 'Post reversal',
+      destructive: true,
+    });
+    if (!result) return;
     this.saving.set(true);
     try {
       await must(
-        this.sb.rpc('reverse_journal', { p_id: entry.id, p_date: date, p_reason: reason }),
+        this.sb.rpc('reverse_journal', {
+          p_id: entry.id,
+          p_date: result['date'],
+          p_reason: result['reason'],
+        }),
       );
       this.notify.success('Balancing reversal posted');
       await this.load();

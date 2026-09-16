@@ -2,8 +2,10 @@ import { Component, inject, input, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { AuthService } from '../../core/auth.service';
 import { Customer } from '../../core/models';
@@ -12,7 +14,9 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { WebcamCapture } from '../../shared/webcam-capture';
 import { isoDate } from '../../shared/dates';
+import { confirmAction } from '../../shared/confirm-dialog';
 import { MemberSubscription } from '../membership/member-subscription';
+import { PageHeader } from '../../shared/page-header';
 
 const PHOTO_BUCKET = 'customer-photos';
 const TEXT_FIELDS = [
@@ -31,11 +35,13 @@ const TEXT_FIELDS = [
 @Component({
   selector: 'app-member-form',
   imports: [
+    PageHeader,
     ReactiveFormsModule,
     RouterLink,
     MatButtonModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
     EnterToNext,
     WebcamCapture,
@@ -43,28 +49,21 @@ const TEXT_FIELDS = [
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Member directory</span>
-          <h1>
-            {{
-              isNew()
-                ? 'New member'
-                : form.controls.name.value || 'Member ' + form.controls.code.value
-            }}
-          </h1>
-          <p class="page-description">
-            {{
-              isNew()
-                ? 'Create a member profile with contact and identity details.'
-                : 'View and maintain this member’s profile.'
-            }}
-          </p>
-        </div>
+      <app-page-header
+        eyebrow="Member directory"
+        [heading]="
+          isNew() ? 'New member' : form.controls.name.value || 'Member ' + form.controls.code.value
+        "
+        [description]="
+          isNew()
+            ? 'Create a member profile with contact and identity details.'
+            : 'View and maintain this member’s profile.'
+        "
+      >
         <a mat-stroked-button routerLink="/masters/members"
           ><mat-icon>arrow_back</mat-icon> All members</a
         >
-      </div>
+      </app-page-header>
 
       <form class="member-form" [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
         <div class="form-section-stack">
@@ -102,12 +101,26 @@ const TEXT_FIELDS = [
               /></mat-form-field>
               <mat-form-field>
                 <mat-label>Joined on</mat-label>
-                <input matInput type="date" formControlName="joined_on" />
+                <input
+                  matInput
+                  [matDatepicker]="joined_onPicker"
+                  formControlName="joined_on"
+                  placeholder="dd/mm/yyyy"
+                /><mat-datepicker-toggle matIconSuffix [for]="joined_onPicker" /><mat-datepicker
+                  #joined_onPicker
+                />
                 <mat-hint>Subscription is due from this financial year</mat-hint>
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Left on</mat-label>
-                <input matInput type="date" formControlName="left_on" />
+                <input
+                  matInput
+                  [matDatepicker]="left_onPicker"
+                  formControlName="left_on"
+                  placeholder="dd/mm/yyyy"
+                /><mat-datepicker-toggle matIconSuffix [for]="left_onPicker" /><mat-datepicker
+                  #left_onPicker
+                />
                 <mat-hint>Leave empty while the member is active</mat-hint>
               </mat-form-field>
             </div>
@@ -217,6 +230,7 @@ export class MemberForm implements OnInit {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
   private readonly router = inject(Router);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly isNew = signal(true);
   protected readonly saving = signal(false);
@@ -263,6 +277,10 @@ export class MemberForm implements OnInit {
     }
   }
 
+  hasPendingChanges(): boolean {
+    return !this.saving() && (this.form.dirty || this.photoChange !== undefined);
+  }
+
   protected async save(): Promise<void> {
     if (this.form.invalid) {
       return;
@@ -290,6 +308,7 @@ export class MemberForm implements OnInit {
         await must(this.sb.from('customers').update(record).eq('code', value.code));
       }
       await this.savePhoto(value.code);
+      this.form.markAsPristine();
       this.notify.success(this.isNew() ? 'Member added' : 'Member updated');
       if (this.isNew()) {
         await this.router.navigate(['/masters/members', value.code], { replaceUrl: true });
@@ -304,9 +323,17 @@ export class MemberForm implements OnInit {
 
   protected async remove(): Promise<void> {
     const code = this.form.controls.code.value;
-    if (
-      !confirm(`Delete member ${code} (${this.form.controls.name.value})? This cannot be undone.`)
-    ) {
+    const confirmed = await confirmAction(this.dialog, {
+      title: 'Delete this member?',
+      message: 'The member record and photo are removed permanently. This cannot be undone.',
+      details: [
+        { label: 'Member code', value: String(code) },
+        { label: 'Name', value: this.form.controls.name.value },
+      ],
+      confirmLabel: 'Delete member',
+      destructive: true,
+    });
+    if (!confirmed) {
       return;
     }
     this.saving.set(true);
@@ -315,6 +342,8 @@ export class MemberForm implements OnInit {
       if (this.photoPath) {
         await this.sb.storage.from(PHOTO_BUCKET).remove([this.photoPath]);
       }
+      this.form.markAsPristine();
+      this.photoChange = undefined;
       this.notify.success('Member deleted');
       await this.router.navigate(['/masters/members']);
     } catch (err) {

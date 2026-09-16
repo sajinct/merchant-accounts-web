@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -20,10 +21,15 @@ import { AccountHead, SubscriptionYear } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { fyLabel, fyStart } from '../../shared/fy';
+import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 @Component({
   selector: 'app-subscription-fees',
   imports: [
+    EmptyState,
+    PageHeader,
     DecimalPipe,
     ReactiveFormsModule,
     MatButtonModule,
@@ -35,16 +41,11 @@ import { fyLabel, fyStart } from '../../shared/fy';
   ],
   template: `
     <div class="page narrow-page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Membership</span>
-          <h1>Subscription fees</h1>
-          <p class="page-description">
-            Set the yearly subscription fee for each financial year (April to March). Every member
-            owes the fee for each year from when they joined until they leave.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Membership"
+        heading="Subscription fees"
+        description="Set the yearly subscription fee for each financial year (April to March). Every member owes the fee for each year from when they joined until they leave."
+      />
 
       <section class="panel" aria-labelledby="fee-years-heading">
         <div class="panel-header">
@@ -133,11 +134,12 @@ import { fyLabel, fyStart } from '../../shared/fy';
               } @empty {
                 <tr>
                   <td colspan="3">
-                    <div class="empty-state" role="status">
-                      <mat-icon class="empty-icon">event_repeat</mat-icon>
-                      <h3>{{ loading() ? 'Loading fees' : 'No subscription years yet' }}</h3>
-                      <p>Add the current financial year below to start collecting subscriptions.</p>
-                    </div>
+                    <app-empty-state
+                      icon="event_repeat"
+                      [heading]="loading() ? 'Loading fees' : 'No subscription years yet'"
+                      message="Add the current financial year below to start collecting subscriptions."
+                      status
+                    />
                   </td>
                 </tr>
               }
@@ -222,6 +224,7 @@ export class SubscriptionFees implements OnInit {
   private readonly injector = inject(Injector);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly currentFy = fyStart();
   protected readonly label = fyLabel;
@@ -344,8 +347,13 @@ export class SubscriptionFees implements OnInit {
   }
 
   protected async remove(year: SubscriptionYear): Promise<void> {
-    if (!confirm(`Remove ${fyLabel(year.fy_start)}? Members will no longer owe for this year.`))
-      return;
+    const confirmed = await confirmAction(this.dialog, {
+      title: `Remove ${fyLabel(year.fy_start)}?`,
+      message: 'Members will no longer owe a subscription for this year.',
+      confirmLabel: 'Remove year',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await must(this.sb.from('subscription_years').delete().eq('fy_start', year.fy_start));
       this.notify.success(`${fyLabel(year.fy_start)} removed`);

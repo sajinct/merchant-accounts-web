@@ -10,7 +10,10 @@ export class CompanyService {
 
   async load(): Promise<void> {
     const settings = await must(
-      this.sb.from('company_settings').select('name, place, phone, gstin').maybeSingle<CompanySettings>(),
+      this.sb
+        .from('company_settings')
+        .select('name, place, phone, gstin')
+        .maybeSingle<CompanySettings>(),
     );
     this.settings.set(settings);
   }

@@ -20,6 +20,8 @@ import { AccountHead } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 /** Codes from 9000 up are reserved for system heads (as in the desktop app). */
 const SYSTEM_CODE_START = 9000;
@@ -27,6 +29,8 @@ const SYSTEM_CODE_START = 9000;
 @Component({
   selector: 'app-account-heads',
   imports: [
+    EmptyState,
+    PageHeader,
     MatSelectModule,
     ReactiveFormsModule,
     MatButtonModule,
@@ -37,20 +41,17 @@ const SYSTEM_CODE_START = 9000;
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Accounting setup</span>
-          <h1>Account heads</h1>
-          <p class="page-description">
-            Organize the accounts used across your transactions and reports.
-          </p>
-        </div>
+      <app-page-header
+        eyebrow="Accounting setup"
+        heading="Account heads"
+        description="Organize the accounts used across your transactions and reports."
+      >
         @if (auth.canEdit()) {
           <button mat-flat-button type="button" (click)="startNew()">
             <mat-icon>add</mat-icon> New head
           </button>
         }
-      </div>
+      </app-page-header>
 
       <div class="split">
         <section class="split-main panel" aria-label="Account heads">
@@ -116,23 +117,18 @@ const SYSTEM_CODE_START = 9000;
                 } @empty {
                   <tr>
                     <td colspan="3">
-                      <div class="empty-state" role="status">
-                        <mat-icon class="empty-icon">{{
-                          loading() ? 'hourglass_empty' : 'account_tree'
-                        }}</mat-icon>
-                        <h3>
-                          {{ loading() ? 'Loading account heads' : 'No account heads found' }}
-                        </h3>
-                        <p>
-                          {{
-                            loading()
-                              ? 'Your accounts will appear here.'
-                              : filter()
-                                ? 'Try another account name or code.'
-                                : 'Create an account head to organize your transactions.'
-                          }}
-                        </p>
-                      </div>
+                      <app-empty-state
+                        [icon]="loading() ? 'hourglass_empty' : 'account_tree'"
+                        [heading]="loading() ? 'Loading account heads' : 'No account heads found'"
+                        [message]="
+                          loading()
+                            ? 'Your accounts will appear here.'
+                            : filter()
+                              ? 'Try another account name or code.'
+                              : 'Create an account head to organize your transactions.'
+                        "
+                        status
+                      />
                     </td>
                   </tr>
                 }
@@ -246,6 +242,10 @@ export class AccountHeads implements OnInit {
     this.load();
   }
 
+  hasPendingChanges(): boolean {
+    return this.formOpen() && this.form.dirty && !this.saving();
+  }
+
   protected startNew(): void {
     const userCodes = this.heads()
       .map((h) => h.code)
@@ -306,6 +306,7 @@ export class AccountHeads implements OnInit {
             .update({ name: name.trim(), account_type, is_cash_bank })
             .eq('code', editing),
         );
+        this.form.markAsPristine();
         this.notify.success('Account head updated');
       } else {
         await must(

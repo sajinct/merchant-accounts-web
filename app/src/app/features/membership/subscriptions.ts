@@ -14,12 +14,18 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { downloadCsv } from '../../shared/csv';
 import { fyLabel, fyStart } from '../../shared/fy';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
+import { StatCard } from '../../shared/stat-card';
 
 type StatusFilter = 'all' | 'due' | 'paid';
 
 @Component({
   selector: 'app-subscriptions',
   imports: [
+    StatCard,
+    EmptyState,
+    PageHeader,
     DatePipe,
     DecimalPipe,
     RouterLink,
@@ -33,18 +39,16 @@ type StatusFilter = 'all' | 'due' | 'paid';
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Membership</span>
-          <h1>Subscriptions</h1>
-          <p class="page-description">
-            Who has paid for the year, who still owes, and arrears carried from earlier years.
-          </p>
-        </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Membership"
+        heading="Subscriptions"
+        description="Who has paid for the year, who still owes, and arrears carried from earlier years."
+      >
         @if (auth.isAdmin()) {
           <a mat-stroked-button routerLink="/membership/fees"><mat-icon>settings</mat-icon> Fees</a>
         }
-      </div>
+      </app-page-header>
 
       <app-report-shell
         title="Subscription Status"
@@ -62,7 +66,11 @@ type StatusFilter = 'all' | 'due' | 'paid';
               }
             </mat-select>
           </mat-form-field>
-          <mat-button-toggle-group [value]="status()" (change)="status.set($event.value)" aria-label="Filter by status">
+          <mat-button-toggle-group
+            [value]="status()"
+            (change)="status.set($event.value)"
+            aria-label="Filter by status"
+          >
             <mat-button-toggle value="all">All</mat-button-toggle>
             <mat-button-toggle value="due">Owing</mat-button-toggle>
             <mat-button-toggle value="paid">Paid up</mat-button-toggle>
@@ -70,42 +78,52 @@ type StatusFilter = 'all' | 'due' | 'paid';
           <mat-form-field subscriptSizing="dynamic" class="search-field">
             <mat-label>Search</mat-label>
             <mat-icon matPrefix>search</mat-icon>
-            <input matInput placeholder="Name, code or phone" [value]="query()"
-                   (input)="query.set($any($event.target).value)" />
+            <input
+              matInput
+              placeholder="Name, code or phone"
+              [value]="query()"
+              (input)="query.set($any($event.target).value)"
+            />
           </mat-form-field>
         </div>
 
         @if (!loading() && !yearOptions().length) {
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>event_repeat</mat-icon></div>
-            <h3>No subscription fees set up</h3>
-            <p>An admin needs to add the fee for a financial year first.</p>
-          </div>
+          <app-empty-state
+            icon="event_repeat"
+            heading="No subscription fees set up"
+            message="An admin needs to add the fee for a financial year first."
+          />
         } @else {
           <div class="summary-grid">
-            <div class="summary-card">
-              <div><span class="summary-label">Members due {{ label(fy()) }}</span>
-                <strong class="summary-value">{{ totals().members }}</strong></div>
-              <div class="summary-icon"><mat-icon>group</mat-icon></div>
-            </div>
-            <div class="summary-card">
-              <div><span class="summary-label">Collected {{ label(fy()) }}</span>
-                <strong class="summary-value">{{ totals().paid | number: '1.2-2' }}</strong></div>
-              <div class="summary-icon"><mat-icon>savings</mat-icon></div>
-            </div>
-            <div class="summary-card">
-              <div><span class="summary-label">Still owed {{ label(fy()) }}</span>
-                <strong class="summary-value">{{ totals().yearBalance | number: '1.2-2' }}</strong></div>
-              <div class="summary-icon"><mat-icon>pending_actions</mat-icon></div>
-            </div>
-            <div class="summary-card">
-              <div><span class="summary-label">Arrears from earlier years</span>
-                <strong class="summary-value" [class.danger]="totals().arrears > 0">{{ totals().arrears | number: '1.2-2' }}</strong></div>
-              <div class="summary-icon"><mat-icon>history</mat-icon></div>
-            </div>
+            <app-stat-card
+              [label]="'Members due ' + label(fy())"
+              icon="group"
+              [value]="totals().members"
+            />
+            <app-stat-card
+              [label]="'Collected ' + label(fy())"
+              icon="savings"
+              [value]="totals().paid | number: '1.2-2'"
+            />
+            <app-stat-card
+              [label]="'Still owed ' + label(fy())"
+              icon="pending_actions"
+              [value]="totals().yearBalance | number: '1.2-2'"
+            />
+            <app-stat-card
+              label="Arrears from earlier years"
+              icon="history"
+              [value]="totals().arrears | number: '1.2-2'"
+              [negative]="totals().arrears > 0"
+            />
           </div>
 
-          <div class="table-wrap" tabindex="0" role="region" aria-label="Subscription status by member">
+          <div
+            class="table-wrap"
+            tabindex="0"
+            role="region"
+            aria-label="Subscription status by member"
+          >
             <table class="report-table">
               <thead>
                 <tr>
@@ -126,15 +144,21 @@ type StatusFilter = 'all' | 'due' | 'paid';
                   <tr class="clickable" (click)="open(row.member_code)">
                     <td class="num">{{ row.member_code }}</td>
                     <td>
-                      <a class="table-link" [routerLink]="['/masters/members', row.member_code]"
-                         (click)="$event.stopPropagation()">{{ row.member_name }}</a>
+                      <a
+                        class="table-link"
+                        [routerLink]="['/masters/members', row.member_code]"
+                        (click)="$event.stopPropagation()"
+                        >{{ row.member_name }}</a
+                      >
                     </td>
                     <td>{{ row.phone || '—' }}</td>
                     <td class="num">{{ row.year_fee | number: '1.2-2' }}</td>
                     <td class="num">{{ row.year_paid | number: '1.2-2' }}</td>
                     <td class="num">{{ row.year_balance | number: '1.2-2' }}</td>
                     <td class="num">{{ row.arrears | number: '1.2-2' }}</td>
-                    <td class="num"><strong>{{ row.total_due | number: '1.2-2' }}</strong></td>
+                    <td class="num">
+                      <strong>{{ row.total_due | number: '1.2-2' }}</strong>
+                    </td>
                     <td>{{ row.last_paid_on ? (row.last_paid_on | date: 'dd MMM yyyy') : '—' }}</td>
                     <td class="no-print">
                       @if (row.total_due <= 0) {
@@ -151,10 +175,11 @@ type StatusFilter = 'all' | 'due' | 'paid';
                 } @empty {
                   <tr>
                     <td colspan="10">
-                      <div class="empty-state" role="status">
-                        <h3>{{ loading() ? 'Loading…' : 'No members match' }}</h3>
-                        <p>{{ loading() ? '' : 'Try another year, status or search.' }}</p>
-                      </div>
+                      <app-empty-state
+                        [heading]="loading() ? 'Loading…' : 'No members match'"
+                        [message]="loading() ? '' : 'Try another year, status or search.'"
+                        status
+                      />
                     </td>
                   </tr>
                 }
@@ -243,7 +268,10 @@ export class Subscriptions implements OnInit {
   async ngOnInit(): Promise<void> {
     try {
       const years = await must(
-        this.sb.from('subscription_years').select('fy_start').order('fy_start', { ascending: false }),
+        this.sb
+          .from('subscription_years')
+          .select('fy_start')
+          .order('fy_start', { ascending: false }),
       );
       const options = (years as { fy_start: number }[]).map((y) => y.fy_start);
       this.yearOptions.set(options);

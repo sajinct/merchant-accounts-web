@@ -6,14 +6,17 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { addDays, isoDate } from '../../shared/dates';
+import { PageHeader } from '../../shared/page-header';
 
 @Component({
   selector: 'app-daybook-posting',
   imports: [
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -21,20 +24,16 @@ import { addDays, isoDate } from '../../shared/dates';
     MatButtonModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
   ],
   template: `
     <div class="page narrow-page posting-page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Transactions</span>
-          <h1>Ledger verification</h1>
-          <p class="page-description">
-            Entries post immediately with balanced debits and credits. Verify a selected period
-            here.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        eyebrow="Transactions"
+        heading="Ledger verification"
+        description="Entries post immediately with balanced debits and credits. Verify a selected period here."
+      />
 
       <div class="panel posting-status">
         <div class="summary-icon"><mat-icon>event_available</mat-icon></div>
@@ -68,11 +67,23 @@ import { addDays, isoDate } from '../../shared/dates';
           <div class="form-grid">
             <mat-form-field>
               <mat-label>From date</mat-label>
-              <input matInput type="date" formControlName="from" />
+              <input
+                matInput
+                [matDatepicker]="fromPicker"
+                formControlName="from"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="fromPicker" /><mat-datepicker
+                #fromPicker
+              />
             </mat-form-field>
             <mat-form-field>
               <mat-label>To date</mat-label>
-              <input matInput type="date" formControlName="to" />
+              <input
+                matInput
+                [matDatepicker]="toPicker"
+                formControlName="to"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="toPicker" /><mat-datepicker #toPicker />
             </mat-form-field>
           </div>
           <div class="posting-note">
@@ -128,15 +139,15 @@ import { addDays, isoDate } from '../../shared/dates';
       margin: 4px 0 0;
     }
     .panel-symbol {
-      color: #80908e;
+      color: var(--app-symbol-ink);
     }
     .posting-note {
       display: flex;
       align-items: flex-start;
       gap: 10px;
       padding: 13px 15px;
-      background: #f5f8fa;
-      border: 1px solid #e5eaef;
+      background: var(--app-note-bg);
+      border: 1px solid var(--app-note-border);
       border-radius: 8px;
       margin-bottom: 20px;
     }
@@ -144,12 +155,12 @@ import { addDays, isoDate } from '../../shared/dates';
       flex: 0 0 19px;
       font-size: 19px;
       height: 19px;
-      color: #64748b;
+      color: var(--app-note-icon);
       margin-top: 1px;
     }
     .posting-note p {
       margin: 0;
-      color: #617083;
+      color: var(--app-note-ink);
       font-size: 12px;
       line-height: 1.7;
     }
@@ -162,10 +173,10 @@ import { addDays, isoDate } from '../../shared/dates';
       align-items: center;
       padding: 16px 18px;
       margin-top: 18px;
-      border: 1px solid #cde8df;
-      background: #edf8f3;
+      border: 1px solid var(--app-confirm-border);
+      background: var(--app-confirm-bg);
       border-radius: 10px;
-      color: #17644c;
+      color: var(--app-confirm-ink);
       font-size: 13px;
     }
     .posting-result p {

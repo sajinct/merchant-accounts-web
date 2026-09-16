@@ -1,19 +1,23 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, LOCALE_ID, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
 import { AccountHead, LedgerRow } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
+import { AccountPicker } from '../../shared/account-picker';
 import { downloadCsv } from '../../shared/csv';
-import { firstOfMonth, isoDate } from '../../shared/dates';
+import { displayDate, firstOfMonth, isoDate } from '../../shared/dates';
+import { DrCrPipe } from '../../shared/dr-cr.pipe';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 interface LedgerGroup {
   code: number;
@@ -30,6 +34,8 @@ const ALL = 0;
 @Component({
   selector: 'app-ledger-report',
   imports: [
+    EmptyState,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -37,23 +43,21 @@ const ALL = 0;
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatIconModule,
-    MatSelectModule,
+    AccountPicker,
+    DrCrPipe,
     ReportShell,
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Reports</span>
-          <h1>General ledger</h1>
-          <p class="page-description">
-            Explore account activity. Positive balances are credit balances; negative balances are
-            debit balances.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Reports"
+        heading="General ledger"
+        description="Explore account activity with running debit (Dr) and credit (Cr) balances."
+      />
       <app-report-shell
         title="General Ledger"
         [subtitle]="subtitle()"
@@ -70,20 +74,34 @@ const ALL = 0;
           (ngSubmit)="run()"
           class="filter-row"
         >
-          <mat-form-field subscriptSizing="dynamic" class="account-select">
-            <mat-label>Account</mat-label>
-            <mat-select formControlName="account">
-              <mat-option [value]="all">All accounts</mat-option>
-              @for (head of heads(); track head.code) {
-                <mat-option [value]="head.code">{{ head.code }} – {{ head.name }}</mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
+          <app-account-picker
+            class="account-select"
+            formControlName="account"
+            subscriptSizing="dynamic"
+            allLabel="All accounts"
+            [allValue]="all"
+            [accounts]="heads()"
+            [loading]="loadingHeads()"
+          />
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>From date</mat-label><input matInput type="date" formControlName="from"
+            ><mat-label>From date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="fromPicker"
+              formControlName="from"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="fromPicker" /><mat-datepicker #fromPicker
           /></mat-form-field>
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>To date</mat-label><input matInput type="date" formControlName="to"
+            ><mat-label>To date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="toPicker"
+              formControlName="to"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="toPicker" /><mat-datepicker #toPicker
           /></mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
             <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}
@@ -91,11 +109,11 @@ const ALL = 0;
         </form>
 
         @if (ran() && !loading() && !groups().length) {
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>search_off</mat-icon></div>
-            <h3>No matching entries</h3>
-            <p>Try another account or date range to find ledger activity.</p>
-          </div>
+          <app-empty-state
+            icon="search_off"
+            heading="No matching entries"
+            message="Try another account or date range to find ledger activity."
+          />
         }
         @for (group of loading() ? [] : groups(); track group.code) {
           <div class="ledger-group">
@@ -107,8 +125,8 @@ const ALL = 0;
                     <th>Date</th>
                     <th>Voucher</th>
                     <th>Narration</th>
-                    <th class="num">Credit</th>
                     <th class="num">Debit</th>
+                    <th class="num">Credit</th>
                     <th class="num">Balance</th>
                   </tr>
                 </thead>
@@ -119,21 +137,21 @@ const ALL = 0;
                       <td>{{ row.voucher_ref }}</td>
                       <td>{{ row.narration }}</td>
                       <td class="num">
-                        {{ row.row_kind === 'entry' ? (row.credit | number: '1.2-2') : '' }}
-                      </td>
-                      <td class="num">
                         {{ row.row_kind === 'entry' ? (row.debit | number: '1.2-2') : '' }}
                       </td>
-                      <td class="num">{{ row.balance | number: '1.2-2' }}</td>
+                      <td class="num">
+                        {{ row.row_kind === 'entry' ? (row.credit | number: '1.2-2') : '' }}
+                      </td>
+                      <td class="num">{{ row.balance | drCr }}</td>
                     </tr>
                   }
                 </tbody>
                 <tfoot>
                   <tr>
                     <td colspan="3">Total / closing balance</td>
-                    <td class="num">{{ group.credit | number: '1.2-2' }}</td>
                     <td class="num">{{ group.debit | number: '1.2-2' }}</td>
-                    <td class="num">{{ group.closing | number: '1.2-2' }}</td>
+                    <td class="num">{{ group.credit | number: '1.2-2' }}</td>
+                    <td class="num">{{ group.closing | drCr }}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -142,13 +160,14 @@ const ALL = 0;
         }
 
         @if (loading()) {
-          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+          <app-empty-state class="no-print" message="Preparing your report…" status />
         } @else if (!ran()) {
-          <div class="empty-state no-print">
-            <div class="empty-icon"><mat-icon>menu_book</mat-icon></div>
-            <h3>Your report starts here</h3>
-            <p>Choose your filters and run the report to review your account data.</p>
-          </div>
+          <app-empty-state
+            class="no-print"
+            icon="menu_book"
+            heading="Your report starts here"
+            message="Choose your filters and run the report to review your account data."
+          />
         }
       </app-report-shell>
     </div>
@@ -157,9 +176,11 @@ const ALL = 0;
 export class LedgerReport implements OnInit {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly all = ALL;
   protected readonly heads = signal<AccountHead[]>([]);
+  protected readonly loadingHeads = signal(true);
   protected readonly rows = signal<LedgerRow[]>([]);
   protected readonly loading = signal(false);
   protected readonly ran = signal(false);
@@ -200,6 +221,8 @@ export class LedgerReport implements OnInit {
       this.heads.set(await must(this.sb.from('account_heads').select('code, name').order('name')));
     } catch (err) {
       this.notify.error(err);
+    } finally {
+      this.loadingHeads.set(false);
     }
   }
 
@@ -228,7 +251,9 @@ export class LedgerReport implements OnInit {
         this.rows.set([]);
         return;
       }
-      this.subtitle.set(`For the period ${from} to ${to}`);
+      this.subtitle.set(
+        `For the period ${displayDate(from, this.locale)} to ${displayDate(to, this.locale)}`,
+      );
       this.ran.set(true);
     } catch (err) {
       this.notify.error(err);
@@ -240,15 +265,24 @@ export class LedgerReport implements OnInit {
   protected exportCsv(): void {
     downloadCsv(
       'ledger.csv',
-      ['Account code', 'Account', 'Date', 'Voucher', 'Narration', 'Credit', 'Debit', 'Balance'],
+      [
+        'Account code',
+        'Account',
+        'Date',
+        'Voucher',
+        'Narration',
+        'Debit',
+        'Credit',
+        'Balance (+Cr / -Dr)',
+      ],
       this.rows().map((r) => [
         r.head_code,
         r.head_name,
         r.tran_date,
         r.voucher_ref,
         r.narration,
-        r.credit,
         r.debit,
+        r.credit,
         r.balance,
       ]),
     );

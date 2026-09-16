@@ -35,7 +35,9 @@ const MAX_WIDTH = 640;
     </div>
     <div class="webcam-actions">
       @if (streaming()) {
-        <button mat-flat-button type="button" (click)="capture()"><mat-icon>photo_camera</mat-icon> Capture</button>
+        <button mat-flat-button type="button" (click)="capture()">
+          <mat-icon>photo_camera</mat-icon> Capture
+        </button>
         <button mat-button type="button" (click)="stop()">Cancel</button>
       } @else {
         <button mat-stroked-button type="button" (click)="start()" [disabled]="disabled()">
@@ -63,7 +65,9 @@ export class WebcamCapture implements OnDestroy {
 
   protected readonly streaming = signal(false);
   protected readonly cameraError = signal('');
-  protected readonly preview = computed(() => this.localUrl() ?? (this.cleared() ? null : this.src()));
+  protected readonly preview = computed(
+    () => this.localUrl() ?? (this.cleared() ? null : this.src()),
+  );
 
   constructor() {
     // A different record was loaded: drop any unsaved capture.

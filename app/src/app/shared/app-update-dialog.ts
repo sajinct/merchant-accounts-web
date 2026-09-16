@@ -66,7 +66,7 @@ import { AppUpdateService } from '../core/app-update.service';
     .versions {
       margin: 0 0 20px;
       padding: 12px;
-      background: #f4f7f9;
+      background: var(--app-surface-muted);
       border-radius: 8px;
     }
     .versions div {
@@ -106,7 +106,7 @@ import { AppUpdateService } from '../core/app-update.service';
       margin-top: 16px;
     }
     .reload-note {
-      background: #f4f7f9;
+      background: var(--app-surface-muted);
       border-radius: 8px;
       padding: 12px;
       font-size: 12px;

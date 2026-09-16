@@ -3,15 +3,26 @@ import { FinancialYearService } from '../../core/financial-year.service';
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
-import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
+import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  Injector,
+  LOCALE_ID,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -21,6 +32,11 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { isoDate } from '../../shared/dates';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { AccountPicker } from '../../shared/account-picker';
+import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
+import { StatCard } from '../../shared/stat-card';
 
 interface VoucherLine extends Voucher {
   receipt: number;
@@ -28,24 +44,25 @@ interface VoucherLine extends Voucher {
   balance: number;
 }
 
-function isHead(value: unknown): value is AccountHead {
-  return !!value && typeof value === 'object' && 'code' in value;
-}
-
 @Component({
   selector: 'app-vouchers',
+  host: { '(document:keydown)': 'onSaveShortcut($event)' },
   imports: [
+    EmptyState,
+    StatCard,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     CashAccountField,
+    AccountPicker,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
-    MatAutocompleteModule,
     MatButtonModule,
     MatButtonToggleModule,
     MatFormFieldModule,
     MatIconModule,
+    MatDatepickerModule,
     MatInputModule,
     MatProgressBarModule,
     MatTooltipModule,
@@ -53,16 +70,11 @@ function isHead(value: unknown): value is AccountHead {
   ],
   template: `
     <div class="page">
-      <div class="page-header">
-        <div class="page-heading">
-          <span class="eyebrow">Transactions</span>
-          <h1>Payments & receipts</h1>
-          <p class="page-description">
-            Record daily transactions and keep every account in balance.
-          </p>
-        </div>
-        <span class="status-badge neutral"><mat-icon>receipt_long</mat-icon> Voucher entry</span>
-      </div>
+      <app-page-header
+        eyebrow="Transactions"
+        heading="Payments & receipts"
+        description="Record daily transactions and keep every account in balance."
+      />
 
       <app-financial-year-notice />
       <form
@@ -102,35 +114,38 @@ function isHead(value: unknown): value is AccountHead {
             <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
               <mat-label>Transaction date</mat-label>
-              <input matInput type="date" formControlName="date" />
-            </mat-form-field>
-            <mat-form-field class="account-field">
-              <mat-label>Account</mat-label>
-              <mat-icon matPrefix>search</mat-icon>
               <input
                 matInput
-                formControlName="account"
-                [matAutocomplete]="accountAuto"
-                placeholder="Search by name or code"
+                [matDatepicker]="datePicker"
+                formControlName="date"
+                placeholder="dd/mm/yyyy"
+              /><mat-datepicker-toggle matIconSuffix [for]="datePicker" /><mat-datepicker
+                #datePicker
               />
-              <mat-autocomplete
-                #accountAuto="matAutocomplete"
-                [displayWith]="displayHead"
-                autoActiveFirstOption
-                (optionSelected)="loadAccount($event.option.value)"
-              >
-                @for (head of matchingHeads(); track head.code) {
-                  <mat-option [value]="head">{{ head.code }} – {{ head.name }}</mat-option>
-                } @empty {
-                  <mat-option disabled>{{
-                    loadingHeads() ? 'Loading accounts…' : 'No matching accounts'
-                  }}</mat-option>
-                }
-              </mat-autocomplete>
             </mat-form-field>
+            <app-account-picker
+              class="account-field"
+              formControlName="account"
+              [accounts]="heads()"
+              [loading]="loadingHeads()"
+              (accountSelected)="loadAccount($event)"
+            />
+            @if (selectedHead(); as head) {
+              <p class="account-balance" aria-live="polite">
+                @if (loadingAccount()) {
+                  <span class="hint">Loading balance for {{ head.name }}…</span>
+                } @else if (accountError()) {
+                  <span class="hint">Balance unavailable.</span>
+                } @else {
+                  <span class="hint">Balance for {{ head.name }}</span>
+                  <strong [class.danger]="balance() < 0">{{ balance() | number: '1.2-2' }}</strong>
+                }
+              </p>
+            }
             <mat-form-field>
               <mat-label>Amount</mat-label>
               <input
+                #amountField
                 matInput
                 type="number"
                 min="0.01"
@@ -155,11 +170,7 @@ function isHead(value: unknown): value is AccountHead {
           </div>
 
           <div class="form-actions">
-            <button
-              mat-flat-button
-              type="submit"
-              [disabled]="form.invalid || !selectedHead() || saving() || !auth.canEdit()"
-            >
+            <button mat-flat-button type="submit" [disabled]="!canSave()">
               <mat-icon>add</mat-icon>
               {{
                 saving()
@@ -172,6 +183,8 @@ function isHead(value: unknown): value is AccountHead {
             </button>
             @if (!auth.canEdit()) {
               <span class="hint">Your role can view vouchers but not enter them.</span>
+            } @else {
+              <span class="hint shortcut-hint">Ctrl + S saves and starts the next entry</span>
             }
           </div>
         </div>
@@ -180,29 +193,23 @@ function isHead(value: unknown): value is AccountHead {
       @if (selectedHead(); as head) {
         @if (!loadingAccount() && !accountError()) {
           <div class="summary-grid account-summary">
-            <div class="summary-card">
-              <div class="summary-icon"><mat-icon>south_west</mat-icon></div>
-              <div>
-                <span class="summary-label">Total receipts</span
-                ><strong class="summary-value">{{ totalReceipts() | number: '1.2-2' }}</strong>
-              </div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-icon payment-icon"><mat-icon>north_east</mat-icon></div>
-              <div>
-                <span class="summary-label">Total payments</span
-                ><strong class="summary-value">{{ totalPayments() | number: '1.2-2' }}</strong>
-              </div>
-            </div>
-            <div class="summary-card">
-              <div class="summary-icon"><mat-icon>account_balance_wallet</mat-icon></div>
-              <div>
-                <span class="summary-label">Net receipts / payments</span
-                ><strong class="summary-value" [class.danger]="balance() < 0">{{
-                  balance() | number: '1.2-2'
-                }}</strong>
-              </div>
-            </div>
+            <app-stat-card
+              label="Total receipts"
+              icon="south_west"
+              [value]="totalReceipts() | number: '1.2-2'"
+            />
+            <app-stat-card
+              label="Total payments"
+              icon="north_east"
+              tone="payment"
+              [value]="totalPayments() | number: '1.2-2'"
+            />
+            <app-stat-card
+              label="Net receipts / payments"
+              icon="account_balance_wallet"
+              [value]="balance() | number: '1.2-2'"
+              [negative]="balance() < 0"
+            />
           </div>
         }
         <section class="panel account-ledger" [attr.aria-busy]="loadingAccount()">
@@ -219,16 +226,18 @@ function isHead(value: unknown): value is AccountHead {
           </div>
           @if (loadingAccount()) {
             <mat-progress-bar mode="indeterminate" />
-            <div class="empty-state" role="status"><p>Loading account transactions…</p></div>
+            <app-empty-state message="Loading account transactions…" status />
           } @else if (accountError()) {
-            <div class="empty-state" role="status">
-              <div class="empty-icon"><mat-icon>cloud_off</mat-icon></div>
-              <h3>Transactions could not be loaded</h3>
-              <p>Try again to view this account’s current balance.</p>
+            <app-empty-state
+              icon="cloud_off"
+              heading="Transactions could not be loaded"
+              message="Try again to view this account’s current balance."
+              status
+            >
               <button mat-stroked-button type="button" (click)="loadAccount(head)">
                 <mat-icon>refresh</mat-icon> Try again
               </button>
-            </div>
+            </app-empty-state>
           } @else if (lines().length) {
             <div
               class="table-wrap ledger-table-wrap"
@@ -284,20 +293,20 @@ function isHead(value: unknown): value is AccountHead {
               </table>
             </div>
           } @else {
-            <div class="empty-state">
-              <div class="empty-icon"><mat-icon>receipt_long</mat-icon></div>
-              <h3>No transactions yet</h3>
-              <p>The first receipt or payment for {{ head.name }} will appear here.</p>
-            </div>
+            <app-empty-state
+              icon="receipt_long"
+              heading="No transactions yet"
+              [message]="'The first receipt or payment for ' + head.name + ' will appear here.'"
+            />
           }
         </section>
       } @else {
         <section class="panel account-placeholder">
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>account_balance_wallet</mat-icon></div>
-            <h3>Your account activity, in one place</h3>
-            <p>Select an account above to see its receipts, payments and running balance.</p>
-          </div>
+          <app-empty-state
+            icon="account_balance_wallet"
+            heading="Your account activity, in one place"
+            message="Select an account above to see its receipts, payments and running balance."
+          />
         </section>
       }
     </div>
@@ -329,12 +338,27 @@ function isHead(value: unknown): value is AccountHead {
     .voucher-form .form-actions {
       margin: 0;
     }
+    .account-balance {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      width: fit-content;
+      max-width: 100%;
+      margin: 0 0 14px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      background: var(--app-surface-muted);
+    }
+    .account-balance strong {
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+    .shortcut-hint {
+      margin-left: auto;
+    }
     .account-summary {
       margin-bottom: 20px;
-    }
-    .payment-icon {
-      background: #fff5e7;
-      color: #ad670b;
     }
     .ledger-table-wrap {
       border: 0;
@@ -347,15 +371,15 @@ function isHead(value: unknown): value is AccountHead {
       display: inline-flex;
       padding: 3px 7px;
       border-radius: 4px;
-      background: #fff5e7;
-      color: #945810;
+      background: var(--app-payment-bg);
+      color: var(--app-payment-ink);
       font-size: 11px;
       font-weight: 700;
       white-space: nowrap;
     }
     .receipt-ref {
-      background: #eaf6f1;
-      color: #177054;
+      background: var(--app-receipt-bg);
+      color: var(--app-receipt-ink);
     }
     .ledger-balance {
       font-weight: 600;
@@ -403,6 +427,10 @@ export class Vouchers implements OnInit {
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
+  private readonly injector = inject(Injector);
+  private readonly amountField = viewChild<ElementRef<HTMLInputElement>>('amountField');
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly heads = signal<AccountHead[]>([]);
   protected readonly selectedHead = signal<AccountHead | null>(null);
@@ -419,24 +447,9 @@ export class Vouchers implements OnInit {
     type: [1 as VoucherType, Validators.required],
     date: [isoDate(), Validators.required],
     cash: [null as number | null, Validators.required],
-    account: [null as AccountHead | string | null, Validators.required],
+    account: [null as number | null, Validators.required],
     description: [''],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
-  });
-
-  private readonly accountValue = toSignal(this.form.controls.account.valueChanges, {
-    initialValue: null,
-  });
-
-  protected readonly matchingHeads = computed(() => {
-    const value = this.accountValue();
-    const q = (typeof value === 'string' ? value : '').trim().toLowerCase();
-    const heads = this.heads();
-    return (
-      q
-        ? heads.filter((h) => h.name.toLowerCase().includes(q) || String(h.code).startsWith(q))
-        : heads
-    ).slice(0, 50);
   });
 
   protected readonly balance = computed(() => this.lines().at(-1)?.balance ?? 0);
@@ -447,9 +460,6 @@ export class Vouchers implements OnInit {
     this.lines().reduce((sum, line) => sum + line.payment, 0),
   );
 
-  protected readonly displayHead = (head: AccountHead | string | null): string =>
-    isHead(head) ? `${head.code} – ${head.name}` : (head ?? '');
-
   constructor() {
     effect(() => {
       this.fy.selected();
@@ -459,12 +469,18 @@ export class Vouchers implements OnInit {
       });
     });
     // Typing over a chosen account clears the selection.
-    this.form.controls.account.valueChanges.subscribe((value) => {
-      if (!isHead(value) && this.selectedHead()) {
+    this.form.controls.account.valueChanges.subscribe((code) => {
+      if (code === null && this.selectedHead()) {
         this.selectedHead.set(null);
         this.lines.set([]);
       }
     });
+  }
+
+  /** An amount or narration is unfinished work; a selected account alone is just browsing. */
+  hasPendingChanges(): boolean {
+    const { amount, description } = this.form.getRawValue();
+    return !this.saving() && (amount !== null || !!description?.trim());
   }
 
   async ngOnInit(): Promise<void> {
@@ -527,6 +543,29 @@ export class Vouchers implements OnInit {
     }
   }
 
+  protected canSave(): boolean {
+    return !this.form.invalid && !!this.selectedHead() && !this.saving() && this.auth.canEdit();
+  }
+
+  /** Ctrl/Cmd + S saves without leaving the keyboard, like the desktop app. */
+  protected onSaveShortcut(event: KeyboardEvent): void {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      !(event.ctrlKey || event.metaKey) ||
+      event.altKey ||
+      event.key.toLowerCase() !== 's'
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (this.canSave()) void this.save();
+  }
+
+  private focusAmount(): void {
+    afterNextRender(() => this.amountField()?.nativeElement.focus(), { injector: this.injector });
+  }
+
   protected async save(): Promise<void> {
     const head = this.selectedHead();
     const { type, date, description, amount, cash } = this.form.getRawValue();
@@ -552,6 +591,8 @@ export class Vouchers implements OnInit {
       this.requestId = crypto.randomUUID();
       this.form.patchValue({ description: '', amount: null });
       this.form.controls.amount.markAsUntouched();
+      // The account stays selected so repeated entries only need an amount.
+      this.focusAmount();
       await this.loadAccount(head);
     } catch (err) {
       this.notify.error(err);
@@ -562,12 +603,24 @@ export class Vouchers implements OnInit {
 
   protected async cancel(line: VoucherLine): Promise<void> {
     const ref = `${line.voucher_type === 1 ? 'R' : 'P'}-${line.voucher_no}`;
-    const reason = prompt(`Cancel voucher ${ref} (${line.amount})?\nEnter a reason:`);
-    if (reason === null) {
+    const result = await confirmAction(this.dialog, {
+      title: `Cancel voucher ${ref}?`,
+      message: 'A balancing reversal is posted. The original voucher stays in the audit trail.',
+      details: [
+        { label: 'Account', value: this.selectedHead()?.name ?? '' },
+        { label: 'Date', value: formatDate(line.voucher_date, 'dd-MMM-yyyy', this.locale) },
+        { label: 'Amount', value: formatNumber(Number(line.amount), this.locale, '1.2-2') },
+      ],
+      fields: [{ key: 'reason', label: 'Reason for cancelling', required: true, maxLength: 200 }],
+      confirmLabel: 'Cancel voucher',
+      cancelLabel: 'Keep voucher',
+      destructive: true,
+    });
+    if (!result) {
       return;
     }
     try {
-      await must(this.sb.rpc('cancel_voucher', { p_id: line.id, p_reason: reason }));
+      await must(this.sb.rpc('cancel_voucher', { p_id: line.id, p_reason: result['reason'] }));
       this.notify.success(`Voucher ${ref} cancelled with a balancing reversal.`);
       const head = this.selectedHead();
       if (head) {

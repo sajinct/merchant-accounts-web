@@ -6,6 +6,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { DayClosingRow } from '../../core/models';
@@ -14,10 +15,16 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { downloadCsv } from '../../shared/csv';
 import { firstOfMonth, isoDate } from '../../shared/dates';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
+import { StatCard } from '../../shared/stat-card';
 
 @Component({
   selector: 'app-day-closing',
   imports: [
+    StatCard,
+    EmptyState,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DatePipe,
@@ -26,22 +33,19 @@ import { ReportShell } from '../../shared/report-shell';
     MatButtonModule,
     MatCheckboxModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatIconModule,
     ReportShell,
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Transactions</span>
-          <h1>Day closing balance</h1>
-          <p class="page-description">
-            All cash and bank accounts combined. Review daily balances and quickly identify negative
-            closing positions.
-          </p>
-        </div>
-      </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Transactions"
+        heading="Day closing balance"
+        description="All cash and bank accounts combined. Review daily balances and quickly identify negative closing positions."
+      />
       <app-report-shell
         title="Day Closing Balance"
         [subtitle]="subtitle()"
@@ -59,10 +63,24 @@ import { ReportShell } from '../../shared/report-shell';
           class="filter-row"
         >
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>From date</mat-label><input matInput type="date" formControlName="from"
+            ><mat-label>From date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="fromPicker"
+              formControlName="from"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="fromPicker" /><mat-datepicker #fromPicker
           /></mat-form-field>
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>To date</mat-label><input matInput type="date" formControlName="to"
+            ><mat-label>To date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="toPicker"
+              formControlName="to"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="toPicker" /><mat-datepicker #toPicker
           /></mat-form-field>
           <mat-checkbox formControlName="negativeOnly">Negative balances only</mat-checkbox>
           <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
@@ -71,34 +89,22 @@ import { ReportShell } from '../../shared/report-shell';
         </form>
 
         @if (loading()) {
-          <div class="empty-state" role="status"><p>Loading daily closing balances…</p></div>
+          <app-empty-state message="Loading daily closing balances…" status />
         } @else if (ran() && rows().length) {
           <div class="summary-grid closing-summary no-print">
-            <div class="summary-card">
-              <div>
-                <span class="summary-label">Days shown</span
-                ><strong class="summary-value">{{ rows().length }}</strong>
-              </div>
-              <div class="summary-icon"><mat-icon>calendar_month</mat-icon></div>
-            </div>
-            <div class="summary-card">
-              <div>
-                <span class="summary-label">Lowest balance shown</span
-                ><strong class="summary-value" [class.danger]="lowestBalance() < 0">{{
-                  lowestBalance() | number: '1.2-2'
-                }}</strong>
-              </div>
-              <div class="summary-icon"><mat-icon>south</mat-icon></div>
-            </div>
-            <div class="summary-card">
-              <div>
-                <span class="summary-label">Last balance shown</span
-                ><strong class="summary-value" [class.danger]="lastBalance() < 0">{{
-                  lastBalance() | number: '1.2-2'
-                }}</strong>
-              </div>
-              <div class="summary-icon"><mat-icon>account_balance_wallet</mat-icon></div>
-            </div>
+            <app-stat-card label="Days shown" icon="calendar_month" [value]="rows().length" />
+            <app-stat-card
+              label="Lowest balance shown"
+              icon="south"
+              [value]="lowestBalance() | number: '1.2-2'"
+              [negative]="lowestBalance() < 0"
+            />
+            <app-stat-card
+              label="Last balance shown"
+              icon="account_balance_wallet"
+              [value]="lastBalance() | number: '1.2-2'"
+              [negative]="lastBalance() < 0"
+            />
           </div>
           <div
             class="table-wrap closing-table-wrap"
@@ -124,17 +130,18 @@ import { ReportShell } from '../../shared/report-shell';
             </table>
           </div>
         } @else if (ran()) {
-          <div class="empty-state">
-            <div class="empty-icon"><mat-icon>event_busy</mat-icon></div>
-            <h3>No matching balances</h3>
-            <p>There are no day book entries matching this date range and filter.</p>
-          </div>
+          <app-empty-state
+            icon="event_busy"
+            heading="No matching balances"
+            message="There are no day book entries matching this date range and filter."
+          />
         } @else {
-          <div class="empty-state no-print">
-            <div class="empty-icon"><mat-icon>account_balance_wallet</mat-icon></div>
-            <h3>A clear view of each day</h3>
-            <p>Choose a date range and run the report to see your daily closing balances.</p>
-          </div>
+          <app-empty-state
+            class="no-print"
+            icon="account_balance_wallet"
+            heading="A clear view of each day"
+            message="Choose a date range and run the report to see your daily closing balances."
+          />
         }
       </app-report-shell>
     </div>

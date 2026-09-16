@@ -1,4 +1,5 @@
 import {
+  contentChildren,
   DestroyRef,
   Directive,
   effect,
@@ -10,6 +11,7 @@ import {
   output,
 } from '@angular/core';
 import { FormGroupDirective } from '@angular/forms';
+import { MatDatepickerInput } from '@angular/material/datepicker';
 import { FinancialYearService } from '../core/financial-year.service';
 
 /** Applies the selected year to dates; never overwrites dates on a dirty entry form. */
@@ -22,6 +24,7 @@ export class FinancialYearScope implements OnInit {
   private readonly injector = inject(Injector);
   private readonly element = inject<ElementRef<HTMLFormElement>>(ElementRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly datepickers = contentChildren(MatDatepickerInput, { descendants: true });
   ngOnInit() {
     const form = this.host.form;
     const names = ['date', 'paid_on', 'from', 'to', 'asOn'].filter((name) => !!form.get(name));
@@ -43,6 +46,16 @@ export class FinancialYearScope implements OnInit {
       this.destroyRef.onDestroy(() => form.get(name)?.removeValidators(validator));
     }
     this.destroyRef.onDestroy(() => form.removeValidators(rangeValidator));
+    // Kept apart from the effect below so pickers appearing later never re-patch dates.
+    effect(
+      () => {
+        for (const picker of this.datepickers()) {
+          picker.min = this.fy.start();
+          picker.max = this.fy.end();
+        }
+      },
+      { injector: this.injector },
+    );
     effect(
       () => {
         this.fy.selected();

@@ -2,6 +2,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
@@ -10,10 +11,13 @@ import { AccountHead } from '../../core/models';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { NotifyService } from '../../core/notify.service';
 import { fyLabel, fyStart } from '../../shared/fy';
+import { confirmAction } from '../../shared/confirm-dialog';
+import { PageHeader } from '../../shared/page-header';
 
 @Component({
   selector: 'app-financial-years',
   imports: [
+    PageHeader,
     FormsModule,
     DatePipe,
     DecimalPipe,
@@ -23,15 +27,11 @@ import { fyLabel, fyStart } from '../../shared/fy';
     MatSelectModule,
   ],
   template: `<div class="page narrow-page">
-    <div class="page-header">
-      <div class="page-heading">
-        <span class="eyebrow">Accounting setup</span>
-        <h1>Financial years</h1>
-        <p class="page-description">
-          April 1 to March 31. Close a year to transfer its result to equity and lock its entries.
-        </p>
-      </div>
-    </div>
+    <app-page-header
+      eyebrow="Accounting setup"
+      heading="Financial years"
+      description="April 1 to March 31. Close a year to transfer its result to equity and lock its entries."
+    />
     <section class="panel">
       <div class="panel-body">
         <div class="form-grid">
@@ -139,6 +139,7 @@ export class FinancialYears implements OnInit {
   protected readonly fy = inject(FinancialYearService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly dialog = inject(MatDialog);
   protected readonly label = fyLabel;
   protected newYear = fyStart() + 1;
   protected equity: number | null = null;
@@ -218,8 +219,17 @@ export class FinancialYears implements OnInit {
     }
   }
   protected async reopen(year: FinancialYear) {
-    const reason = prompt('Reason for reopening ' + this.label(year.start_year) + ':');
-    if (!reason?.trim() || this.busy()) return;
+    if (this.busy()) return;
+    const result = await confirmAction(this.dialog, {
+      title: `Reopen ${this.label(year.start_year)}?`,
+      message:
+        'The closing entry is reversed and posting is allowed again. The reopening is recorded in the audit log.',
+      fields: [{ key: 'reason', label: 'Reason for reopening', required: true, maxLength: 500 }],
+      confirmLabel: 'Reopen year',
+      destructive: true,
+    });
+    if (!result || this.busy()) return;
+    const reason = result['reason'];
     this.busy.set(true);
     try {
       await must(

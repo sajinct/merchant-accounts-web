@@ -4,13 +4,15 @@ import { Journals } from './journals';
 import { AuthService } from '../../core/auth.service';
 import { SupabaseService } from '../../core/supabase.service';
 import { NotifyService } from '../../core/notify.service';
+import { provideIsoDateAdapter } from '../../shared/iso-date-adapter';
 
 describe('Journal entry', () => {
   async function setup() {
     const rpc = vi.fn().mockResolvedValue({ data: 12, error: null });
     const query: any = {
       select: () => query,
-      gte:()=>query, lte:()=>query,
+      gte: () => query,
+      lte: () => query,
       not: () => query,
       order: () => query,
       limit: () => query,
@@ -23,6 +25,7 @@ describe('Journal entry', () => {
         { provide: AuthService, useValue: { canEdit: () => true, isAdmin: () => true } },
         { provide: SupabaseService, useValue: { client: { from: () => query, rpc } } },
         { provide: NotifyService, useValue: { success: vi.fn(), error: vi.fn() } },
+        provideIsoDateAdapter(),
       ],
     }).compileComponents();
     const fixture = TestBed.createComponent(Journals);

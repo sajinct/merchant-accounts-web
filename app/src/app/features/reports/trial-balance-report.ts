@@ -1,41 +1,46 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { TrialBalanceRow } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { downloadCsv } from '../../shared/csv';
-import { isoDate } from '../../shared/dates';
+import { displayDate, isoDate } from '../../shared/dates';
 import { ReportShell } from '../../shared/report-shell';
+import { PageHeader } from '../../shared/page-header';
+import { EmptyState } from '../../shared/empty-state';
 
 @Component({
   selector: 'app-trial-balance-report',
   imports: [
+    EmptyState,
+    PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
     DecimalPipe,
     ReactiveFormsModule,
     MatButtonModule,
     MatFormFieldModule,
+    MatDatepickerModule,
     MatInputModule,
     MatIconModule,
     ReportShell,
   ],
   template: `
     <div class="page">
-      <div class="page-header no-print">
-        <div class="page-heading">
-          <span class="eyebrow">Reports</span>
-          <h1>Trial balance</h1>
-          <p class="page-description">Review debit and credit balances across your accounts.</p>
-        </div>
-      </div>
+      <app-page-header
+        class="no-print"
+        eyebrow="Reports"
+        heading="Trial balance"
+        description="Review debit and credit balances across your accounts."
+      />
       <app-report-shell
         title="Trial Balance"
         [subtitle]="subtitle()"
@@ -53,7 +58,14 @@ import { ReportShell } from '../../shared/report-shell';
           class="filter-row"
         >
           <mat-form-field subscriptSizing="dynamic"
-            ><mat-label>As of date</mat-label><input matInput type="date" formControlName="asOn"
+            ><mat-label>As of date</mat-label
+            ><input
+              matInput
+              [matDatepicker]="asOnPicker"
+              formControlName="asOn"
+              placeholder="dd/mm/yyyy" /><mat-datepicker-toggle
+              matIconSuffix
+              [for]="asOnPicker" /><mat-datepicker #asOnPicker
           /></mat-form-field>
           <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
             <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}
@@ -103,13 +115,14 @@ import { ReportShell } from '../../shared/report-shell';
         }
 
         @if (loading()) {
-          <div class="empty-state no-print" role="status"><p>Preparing your report…</p></div>
+          <app-empty-state class="no-print" message="Preparing your report…" status />
         } @else if (!ran()) {
-          <div class="empty-state no-print">
-            <div class="empty-icon"><mat-icon>balance</mat-icon></div>
-            <h3>Your report starts here</h3>
-            <p>Choose your filters and run the report to review your account data.</p>
-          </div>
+          <app-empty-state
+            class="no-print"
+            icon="balance"
+            heading="Your report starts here"
+            message="Choose your filters and run the report to review your account data."
+          />
         }
       </app-report-shell>
     </div>
@@ -118,6 +131,7 @@ import { ReportShell } from '../../shared/report-shell';
 export class TrialBalanceReport {
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
+  private readonly locale = inject(LOCALE_ID);
 
   protected readonly rows = signal<TrialBalanceRow[]>([]);
   protected readonly loading = signal(false);
@@ -149,7 +163,7 @@ export class TrialBalanceReport {
         this.rows.set([]);
         return;
       }
-      this.subtitle.set(`As on ${asOn}`);
+      this.subtitle.set(`As on ${displayDate(asOn, this.locale)}`);
       this.ran.set(true);
     } catch (err) {
       this.notify.error(err);

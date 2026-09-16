@@ -1,4 +1,5 @@
 import { FinancialYearSelector } from '../shared/financial-year-selector';
+import { FinancialYearBanner } from '../shared/financial-year-banner';
 import {
   afterNextRender,
   Component,
@@ -23,136 +24,24 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog } from '@angular/material/dialog';
 import { openAppUpdates } from '../shared/app-update-dialog';
+import { ShortcutsService } from '../core/shortcuts.service';
 import { AppUpdateService } from '../core/app-update.service';
 import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
+import { hasPendingChanges } from '../core/pending-changes';
 import { SUPPORT } from '../core/support';
-
-interface NavItem {
-  shortcut: string;
-  label: string;
-  link: string;
-  icon: string;
-  editorsOnly?: boolean;
-  adminOnly?: boolean;
-}
-
-interface NavGroup {
-  heading: string;
-  icon: string;
-  shortcut: string;
-  items: NavItem[];
-}
-
-const NAV: NavGroup[] = [
-  {
-    heading: 'Transactions',
-    icon: 'swap_horiz',
-    shortcut: 'T',
-    items: [
-      {
-        label: 'Payments / Receipts',
-        shortcut: 'P',
-        link: '/transactions/vouchers',
-        icon: 'receipt_long',
-      },
-      {
-        label: 'Journals / Transfers',
-        shortcut: 'J',
-        link: '/transactions/journals',
-        icon: 'balance',
-      },
-      {
-        label: 'Ledger Verification',
-        shortcut: 'D',
-        link: '/transactions/daybook-posting',
-        icon: 'publish',
-        editorsOnly: true,
-      },
-      {
-        label: 'Day Closing Balance',
-        shortcut: 'C',
-        link: '/transactions/day-closing',
-        icon: 'event_available',
-      },
-    ],
-  },
-  {
-    heading: 'Reports',
-    icon: 'bar_chart',
-    shortcut: 'R',
-    items: [
-      { label: 'Day Book', shortcut: 'D', link: '/reports/daybook', icon: 'menu_book' },
-      { label: 'Ledger', shortcut: 'L', link: '/reports/ledger', icon: 'account_balance_wallet' },
-      { label: 'Trial Balance', shortcut: 'T', link: '/reports/trial-balance', icon: 'balance' },
-    ],
-  },
-  {
-    heading: 'Membership',
-    icon: 'groups',
-    shortcut: 'M',
-    items: [
-      { label: 'Members', shortcut: 'M', link: '/masters/members', icon: 'group' },
-      {
-        label: 'Subscriptions',
-        shortcut: 'S',
-        link: '/membership/subscriptions',
-        icon: 'card_membership',
-      },
-      {
-        label: 'Subscription Fees',
-        shortcut: 'F',
-        link: '/membership/fees',
-        icon: 'price_change',
-        adminOnly: true,
-      },
-    ],
-  },
-  {
-    heading: 'Masters',
-    icon: 'folder_open',
-    shortcut: 'A',
-    items: [
-      { label: 'Account Heads', shortcut: 'A', link: '/masters/account-heads', icon: 'list_alt' },
-    ],
-  },
-  {
-    heading: 'Utilities',
-    icon: 'settings',
-    shortcut: 'U',
-    items: [
-      {
-        label: 'Company Settings',
-        shortcut: 'C',
-        link: '/admin/settings',
-        icon: 'business',
-        adminOnly: true,
-      },
-      {
-        label: 'Financial Years',
-        shortcut: 'F',
-        link: '/admin/financial-years',
-        icon: 'date_range',
-        adminOnly: true,
-      },
-      {
-        label: 'Users',
-        shortcut: 'U',
-        link: '/admin/users',
-        icon: 'manage_accounts',
-        adminOnly: true,
-      },
-      { label: 'Change Password', shortcut: 'P', link: '/account/password', icon: 'lock' },
-    ],
-  },
-];
+import { NAV, NavGroup, NavItem } from './navigation';
 
 @Component({
   selector: 'app-shell',
-  host: { '(document:keydown)': 'onNavigationKey($event)' },
+  host: {
+    '(document:keydown)': 'onNavigationKey($event)',
+    '(window:beforeunload)': 'onBeforeUnload($event)',
+  },
   imports: [
     FinancialYearSelector,
+    FinancialYearBanner,
     RouterOutlet,
     RouterLink,
     MatButtonModule,
@@ -184,64 +73,56 @@ const NAV: NavGroup[] = [
           <span class="brand-name">Merchant<span>ACCOUNTS</span></span>
         </a>
         <nav #navigation class="sidebar-links" aria-label="Main navigation">
-          @if (selectedGroup(); as group) {
-            <button type="button" class="nav-link nav-back" (click)="backToGroups()">
-              <mat-icon>arrow_back</mat-icon><span>Back to all menus</span><kbd>Esc</kbd>
-            </button>
-            <div class="nav-heading" aria-live="polite">{{ group.heading }}</div>
-            @for (item of group.items; track item.link) {
-              @if (visible(item)) {
-                <a
-                  class="nav-link"
-                  [href]="menuHref(item)"
-                  [attr.aria-keyshortcuts]="item.shortcut"
-                  [class.is-active]="itemActive(item)"
-                  [attr.aria-current]="itemActive(item) ? 'page' : null"
-                  (click)="selectItem($event, item)"
-                >
-                  <mat-icon>{{ item.icon }}</mat-icon>
-                  <span>{{ item.label }}</span
-                  ><kbd>{{ item.shortcut }}</kbd>
-                </a>
-              }
-            }
-          } @else {
-            <div class="nav-heading" aria-live="polite">All menus</div>
+          <button
+            type="button"
+            class="nav-link nav-home"
+            [class.is-active]="context().label === 'Dashboard'"
+            (click)="goDashboard()"
+            aria-keyshortcuts="D"
+          >
+            <mat-icon>space_dashboard</mat-icon><span>Dashboard</span><kbd>D</kbd>
+          </button>
+          @for (group of visibleGroups(); track group.heading) {
             <button
               type="button"
-              class="nav-link nav-home"
-              (click)="goDashboard()"
-              aria-keyshortcuts="D"
+              class="nav-link nav-group"
+              [class.is-open]="selectedGroup()?.heading === group.heading"
+              [class.is-active]="context().heading === group.heading"
+              [attr.data-group]="group.shortcut"
+              [attr.aria-keyshortcuts]="group.shortcut"
+              [attr.aria-expanded]="selectedGroup()?.heading === group.heading"
+              [attr.aria-controls]="'nav-items-' + group.shortcut"
+              [attr.aria-label]="group.heading + ', shortcut ' + group.shortcut"
+              (click)="toggleGroup(group)"
             >
-              <mat-icon>space_dashboard</mat-icon><span>Dashboard</span><kbd>D</kbd>
+              <mat-icon>{{ group.icon }}</mat-icon
+              ><span>{{ group.heading }}</span> <kbd>{{ group.shortcut }}</kbd
+              ><mat-icon class="nav-chevron">expand_more</mat-icon>
             </button>
-            @for (group of visibleGroups(); track group.heading) {
-              <button
-                type="button"
-                class="nav-link nav-group"
-                [class.is-active]="context().heading === group.heading"
-                [attr.data-group]="group.shortcut"
-                [attr.aria-keyshortcuts]="group.shortcut"
-                [attr.aria-label]="group.heading + ', shortcut ' + group.shortcut"
-                (click)="openGroup(group)"
-              >
-                <mat-icon>{{ group.icon }}</mat-icon
-                ><span>{{ group.heading }}</span> <kbd>{{ group.shortcut }}</kbd
-                ><mat-icon class="nav-chevron">chevron_right</mat-icon>
-              </button>
+            @if (selectedGroup()?.heading === group.heading) {
+              <div class="nav-items" [id]="'nav-items-' + group.shortcut">
+                @for (item of group.items; track item.link) {
+                  @if (visible(item)) {
+                    <a
+                      class="nav-link nav-item"
+                      [href]="menuHref(item)"
+                      [attr.aria-keyshortcuts]="item.shortcut"
+                      [class.is-active]="itemActive(item)"
+                      [attr.aria-current]="itemActive(item) ? 'page' : null"
+                      (click)="selectItem($event, item)"
+                    >
+                      <mat-icon>{{ item.icon }}</mat-icon>
+                      <span>{{ item.label }}</span
+                      ><kbd>{{ item.shortcut }}</kbd>
+                    </a>
+                  }
+                }
+              </div>
             }
           }
-          <p class="nav-hint">
-            Press a letter shown in this menu.<br />Esc goes back, then to Dashboard.
-            <label class="shortcut-toggle"
-              ><input
-                type="checkbox"
-                [checked]="letterShortcuts()"
-                (change)="letterShortcuts.set(!letterShortcuts())"
-              />
-              Letter shortcuts</label
-            >
-          </p>
+          <button type="button" class="nav-link nav-help" (click)="showShortcuts()">
+            <mat-icon>keyboard</mat-icon><span>Keyboard shortcuts</span><kbd>?</kbd>
+          </button>
         </nav>
       </mat-sidenav>
       <mat-sidenav-content class="workspace-content">
@@ -314,6 +195,7 @@ const NAV: NavGroup[] = [
             </button>
           </mat-menu>
         </header>
+        <app-financial-year-banner class="no-print" />
         <div class="workspace-breadcrumb no-print" aria-label="Current location">
           <mat-icon>grid_view</mat-icon><span>{{ context().heading }}</span
           ><mat-icon>chevron_right</mat-icon>
@@ -345,7 +227,9 @@ export class Shell implements OnInit {
   });
   private readonly mainContent = viewChild<ElementRef<HTMLElement>>('main');
   private readonly navigation = viewChild<ElementRef<HTMLElement>>('navigation');
-  protected readonly letterShortcuts = signal(true);
+  private readonly outlet = viewChild(RouterOutlet);
+  private readonly shortcuts = inject(ShortcutsService);
+  protected readonly letterShortcuts = this.shortcuts.letterShortcuts;
   protected readonly selectedGroup = signal<NavGroup | null>(null);
   private focusVersion = 0;
   private navigationPending = false;
@@ -356,13 +240,25 @@ export class Shell implements OnInit {
   protected openGroup(group: NavGroup): void {
     this.selectedGroup.set(group);
     this.drawerOpen.set(true);
-    this.focusNavigation('.nav-back');
+    this.focusNavigation(`[data-group="${group.shortcut}"]`);
+  }
+
+  /** Clicking the open group closes it again. */
+  protected toggleGroup(group: NavGroup): void {
+    if (this.selectedGroup()?.heading === group.heading) this.backToGroups();
+    else this.openGroup(group);
   }
 
   protected backToGroups(): void {
     const previous = this.selectedGroup();
     this.selectedGroup.set(null);
     if (previous) this.focusNavigation(`[data-group="${previous.shortcut}"]`);
+  }
+
+  /** Loaded on demand so the help screen stays out of the initial bundle. */
+  protected async showShortcuts(): Promise<void> {
+    const { openShortcuts } = await import('../shared/shortcuts-dialog');
+    openShortcuts(this.dialog);
   }
 
   private focusNavigation(selector: string): void {
@@ -389,7 +285,8 @@ export class Shell implements OnInit {
 
   private openNavigation(): void {
     this.drawerOpen.set(true);
-    this.focusNavigation(this.selectedGroup() ? '.nav-back' : '.nav-home');
+    const group = this.selectedGroup();
+    this.focusNavigation(group ? `[data-group="${group.shortcut}"]` : '.nav-home');
   }
 
   protected closeNavigation(): void {
@@ -404,21 +301,41 @@ export class Shell implements OnInit {
 
   protected onNavigationKey(event: KeyboardEvent): void {
     const target = event.target instanceof Element ? event.target : null;
+    // Dialogs, menus, selects and datepickers hold focus, so a key aimed at one of them
+    // belongs to it. An autocomplete keeps focus in its input but marks Escape handled,
+    // which defaultPrevented catches; a closed overlay left in the DOM must not count.
+    const insideOverlay = !!target?.closest('.cdk-overlay-container');
+    const typing = !!target?.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="spinbutton"], [role="slider"]',
+    );
+    // An open dialog, menu, select or datepicker owns the keyboard. Their panels leave the
+    // DOM when they close, so this only matches while one is actually open; notifications
+    // (role="status") are deliberately not listed.
+    const overlayOpen = !!document.querySelector(
+      '.cdk-overlay-pane [role="dialog"], .cdk-overlay-pane [role="alertdialog"], .cdk-overlay-pane [role="menu"], .cdk-overlay-pane [role="listbox"], .cdk-overlay-pane .mat-datepicker-content',
+    );
     if (
-      event.defaultPrevented ||
       event.repeat ||
       event.isComposing ||
       event.keyCode === 229 ||
       event.altKey ||
       event.ctrlKey ||
       event.metaKey ||
-      event.shiftKey ||
       this.navigationPending ||
-      document.querySelector(
-        '.cdk-overlay-pane [role="dialog"], .cdk-overlay-pane [role="alertdialog"], .cdk-overlay-pane [role="menu"], .cdk-overlay-pane [role="listbox"], .cdk-overlay-pane .mat-datepicker-content',
-      )
+      insideOverlay ||
+      overlayOpen
     )
       return;
+    // '?' is Shift + / on most keyboards, so it is checked before other modified keys are dropped.
+    if (event.key === '?' && !typing) {
+      event.preventDefault();
+      void this.showShortcuts();
+      return;
+    }
+    if (event.shiftKey) return;
+    // Escape deliberately ignores defaultPrevented: an autocomplete input marks every
+    // Escape handled, even with its panel closed, which would silence the menu on any
+    // page with an account picker.
     if (event.key === 'Escape' && !this.drawerOpen()) {
       event.preventDefault();
       this.openNavigation();
@@ -434,14 +351,7 @@ export class Shell implements OnInit {
       this.goDashboard();
       return;
     }
-    if (
-      !this.drawerOpen() ||
-      !this.letterShortcuts() ||
-      target?.closest(
-        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="spinbutton"], [role="slider"]',
-      )
-    )
-      return;
+    if (event.defaultPrevented || !this.drawerOpen() || !this.letterShortcuts() || typing) return;
     const key = event.key.toUpperCase();
     const selected = this.selectedGroup();
     if (!selected && key === 'D') {
@@ -450,18 +360,17 @@ export class Shell implements OnInit {
       return;
     }
     // Letters are unique within each menu; hidden or unauthorized children cannot activate.
-    if (selected && this.drawerOpen()) {
-      const item = selected.items.find((entry) => entry.shortcut === key && this.visible(entry));
-      if (item) {
-        event.preventDefault();
-        void this.activateItem(item);
-      }
-    } else {
-      const group = this.visibleGroups().find((entry) => entry.shortcut === key);
-      if (group) {
-        event.preventDefault();
-        this.openGroup(group);
-      }
+    const item = selected?.items.find((entry) => entry.shortcut === key && this.visible(entry));
+    if (item) {
+      event.preventDefault();
+      void this.activateItem(item);
+      return;
+    }
+    // Groups stay on screen while one is open, so their letters keep working.
+    const group = this.visibleGroups().find((entry) => entry.shortcut === key);
+    if (group) {
+      event.preventDefault();
+      this.openGroup(group);
     }
   }
   protected selectItem(event: MouseEvent, item: NavItem): void {
@@ -610,7 +519,13 @@ export class Shell implements OnInit {
   }
 
   protected async signOut(): Promise<void> {
+    // Leave the page first so an unsaved-changes prompt can still keep the user signed in.
+    if (!(await this.router.navigate(['/login']))) return;
     await this.auth.signOut();
-    await this.router.navigate(['/login']);
+  }
+
+  protected onBeforeUnload(event: BeforeUnloadEvent): void {
+    const outlet = this.outlet();
+    if (outlet?.isActivated && hasPendingChanges(outlet.component)) event.preventDefault();
   }
 }
