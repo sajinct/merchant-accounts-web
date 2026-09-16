@@ -87,6 +87,12 @@ The icon set includes an SVG favicon, 16/32/48px ICO, 192/512px install icons, s
 
 Service workers are disabled during normal `npm start` development. To check the installed experience locally, run `npm start -- --configuration production` and open localhost. See [Angular's service-worker guide](https://angular.dev/ecosystem/service-workers/getting-started) and [browser installation requirements](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Making_PWAs_installable).
 
+### Appearance (light and dark)
+
+The app ships both a light and a dark palette and follows the operating system's setting. **Account menu → Appearance** overrides it with *Light*, *Dark* or *Match system*; the choice is stored per browser and applied before the first paint, so switching never flashes the other theme. Printing always uses the light palette, whatever is on screen.
+
+Colours live in one place: the `scheme-light` and `scheme-dark` mixins in `app/src/styles.scss`. Components only ever reference an `--app-*` token, so a colour is defined twice and used everywhere. `npm run check:contrast` reads both mixins and measures every text, icon, focus-ring and chart pairing against WCAG 2.2 (4.5:1 for text, 3:1 for graphics). It needs no build, and CI runs it before the tests.
+
 ## Roles
 
 | Role | Can |

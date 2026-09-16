@@ -7,6 +7,7 @@
     "build": "npm run version:sync && ng build",
     "build:pages": "npm run version:sync && ng build --base-href ./",
     "icons:generate": "node scripts/generate-icons.mjs",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "check:pwa": "node scripts/check-pwa.mjs",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",

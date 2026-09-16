@@ -525,6 +525,26 @@ describe('Shell navigation', () => {
     expect(document.activeElement).toBe(toggle);
   });
 
+  it('switches the theme from the account menu', async () => {
+    const fixture = await createShell(false);
+    const overlayButton = (label: string) =>
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>('.cdk-overlay-container button'),
+      ).find((button) => button.textContent?.includes(label))!;
+    const open = async (click: () => void) => {
+      click();
+      fixture.detectChanges();
+      await fixture.whenStable();
+    };
+
+    await open(() => fixture.nativeElement.querySelector('.user-control').click());
+    await open(() => overlayButton('Appearance').click());
+    await open(() => overlayButton('Dark').click());
+
+    expect(document.documentElement.dataset['theme']).toBe('dark');
+    delete document.documentElement.dataset['theme'];
+  });
+
   it('does not double navigate or close the menu when pending navigation is cancelled', async () => {
     const fixture = await createShell(false);
     const element = fixture.nativeElement as HTMLElement;
