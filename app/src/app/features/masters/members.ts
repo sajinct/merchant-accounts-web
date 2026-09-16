@@ -21,6 +21,9 @@ type MemberSummary = Pick<
 
 const SORTABLE = ['code', 'name', 'phone'] as const;
 type SortColumn = (typeof SORTABLE)[number];
+// Names sort on the stored lowercase copy, so 'anand' and 'Anand' sit together
+// whatever the database collation does. The URL still says `name`.
+const SORT_ON: Record<SortColumn, string> = { code: 'code', name: 'name_sort', phone: 'phone' };
 export const PAGE_SIZES = [25, 50, 100];
 
 @Component({
@@ -264,7 +267,10 @@ export class Members implements OnInit, OnDestroy {
       let request = this.sb
         .from('customers')
         .select('code, name, addr1, addr2, addr3, addr4, phone', { count: 'exact' })
-        .order(this.sortColumn(), { ascending: this.sortDirection() !== 'desc', nullsFirst: false })
+        .order(SORT_ON[this.sortColumn()], {
+          ascending: this.sortDirection() !== 'desc',
+          nullsFirst: false,
+        })
         .order('code')
         .range(from, from + this.pageSize() - 1);
       if (q) {

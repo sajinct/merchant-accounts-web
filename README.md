@@ -103,6 +103,12 @@ Colours live in one place: the `scheme-light` and `scheme-dark` mixins in `app/s
 
 Vouchers are only written through the `create_voucher` / `cancel_voucher` RPCs. Numbers come from `voucher_counters`, one sequence per type (1 receipt, 2 payment). Cancelling a voucher does not change the day book until that date is posted again.
 
+## Member directory
+
+Masters → Members pages and sorts in the database rather than in the browser, so the list stays the same size however many members there are.
+
+Names sort case-insensitively. Postgres orders text by the database collation, which under a `C` collation puts every capitalised name ahead of every lowercase one, so a directory typed by different hands reads as two lists. `customers.name_sort` is a stored, indexed lowercase copy of the name, and every ordered query — the member list and the dues report — sorts on it.
+
 ## Membership subscriptions
 
 Members pay one yearly subscription per **financial year (1 April – 31 March)**, labelled like `2026-27`.
@@ -114,7 +120,9 @@ Members pay one yearly subscription per **financial year (1 April – 31 March)*
 - **Cancelling:** only admins can cancel a payment, from the member's page. That also cancels its receipt voucher. Subscription receipts can't be cancelled from the Payments / Receipts screen.
 - **Reports:** Membership → Subscriptions lists every member for a year with fee, paid, balance, arrears and total due. It can be filtered to *Owing* or *Paid up*, printed, or exported to CSV.
 
-Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`.
+- **Dashboard:** the *Subscription dues* figure comes from `subscription_dues_summary`, which totals the outstanding balances in the database and returns a single row. The per-member report behind the Subscriptions page is unchanged; only the dashboard stopped downloading it.
+
+Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`, `subscription_dues_summary`.
 
 ## Screens (from the desktop menu)
 

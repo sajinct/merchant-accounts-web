@@ -22,11 +22,7 @@ describe('Dashboard', () => {
         { seq: 2, row_kind: 'entry', tran_date: today, debit: 400, credit: 0, balance: 3100 },
       ],
       financial_year_summary: [{ income: 9000, expense: 12000, net_result: -3000 }],
-      rpt_subscription_status: [
-        { member_code: 1, total_due: 500 },
-        { member_code: 2, total_due: 0 },
-        { member_code: 3, total_due: 250 },
-      ],
+      subscription_dues_summary: [{ total: 750, members: 2 }],
     };
     const rpc = vi.fn((name: string) =>
       Promise.resolve(
@@ -101,7 +97,7 @@ describe('Dashboard', () => {
   });
 
   it('keeps the other sections when one query fails', async () => {
-    const { fixture, notify, text } = await setup(['rpt_subscription_status']);
+    const { fixture, notify, text } = await setup(['subscription_dues_summary']);
     const values = Array.from(
       fixture.nativeElement.querySelectorAll('.kpi-value') as NodeListOf<HTMLElement>,
     ).map((el) => el.textContent?.trim());
