@@ -256,10 +256,6 @@ interface Dues {
       height: 4px;
       margin: -14px 0 10px;
     }
-    .refreshing {
-      opacity: 0.55;
-      transition: opacity 150ms ease;
-    }
     .kpi-row {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -458,11 +454,6 @@ interface Dues {
       .kpi-row {
         grid-template-columns: minmax(0, 1fr);
         gap: 10px;
-      }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .refreshing {
-        transition: none;
       }
     }
   `,

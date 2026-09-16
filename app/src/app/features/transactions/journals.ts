@@ -17,6 +17,8 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { AccountPicker } from '../../shared/account-picker';
 import { confirmAction } from '../../shared/confirm-dialog';
 
+const PAGE_SIZE = 25;
+
 interface Line {
   account: number | null;
   debit: number | null;
@@ -154,10 +156,7 @@ interface Journal {
       <div class="panel-header">
         <div>
           <h2>Journal register</h2>
-          <p>
-            Latest 100 entries in the selected financial year, including receipts, payments and
-            reversals.
-          </p>
+          <p>Entries in the selected financial year, including receipts, payments and reversals.</p>
         </div>
         <button mat-button (click)="load()" [disabled]="loading()">Refresh</button>
       </div>
@@ -197,6 +196,18 @@ interface Journal {
       } @empty {
         <div class="panel-body">{{ loading() ? 'Loading…' : 'No journal entries yet.' }}</div>
       }
+      @if (entries().length) {
+        <div class="register-footer">
+          <span class="toolbar-count" aria-live="polite"
+            >Showing {{ entries().length }} of {{ totalEntries() }}</span
+          >
+          @if (entries().length < totalEntries()) {
+            <button mat-stroked-button (click)="loadMore()" [disabled]="loadingMore()">
+              {{ loadingMore() ? 'Loading…' : 'Load more' }}
+            </button>
+          }
+        </div>
+      }
     </section>
   </div>`,
   styles: `
@@ -217,6 +228,15 @@ interface Journal {
       cursor: pointer;
       min-height: 32px;
     }
+    .register-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 14px 16px;
+      border-top: 1px solid var(--app-border);
+    }
     @media (max-width: 640px) {
       .journal-line {
         grid-template-columns: 1fr 1fr;
@@ -235,6 +255,8 @@ export class Journals {
   private readonly locale = inject(LOCALE_ID);
   protected readonly accounts = signal<AccountHead[]>([]);
   protected readonly entries = signal<Journal[]>([]);
+  protected readonly totalEntries = signal(0);
+  protected readonly loadingMore = signal(false);
   protected readonly saving = signal(false);
   protected readonly loading = signal(false);
   protected readonly fy = inject(FinancialYearService);
@@ -306,12 +328,44 @@ export class Journals {
   protected accountName(code: number) {
     return this.accounts().find((a) => a.code === code)?.name ?? String(code);
   }
+  /** Entries older than the last one shown, so new postings never shift a loaded page. */
+  protected async loadMore() {
+    const loadId = this.loadId;
+    const oldest = this.entries().at(-1)?.id;
+    if (!oldest || this.loadingMore()) return;
+    this.loadingMore.set(true);
+    try {
+      const { data, error } = await this.entryQuery().lt('id', oldest);
+      if (error) throw error;
+      if (loadId !== this.loadId) return;
+      this.entries.update((entries) => [...entries, ...((data ?? []) as Journal[])]);
+    } catch (error) {
+      this.notify.error(error);
+    } finally {
+      if (loadId === this.loadId) this.loadingMore.set(false);
+    }
+  }
+
+  private entryQuery() {
+    return this.sb
+      .from('journals')
+      .select(
+        'id,entry_date,narration,kind,reversal_of,voucher_id,daybook(head_code,debit,credit)',
+        { count: 'exact' },
+      )
+      .gte('entry_date', this.fy.start())
+      .lte('entry_date', this.fy.end())
+      .order('id', { ascending: false })
+      .limit(PAGE_SIZE);
+  }
+
   protected async load() {
     const loadId = ++this.loadId;
     this.entries.set([]);
+    this.totalEntries.set(0);
     this.loading.set(true);
     try {
-      const [accounts, entries] = await Promise.all([
+      const [accounts, page] = await Promise.all([
         must(
           this.sb
             .from('account_heads')
@@ -319,27 +373,20 @@ export class Journals {
             .not('account_type', 'is', null)
             .order('name'),
         ),
-        must(
-          this.sb
-            .from('journals')
-            .select(
-              'id,entry_date,narration,kind,reversal_of,voucher_id,daybook(head_code,debit,credit)',
-            )
-            .gte('entry_date', this.fy.start())
-            .lte('entry_date', this.fy.end())
-            .order('id', { ascending: false })
-            .limit(100),
-        ),
+        this.entryQuery(),
       ]);
+      if (page.error) throw page.error;
       if (loadId !== this.loadId) return;
       this.accounts.set(accounts);
-      this.entries.set(entries as Journal[]);
+      this.entries.set((page.data ?? []) as Journal[]);
+      this.totalEntries.set(page.count ?? 0);
     } catch (error) {
       this.notify.error(error);
     } finally {
       if (loadId === this.loadId) this.loading.set(false);
     }
   }
+
   protected async post() {
     if (this.saving() || !this.valid()) return;
     this.saving.set(true);
