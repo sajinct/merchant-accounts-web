@@ -217,7 +217,17 @@ describe('Shell navigation', () => {
 
   it('opens the shortcut help with ? and remembers the letter preference', async () => {
     const fixture = await createShell(false);
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: '?', bubbles: true }));
+    // Typing ? into a field inserts the character instead of opening the help.
+    const field = document.createElement('input');
+    document.body.append(field);
+    field.dispatchEvent(new KeyboardEvent('keydown', { key: '?', shiftKey: true, bubbles: true }));
+    fixture.detectChanges();
+    expect(document.querySelector('app-shortcuts-dialog')).toBeNull();
+    field.remove();
+
+    document.dispatchEvent(
+      new KeyboardEvent('keydown', { key: '?', shiftKey: true, bubbles: true }),
+    );
     await vi.waitFor(() => {
       fixture.detectChanges();
       expect(document.querySelector('app-shortcuts-dialog')).not.toBeNull();
@@ -392,31 +402,63 @@ describe('Shell navigation', () => {
     );
   }
 
-  it('keeps shortcuts available with notifications but yields to interactive overlays', async () => {
+  it('yields to an open overlay and takes the keyboard back when it closes', async () => {
     const fixture = await createShell(false);
     const element = fixture.nativeElement as HTMLElement;
-    const overlay = document.createElement('div');
-    overlay.className = 'cdk-overlay-pane';
-    overlay.innerHTML = '<div role="status">Saved</div>';
-    document.body.append(overlay);
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(element.querySelector('.nav-group.is-open span')!.textContent).toBe('Reports');
+
+    const container = document.createElement('div');
+    container.className = 'cdk-overlay-container';
+    container.innerHTML = '<div class="cdk-overlay-pane"><div role="dialog">Confirm</div></div>';
+    document.body.append(container);
     try {
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
-      fixture.detectChanges();
-      await fixture.whenStable();
-      expect(element.querySelector('.nav-group.is-open span')!.textContent).toBe('Reports');
+      const panel = container.querySelector('[role="dialog"]')!;
       for (const role of ['dialog', 'menu', 'listbox']) {
-        overlay.firstElementChild!.setAttribute('role', role);
+        panel.setAttribute('role', role);
+        // Both from inside the overlay and from the page behind it.
+        panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         fixture.detectChanges();
         expect(element.querySelector('.nav-group.is-open')).not.toBeNull();
       }
-      overlay.firstElementChild!.setAttribute('role', 'tooltip');
+    } finally {
+      container.remove();
+    }
+
+    // A notification is not an overlay that owns the keyboard.
+    const snack = document.createElement('div');
+    snack.className = 'cdk-overlay-container';
+    snack.innerHTML = '<div class="cdk-overlay-pane"><div role="status">Saved</div></div>';
+    document.body.append(snack);
+    try {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       fixture.detectChanges();
       expect(element.querySelector('.nav-group.is-open')).toBeNull();
     } finally {
-      overlay.remove();
+      snack.remove();
     }
+  });
+
+  it('opens the menu with Escape from a page that has an account picker', async () => {
+    const fixture = await createShell(false);
+    const element = fixture.nativeElement as HTMLElement;
+    const drawer = fixture.debugElement.query(By.directive(MatSidenav))
+      .componentInstance as MatSidenav;
+    await TestBed.inject(Router).navigateByUrl('/reports/ledger');
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const input = element.querySelector<HTMLInputElement>('main input')!;
+    input.focus();
+    // Material's autocomplete marks every Escape handled, even with its panel closed.
+    const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+    escape.preventDefault();
+    input.dispatchEvent(escape);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(drawer.opened).toBe(true);
   });
 
   it('ignores modified Escape and lets comboboxes handle their letters', async () => {

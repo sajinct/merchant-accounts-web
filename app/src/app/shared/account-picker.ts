@@ -41,7 +41,10 @@ function isHead(value: unknown): value is AccountHead {
         matInput
         [formControl]="search"
         [matAutocomplete]="auto"
+        [matAutocompleteDisabled]="!engaged()"
         [placeholder]="placeholder()"
+        (pointerdown)="engaged.set(true)"
+        (keydown)="engaged.set(true)"
         (input)="onType($any($event.target).value)"
         (blur)="onTouched?.()"
       />
@@ -87,6 +90,11 @@ export class AccountPicker implements ControlValueAccessor {
   readonly accountSelected = output<AccountHead>();
 
   protected readonly search = new FormControl<AccountHead | string | null>(null);
+  /**
+   * The list opens once the field is used, not when a page programmatically focuses it,
+   * so arriving on a page does not drop a dropdown over it.
+   */
+  protected readonly engaged = signal(false);
   private readonly query = signal('');
   private readonly code = signal<number | null>(null);
   private onChange?: (code: number | null) => void;

@@ -301,21 +301,41 @@ export class Shell implements OnInit {
 
   protected onNavigationKey(event: KeyboardEvent): void {
     const target = event.target instanceof Element ? event.target : null;
+    // Dialogs, menus, selects and datepickers hold focus, so a key aimed at one of them
+    // belongs to it. An autocomplete keeps focus in its input but marks Escape handled,
+    // which defaultPrevented catches; a closed overlay left in the DOM must not count.
+    const insideOverlay = !!target?.closest('.cdk-overlay-container');
+    const typing = !!target?.closest(
+      'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="spinbutton"], [role="slider"]',
+    );
+    // An open dialog, menu, select or datepicker owns the keyboard. Their panels leave the
+    // DOM when they close, so this only matches while one is actually open; notifications
+    // (role="status") are deliberately not listed.
+    const overlayOpen = !!document.querySelector(
+      '.cdk-overlay-pane [role="dialog"], .cdk-overlay-pane [role="alertdialog"], .cdk-overlay-pane [role="menu"], .cdk-overlay-pane [role="listbox"], .cdk-overlay-pane .mat-datepicker-content',
+    );
     if (
-      event.defaultPrevented ||
       event.repeat ||
       event.isComposing ||
       event.keyCode === 229 ||
       event.altKey ||
       event.ctrlKey ||
       event.metaKey ||
-      event.shiftKey ||
       this.navigationPending ||
-      document.querySelector(
-        '.cdk-overlay-pane [role="dialog"], .cdk-overlay-pane [role="alertdialog"], .cdk-overlay-pane [role="menu"], .cdk-overlay-pane [role="listbox"], .cdk-overlay-pane .mat-datepicker-content',
-      )
+      insideOverlay ||
+      overlayOpen
     )
       return;
+    // '?' is Shift + / on most keyboards, so it is checked before other modified keys are dropped.
+    if (event.key === '?' && !typing) {
+      event.preventDefault();
+      void this.showShortcuts();
+      return;
+    }
+    if (event.shiftKey) return;
+    // Escape deliberately ignores defaultPrevented: an autocomplete input marks every
+    // Escape handled, even with its panel closed, which would silence the menu on any
+    // page with an account picker.
     if (event.key === 'Escape' && !this.drawerOpen()) {
       event.preventDefault();
       this.openNavigation();
@@ -331,19 +351,7 @@ export class Shell implements OnInit {
       this.goDashboard();
       return;
     }
-    if (
-      !this.drawerOpen() ||
-      !this.letterShortcuts() ||
-      target?.closest(
-        'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="combobox"], [role="listbox"], [role="spinbutton"], [role="slider"]',
-      )
-    )
-      return;
-    if (event.key === '?') {
-      event.preventDefault();
-      void this.showShortcuts();
-      return;
-    }
+    if (event.defaultPrevented || !this.drawerOpen() || !this.letterShortcuts() || typing) return;
     const key = event.key.toUpperCase();
     const selected = this.selectedGroup();
     if (!selected && key === 'D') {
