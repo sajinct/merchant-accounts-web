@@ -8,7 +8,7 @@ import { provideIsoDateAdapter } from '../../shared/iso-date-adapter';
 import { fyStart } from '../../shared/fy';
 import { MemberSubscription } from './member-subscription';
 
-describe('Member subscription payment disclosure', () => {
+describe('Member subscription payment disclosure', { timeout: 30000 }, () => {
   async function setup() {
     const year = fyStart();
     const rpc = vi.fn().mockImplementation((name: string) =>

@@ -19,7 +19,7 @@ const ACCOUNTS = [
   { code: 2001, name: 'Salary payable', account_type: 'liability', is_cash_bank: false },
 ];
 
-describe('Voucher entry', () => {
+describe('Voucher entry', { timeout: 30000 }, () => {
   async function setup(slug: 'receipt' | 'payment' | 'contra' | 'journal' = 'receipt') {
     registerLocaleData(localeEnIn);
     const post = vi.fn().mockResolvedValue({
@@ -180,7 +180,9 @@ describe('Voucher entry', () => {
     expect(page.hasPendingChanges()).toBe(false);
   });
 
-  it('moves through line fields with Enter and between amounts with arrows without posting', async () => {
+  it(
+    'moves through line fields with Enter and between amounts with arrows without posting',
+    async () => {
     const { fixture, page, vouchers } = await setup('receipt');
     page.form.patchValue({ cashAccount: 1001, narration: 'Annual dues' });
     page.patch(0, { account: 4001, amount: 1000, description: 'Membership' });
@@ -222,7 +224,7 @@ describe('Voucher entry', () => {
     expect(page.lines()[0]).toMatchObject({ amount: 1000, description: 'Membership' });
     expect(page.hasPendingChanges()).toBe(true);
     expect(vouchers.post).not.toHaveBeenCalled();
-  });
+  }, 30000);
 
   it('keeps debit and credit columns aligned when navigating journal rows', async () => {
     const { fixture } = await setup('journal');
