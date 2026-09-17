@@ -18,9 +18,9 @@ export interface CompanySettings {
   gstin: string | null;
   /** Whether a journal voucher may post to cash and bank accounts. */
   journal_allows_cash: boolean;
-  subscription_head_code: number | null;
-  joining_fee: number;
-  joining_fee_head_code: number | null;
+  subscription_head_code?: number | null;
+  joining_fee?: number;
+  joining_fee_head_code?: number | null;
 }
 
 export interface AccountHead {
