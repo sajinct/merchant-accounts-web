@@ -94,9 +94,13 @@ export class EnterToNext {
   }
 
   private fields(includeActions: boolean): HTMLElement[] {
+    // Grid rows share nearly all of their ancestors, so each one is resolved once per query.
+    const resolved = new Map<HTMLElement, boolean>();
     return Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
       (field) => {
-        if (field.closest('form') !== this.host.nativeElement || !this.canFocus(field)) return false;
+        if (field.closest('form') !== this.host.nativeElement || !this.canFocus(field, resolved)) {
+          return false;
+        }
         // Calendar/password helper buttons remain available through normal Tab navigation.
         if (field.matches('button') && field.closest('mat-form-field, mat-button-toggle-group')) {
           return false;
@@ -129,11 +133,7 @@ export class EnterToNext {
       if (candidate) return candidate;
     }
     // At a grid boundary leave the grid, rather than jumping sideways to another amount.
-    for (
-      let i = fields.indexOf(target) + direction;
-      i >= 0 && i < fields.length;
-      i += direction
-    ) {
+    for (let i = fields.indexOf(target) + direction; i >= 0 && i < fields.length; i += direction) {
       if (fields[i].closest('[data-entry-row]')?.parentElement !== row.parentElement) {
         return fields[i];
       }
@@ -153,7 +153,7 @@ export class EnterToNext {
     }
   }
 
-  private canFocus(field: HTMLElement): boolean {
+  private canFocus(field: HTMLElement, resolved: Map<HTMLElement, boolean>): boolean {
     if (
       field.matches(':disabled, [aria-disabled="true"], [tabindex="-1"]') ||
       (field.tabIndex < 0 && !field.matches('summary')) ||
@@ -161,13 +161,25 @@ export class EnterToNext {
     ) {
       return false;
     }
+    // Fields reaching an ancestor share its verdict, so each one is walked once per query.
+    const path: HTMLElement[] = [];
+    let shown = true;
     for (let element: HTMLElement | null = field; element; element = element.parentElement) {
-      if (
-        element instanceof HTMLDetailsElement &&
-        !element.open &&
-        !element.querySelector(':scope > summary')?.contains(field)
-      ) {
-        return false;
+      // A collapsed <details> answers by which child the walk arrived through, so its own
+      // verdict is never reused. Everything below it still resolves to one shared answer.
+      const collapsed = element instanceof HTMLDetailsElement && !element.open;
+      if (collapsed) {
+        if (!element.querySelector(':scope > summary')?.contains(field)) {
+          shown = false;
+          break;
+        }
+      } else {
+        const cached = resolved.get(element);
+        if (cached !== undefined) {
+          shown = cached;
+          break;
+        }
+        path.push(element);
       }
       const style = getComputedStyle(element);
       if (
@@ -175,9 +187,11 @@ export class EnterToNext {
         style.visibility === 'hidden' ||
         style.visibility === 'collapse'
       ) {
-        return false;
+        shown = false;
+        break;
       }
     }
-    return true;
+    for (const element of path) resolved.set(element, shown);
+    return shown;
   }
 }
