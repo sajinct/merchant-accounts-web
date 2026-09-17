@@ -196,7 +196,6 @@ const SYSTEM_CODE_START = 9000;
                 </mat-select>
                 <mat-hint>Group and retired accounts are not offered on voucher lines.</mat-hint>
               </mat-form-field>
-              <p class="hint">Classification is locked after the first posted entry.</p>
               <div class="form-actions">
                 <button
                   mat-flat-button
