@@ -47,8 +47,8 @@ import { EntrySelect } from '../../shared/entry-select.directive';
     <div class="page narrow-page">
       <app-page-header
         eyebrow="Membership"
-        heading="Subscription fees"
-        description="Set the yearly subscription fee for each financial year (April to March). Every member owes the fee for each year from when they joined until they leave."
+        heading="Fees & Settings"
+        description="Set the global joining fee and the yearly subscription fee for each financial year. Members owe fees based on their joining date."
       />
 
       <section class="panel" aria-labelledby="fee-years-heading">

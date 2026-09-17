@@ -114,7 +114,7 @@ export const routes: Routes = [
         canActivate: [admins],
         loadComponent: () =>
           import('./features/membership/subscription-fees').then((m) => m.SubscriptionFees),
-        title: 'Subscription Fees',
+        title: 'Fees & Settings',
       },
 
       {

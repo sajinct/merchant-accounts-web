@@ -94,7 +94,7 @@ export const NAV: NavGroup[] = [
         icon: 'card_membership',
       },
       {
-        label: 'Subscription Fees',
+        label: 'Fees & Settings',
         shortcut: 'F',
         link: '/membership/fees',
         icon: 'price_change',
