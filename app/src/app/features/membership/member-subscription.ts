@@ -27,7 +27,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth.service';
-import { MemberSubscriptionYear, SubscriptionPayment } from '../../core/models';
+import { MemberSubscriptionYear, SubscriptionPayment, JoiningFeePayment } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { isoDate } from '../../shared/dates';
@@ -35,6 +35,10 @@ import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { EntrySelect } from '../../shared/entry-select.directive';
+
+interface JoiningFeePaymentRow extends JoiningFeePayment {
+  voucher: { voucher_no: number } | null;
+}
 
 interface PaymentRow extends SubscriptionPayment {
   voucher: { voucher_no: number } | null;
@@ -336,6 +340,20 @@ export class MemberSubscription {
   protected readonly saving = signal(false);
   protected readonly paymentOpen = signal(false);
 
+  protected readonly joiningFee = signal<number>(0);
+  protected readonly joiningPayments = signal<JoiningFeePaymentRow[]>([]);
+  protected readonly joiningPaid = computed(() => this.joiningPayments().filter(p => !p.cancelled_at).reduce((sum, p) => sum + Number(p.amount), 0));
+  protected readonly joiningBalance = computed(() => this.joiningFee() - this.joiningPaid());
+  
+  protected readonly joiningForm = inject(FormBuilder).group({
+    cash: [null as number | null, Validators.required],
+    amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
+    paid_on: [isoDate(), Validators.required],
+    notes: [''],
+  });
+  protected readonly joiningPaymentOpen = signal(false);
+
+
   protected readonly totalDue = computed(() =>
     this.years()
       .filter((y) => y.fy_start <= this.currentFy)
@@ -468,7 +486,7 @@ export class MemberSubscription {
   private async load(code: number): Promise<void> {
     this.loading.set(true);
     try {
-      const [years, payments] = await Promise.all([
+      const [years, payments, memberRes, joiningPayments] = await Promise.all([
         must(this.sb.rpc('member_subscription_years', { p_member_code: code })),
         must(
           this.sb
@@ -480,9 +498,23 @@ export class MemberSubscription {
             .order('paid_on', { ascending: false })
             .order('id', { ascending: false }),
         ),
+        must(this.sb.from('customers').select('joining_fee').eq('code', code).maybeSingle<{joining_fee: number}>()),
+        must(
+          this.sb
+            .from('joining_fee_payments')
+            .select(
+              'id, member_code, paid_on, amount, voucher_id, notes, cancelled_at, cancel_reason, voucher:vouchers(voucher_no)',
+            )
+            .eq('member_code', code)
+            .order('paid_on', { ascending: false })
+            .order('id', { ascending: false }),
+        ),
       ]);
       this.years.set(years as MemberSubscriptionYear[]);
       this.payments.set(payments as unknown as PaymentRow[]);
+      this.joiningFee.set(memberRes?.joining_fee || 0);
+      this.joiningPayments.set(joiningPayments as unknown as JoiningFeePaymentRow[]);
+      
       const oldest =
         this.payableYears().find((y) => y.fy_start <= this.currentFy) ?? this.payableYears()[0];
       if (oldest && this.form.controls.fy_start.value === null && this.auth.canEdit()) {

@@ -18,6 +18,9 @@ export interface CompanySettings {
   gstin: string | null;
   /** Whether a journal voucher may post to cash and bank accounts. */
   journal_allows_cash: boolean;
+  subscription_head_code: number | null;
+  joining_fee: number;
+  joining_fee_head_code: number | null;
 }
 
 export interface AccountHead {
@@ -47,6 +50,7 @@ export interface Customer {
   photo_path: string | null;
   joined_on: string | null;
   left_on: string | null;
+  joining_fee: number;
 }
 
 /** Fee for one financial year; fy_start 2026 means 2026-27. */
@@ -165,3 +169,15 @@ export interface DayClosingRow {
   tran_date: string;
   closing_balance: number;
 }
+
+export interface JoiningFeePayment {
+  id: number;
+  member_code: number;
+  paid_on: string;
+  amount: number;
+  voucher_id: number;
+  notes: string | null;
+  cancelled_at: string | null;
+  cancel_reason: string | null;
+}
+

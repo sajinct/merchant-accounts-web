@@ -244,7 +244,11 @@ export class SubscriptionFees implements OnInit {
   protected readonly years = signal<SubscriptionYear[]>([]);
   protected readonly heads = signal<AccountHead[]>([]);
   protected readonly headCode = signal<number | null>(null);
+  protected readonly joiningHeadCode = signal<number | null>(null);
+  protected readonly joiningFee = signal<number>(0);
   protected readonly savedHeadCode = signal<number | null>(null);
+  protected readonly savedJoiningHeadCode = signal<number | null>(null);
+  protected readonly savedJoiningFee = signal<number>(0);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly editing = signal<number | null>(null);
@@ -394,6 +398,26 @@ export class SubscriptionFees implements OnInit {
     }
   }
 
+  
+  protected async saveJoiningFee(): Promise<void> {
+    const code = this.joiningHeadCode();
+    const fee = this.joiningFee();
+    if (!code) return;
+    this.saving.set(true);
+    try {
+      await must(
+        this.sb.from('company_settings').update({ joining_fee: fee, joining_fee_head_code: code }).eq('id', true),
+      );
+      this.savedJoiningHeadCode.set(code);
+      this.savedJoiningFee.set(fee);
+      this.notify.success('Joining fee settings saved');
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.saving.set(false);
+    }
+  }
+
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
@@ -414,14 +438,18 @@ export class SubscriptionFees implements OnInit {
         must(
           this.sb
             .from('company_settings')
-            .select('subscription_head_code')
-            .maybeSingle<{ subscription_head_code: number | null }>(),
+            .select('subscription_head_code, joining_fee, joining_fee_head_code')
+            .maybeSingle<{ subscription_head_code: number | null, joining_fee: number, joining_fee_head_code: number | null }>(),
         ),
       ]);
       this.years.set(years as SubscriptionYear[]);
       this.heads.set(heads as AccountHead[]);
       this.headCode.set(settings?.subscription_head_code ?? null);
+      this.joiningHeadCode.set(settings?.joining_fee_head_code ?? null);
+      this.joiningFee.set(settings?.joining_fee ?? 0);
       this.savedHeadCode.set(settings?.subscription_head_code ?? null);
+      this.savedJoiningHeadCode.set(settings?.joining_fee_head_code ?? null);
+      this.savedJoiningFee.set(settings?.joining_fee ?? 0);
     } catch (err) {
       this.notify.error(err);
     } finally {

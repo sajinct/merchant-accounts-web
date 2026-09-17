@@ -34,6 +34,7 @@ describe('Member subscription payment disclosure', () => {
           select: () => query,
           eq: () => query,
           order: () => query,
+          maybeSingle: () => Promise.resolve({ data: table === 'customers' ? { joining_fee: 100 } : null, error: null }),
           then: result.then.bind(result),
         };
         return query;
