@@ -184,6 +184,48 @@ import { EntrySelect } from '../../shared/entry-select.directive';
         </div>
       </form>
 
+
+      <form
+        class="panel"
+        aria-labelledby="join-head-heading"
+        appEnterToNext
+        (submit)="$event.preventDefault(); saveJoiningFee()"
+      >
+        <div class="panel-header">
+          <h2 id="join-head-heading">Joining fee</h2>
+          <span class="hint">Default fee for new members and receipt account</span>
+        </div>
+        <div class="panel-body">
+          <div class="form-grid">
+            <mat-form-field>
+              <mat-label>Joining fee amount</mat-label>
+              <input matInput type="number" min="0" step="0.01" [value]="joiningFee()" (change)="joiningFee.set($any($event.target).valueAsNumber || 0)" />
+            </mat-form-field>
+            <mat-form-field class="wide">
+              <mat-label>Account head</mat-label>
+              <mat-select
+                appEntrySelect
+                [value]="joiningHeadCode()"
+                (selectionChange)="joiningHeadCode.set($event.value)"
+              >
+                @for (head of heads(); track head.code) {
+                  <mat-option [value]="head.code">{{ head.code }} – {{ head.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          <div class="form-actions">
+            <button
+              mat-stroked-button
+              type="submit"
+              [disabled]="saving() || (joiningFee() === savedJoiningFee() && joiningHeadCode() === savedJoiningHeadCode())"
+            >
+              <mat-icon>save</mat-icon> Save joining fee
+            </button>
+          </div>
+        </div>
+      </form>
+
       <form
         class="panel"
         aria-labelledby="sub-head-heading"
