@@ -105,15 +105,20 @@ const SYSTEM_CODE_START = 9000;
                       </button>
                     </td>
                     <td>
-                      <span
-                        class="status-badge"
-                        [class.neutral]="head.code >= systemCodeStart"
-                        [class.success]="head.code < systemCodeStart"
-                        >{{ head.account_type || 'Needs classification'
-                        }}{{ head.is_cash_bank ? ' · Cash/bank' : ''
-                        }}{{ head.is_group ? ' · Group' : ''
-                        }}{{ head.is_active === false ? ' · Retired' : '' }}</span
-                      >
+                      <div class="account-tags">
+                        <span class="status-badge neutral account-type">
+                          {{ head.account_type || 'Needs classification' }}
+                        </span>
+                        @if (head.is_cash_bank) {
+                          <span class="account-detail">Cash / bank</span>
+                        }
+                        @if (head.is_group) {
+                          <span class="account-detail">Group</span>
+                        }
+                        @if (head.is_active === false) {
+                          <span class="status-badge warning">Retired</span>
+                        }
+                      </div>
                     </td>
                   </tr>
                 } @empty {
@@ -187,14 +192,14 @@ const SYSTEM_CODE_START = 9000;
                   ><mat-option [value]="true">Yes (asset only)</mat-option></mat-select
                 >
               </mat-form-field>
-              <mat-form-field
+              <mat-form-field subscriptSizing="dynamic"
                 ><mat-label>Posting</mat-label>
                 <mat-select formControlName="posting">
-                  <mat-option value="ledger">Ledger — vouchers post here</mat-option>
-                  <mat-option value="group">Group — organises the chart only</mat-option>
-                  <mat-option value="retired">Retired — keeps history, takes no entries</mat-option>
+                  <mat-option value="ledger">Ledger</mat-option>
+                  <mat-option value="group">Group</mat-option>
+                  <mat-option value="retired">Retired</mat-option>
                 </mat-select>
-                <mat-hint>Group and retired accounts are not offered on voucher lines.</mat-hint>
+                <mat-hint>{{ postingHint() }}</mat-hint>
               </mat-form-field>
               <div class="form-actions">
                 <button
@@ -215,12 +220,42 @@ const SYSTEM_CODE_START = 9000;
   `,
   styles: `
     .data-table {
-      min-width: 340px;
+      min-width: 420px;
+    }
+    .account-tags {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 10px;
+      max-width: 260px;
+    }
+    .account-type {
+      text-transform: capitalize;
+    }
+    .account-detail {
+      color: var(--app-muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+    .side-form {
+      flex-basis: 340px;
+    }
+    .field-stack .form-actions {
+      margin-top: 16px;
+    }
+    @media (max-width: 1199px) {
+      .side-form {
+        flex-basis: 100%;
+      }
+    }
+    @media (max-width: 600px) {
+      .side-form .field-stack {
+        grid-template-columns: minmax(0, 1fr);
+      }
     }
   `,
 })
 export class AccountHeads implements OnInit {
-  protected readonly systemCodeStart = SYSTEM_CODE_START;
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
   private readonly notify = inject(NotifyService);
@@ -251,6 +286,17 @@ export class AccountHeads implements OnInit {
 
   ngOnInit(): void {
     this.load();
+  }
+
+  protected postingHint(): string {
+    switch (this.form.controls.posting.value) {
+      case 'group':
+        return 'Organizes the chart of accounts. Cannot receive voucher entries.';
+      case 'retired':
+        return 'Keeps historical entries. Cannot receive new voucher entries.';
+      default:
+        return 'Available when entering voucher lines.';
+    }
   }
 
   hasPendingChanges(): boolean {

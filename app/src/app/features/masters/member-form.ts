@@ -126,11 +126,22 @@ const TEXT_FIELDS = [
             </div>
           </section>
 
-          <section class="panel" aria-labelledby="member-address-heading">
-            <div class="panel-header">
-              <h2 id="member-address-heading">Address</h2>
-              <span class="hint">Optional</span>
-            </div>
+          <details
+            class="panel optional-details"
+            [open]="
+              !!form.controls.addr1.value ||
+              !!form.controls.addr2.value ||
+              !!form.controls.addr3.value ||
+              !!form.controls.addr4.value
+            "
+          >
+            <summary>
+              <div>
+                <h2>Address</h2>
+                <p class="hint">Postal address · optional</p>
+              </div>
+              <mat-icon aria-hidden="true">expand_more</mat-icon>
+            </summary>
             <div class="panel-body form-grid">
               <mat-form-field
                 ><mat-label>Address line 1</mat-label><input matInput formControlName="addr1"
@@ -145,13 +156,24 @@ const TEXT_FIELDS = [
                 ><mat-label>Address line 4</mat-label><input matInput formControlName="addr4"
               /></mat-form-field>
             </div>
-          </section>
+          </details>
 
-          <section class="panel" aria-labelledby="member-identity-heading">
-            <div class="panel-header">
-              <h2 id="member-identity-heading">Identity details</h2>
-              <span class="hint">Optional</span>
-            </div>
+          <details
+            class="panel optional-details"
+            [open]="
+              !!form.controls.aadhaar.value ||
+              !!form.controls.pan.value ||
+              !!form.controls.id_type.value ||
+              !!form.controls.id_no.value
+            "
+          >
+            <summary>
+              <div>
+                <h2>Identity details</h2>
+                <p class="hint">Aadhaar, PAN or another ID · optional</p>
+              </div>
+              <mat-icon aria-hidden="true">expand_more</mat-icon>
+            </summary>
             <div class="panel-body form-grid">
               <mat-form-field
                 ><mat-label>Aadhaar</mat-label
@@ -170,7 +192,7 @@ const TEXT_FIELDS = [
                 ><mat-label>Other ID number</mat-label><input matInput formControlName="id_no"
               /></mat-form-field>
             </div>
-          </section>
+          </details>
         </div>
 
         <section class="member-photo panel" aria-labelledby="member-photo-heading">
@@ -217,8 +239,70 @@ const TEXT_FIELDS = [
     </div>
   `,
   styles: `
+    .optional-details summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 20px 24px;
+      cursor: pointer;
+      list-style: none;
+    }
+    .optional-details summary::-webkit-details-marker {
+      display: none;
+    }
+    .optional-details summary h2 {
+      margin: 0;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .optional-details summary p {
+      margin: 4px 0 0;
+    }
+    .optional-details[open] summary {
+      border-bottom: 1px solid var(--app-border);
+    }
+    .optional-details[open] summary > mat-icon {
+      transform: rotate(180deg);
+    }
+    .optional-details summary:focus-visible {
+      outline: 2px solid var(--mat-sys-primary);
+      outline-offset: -3px;
+      border-radius: var(--app-radius);
+    }
+    .optional-details:not([open]) > .panel-body {
+      display: none;
+    }
+    .member-form .form-grid {
+      row-gap: 12px;
+    }
+    .member-photo {
+      position: sticky;
+      top: 96px;
+    }
     .member-subscription {
-      margin-top: 20px;
+      margin-top: 32px;
+    }
+    @media (max-width: 1100px) {
+      .member-form {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .member-photo {
+        position: static;
+        max-width: 360px;
+        width: 100%;
+      }
+    }
+    @media (max-width: 600px) {
+      .member-form .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .member-form .form-grid .wide {
+        grid-column: auto;
+      }
+      .optional-details summary {
+        padding: 18px 16px;
+      }
     }
   `,
 })

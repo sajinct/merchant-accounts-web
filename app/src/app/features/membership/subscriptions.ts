@@ -127,9 +127,7 @@ type StatusFilter = 'all' | 'due' | 'paid';
             <table class="report-table">
               <thead>
                 <tr>
-                  <th class="num">Code</th>
                   <th>Member</th>
-                  <th>Phone</th>
                   <th class="num">Fee</th>
                   <th class="num">Paid</th>
                   <th class="num">Balance</th>
@@ -142,16 +140,17 @@ type StatusFilter = 'all' | 'due' | 'paid';
               <tbody>
                 @for (row of filtered(); track row.member_code) {
                   <tr class="clickable" (click)="open(row.member_code)">
-                    <td class="num">{{ row.member_code }}</td>
-                    <td>
+                    <td class="member-cell">
                       <a
                         class="table-link"
                         [routerLink]="['/masters/members', row.member_code]"
                         (click)="$event.stopPropagation()"
                         >{{ row.member_name }}</a
                       >
+                      <span class="member-meta"
+                        >#{{ row.member_code }} · {{ row.phone || 'No phone' }}</span
+                      >
                     </td>
-                    <td>{{ row.phone || '—' }}</td>
                     <td class="num">{{ row.year_fee | number: '1.2-2' }}</td>
                     <td class="num">{{ row.year_paid | number: '1.2-2' }}</td>
                     <td class="num">{{ row.year_balance | number: '1.2-2' }}</td>
@@ -174,7 +173,7 @@ type StatusFilter = 'all' | 'due' | 'paid';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="10">
+                    <td colspan="8">
                       <app-empty-state
                         [heading]="loading() ? 'Loading…' : 'No members match'"
                         [message]="loading() ? '' : 'Try another year, status or search.'"
@@ -187,7 +186,7 @@ type StatusFilter = 'all' | 'due' | 'paid';
               @if (filtered().length) {
                 <tfoot>
                   <tr>
-                    <td colspan="3">Total ({{ filtered().length }} members)</td>
+                    <td>Total ({{ filtered().length }} members)</td>
                     <td class="num">{{ shownTotals().fee | number: '1.2-2' }}</td>
                     <td class="num">{{ shownTotals().paid | number: '1.2-2' }}</td>
                     <td class="num">{{ shownTotals().balance | number: '1.2-2' }}</td>
@@ -213,6 +212,35 @@ type StatusFilter = 'all' | 'due' | 'paid';
     }
     tr.clickable {
       cursor: pointer;
+    }
+    .member-cell {
+      min-width: 180px;
+    }
+    .member-meta {
+      display: block;
+      margin-top: 5px;
+      color: var(--app-muted);
+      font-size: 12px;
+      font-weight: 400;
+      white-space: nowrap;
+    }
+    .filter-row .search-field {
+      flex: 1 1 240px;
+      width: 240px;
+    }
+    @media (max-width: 720px) {
+      .filter-row {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .filter-row .search-field {
+        width: 100%;
+      }
+      mat-button-toggle-group {
+        width: 100%;
+      }
+      mat-button-toggle {
+        flex: 1;
+      }
     }
   `,
 })

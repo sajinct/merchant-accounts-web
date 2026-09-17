@@ -117,17 +117,25 @@ const ALL = 0;
         }
         @for (group of loading() ? [] : groups(); track group.code) {
           <div class="ledger-group">
-            <h3>{{ group.code }} – {{ group.name }}</h3>
-            <div class="table-wrap" role="region" tabindex="0" aria-label="General ledger entries">
+            <h3>
+              <span class="account-code">{{ group.code }}</span
+              >{{ group.name }}
+            </h3>
+            <div
+              class="table-wrap"
+              role="region"
+              tabindex="0"
+              [attr.aria-label]="group.name + ' ledger entries'"
+            >
               <table class="report-table">
                 <thead>
                   <tr>
-                    <th>Date</th>
-                    <th>Voucher</th>
-                    <th>Narration</th>
-                    <th class="num">Debit</th>
-                    <th class="num">Credit</th>
-                    <th class="num">Balance</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Voucher</th>
+                    <th scope="col">Narration</th>
+                    <th scope="col" class="num">Debit</th>
+                    <th scope="col" class="num">Credit</th>
+                    <th scope="col" class="num">Balance</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -135,7 +143,7 @@ const ALL = 0;
                     <tr [class.opening]="row.row_kind === 'opening'">
                       <td>{{ row.tran_date | date: 'dd-MMM-yyyy' }}</td>
                       <td>{{ row.voucher_ref }}</td>
-                      <td>{{ row.narration }}</td>
+                      <td class="narration">{{ row.narration }}</td>
                       <td class="num">
                         {{ row.row_kind === 'entry' ? (row.debit | number: '1.2-2') : '' }}
                       </td>
@@ -171,6 +179,44 @@ const ALL = 0;
         }
       </app-report-shell>
     </div>
+  `,
+  styles: `
+    .ledger-group {
+      margin-bottom: 32px;
+    }
+    .ledger-group h3 {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 14px;
+      font-size: 15px;
+      line-height: 1.5;
+      overflow-wrap: anywhere;
+    }
+    .account-code {
+      flex-shrink: 0;
+      color: var(--app-muted);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+    }
+    .report-table {
+      min-width: 780px;
+    }
+    .narration {
+      min-width: 220px;
+      max-width: 480px;
+      overflow-wrap: anywhere;
+    }
+    @media print {
+      .report-table,
+      .narration {
+        min-width: 0;
+      }
+      .account-code {
+        color: inherit;
+      }
+    }
   `,
 })
 export class LedgerReport implements OnInit {

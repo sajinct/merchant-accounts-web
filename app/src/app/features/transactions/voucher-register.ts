@@ -103,18 +103,26 @@ interface RegisterEntry {
         @for (entry of entries(); track entry.id) {
           <details class="entry" [class.cancelled]="entry.voucher?.cancelled_at">
             <summary>
-              <span class="ref">{{ reference(entry) }}</span>
-              <span class="when">{{ entry.entry_date | date: 'dd-MMM-yyyy' }}</span>
-              <span class="what">{{ entry.narration || '—' }}</span>
+              <span class="entry-reference">
+                <span class="ref">{{ reference(entry) }}</span>
+                <span class="when">{{ entry.entry_date | date: 'dd-MMM-yyyy' }}</span>
+              </span>
+              <span class="entry-description">
+                <span class="what">{{ entry.narration || kindLabel(entry) }}</span>
+                @if (entry.voucher?.cancelled_at) {
+                  <span class="status-badge">Cancelled</span>
+                } @else if (entry.reversal_of) {
+                  <span class="status-badge neutral">Reversal of J-{{ entry.reversal_of }}</span>
+                }
+              </span>
               <span class="amount">{{ amount(entry) | number: '1.2-2' }}</span>
-              @if (entry.voucher?.cancelled_at) {
-                <span class="status-badge">Cancelled</span>
-              } @else if (entry.reversal_of) {
-                <span class="status-badge neutral">Reversal of J-{{ entry.reversal_of }}</span>
-              }
+              <mat-icon class="expand-icon" aria-hidden="true">expand_more</mat-icon>
             </summary>
 
             <div class="entry-body">
+              @if (entry.narration) {
+                <p class="entry-narration">{{ entry.narration }}</p>
+              }
               <p class="hint">
                 {{ kindLabel(entry) }} · Journal J-{{ entry.id }}
                 @if (entry.voucher?.reference_no) {
@@ -127,7 +135,12 @@ interface RegisterEntry {
               @if (entry.voucher?.cancel_reason) {
                 <p class="hint">Cancelled: {{ entry.voucher?.cancel_reason }}</p>
               }
-              <div class="table-wrap">
+              <div
+                class="table-wrap"
+                tabindex="0"
+                role="region"
+                [attr.aria-label]="reference(entry) + ' account lines'"
+              >
                 <table class="data-table">
                   <thead>
                     <tr>
@@ -202,19 +215,37 @@ interface RegisterEntry {
   `,
   styles: `
     .filter-field {
-      min-width: 220px;
+      width: 280px;
+      max-width: 100%;
+    }
+    .toolbar-count {
+      margin-left: auto;
     }
     .entry {
       border-top: 1px solid var(--app-border);
     }
     summary {
-      display: flex;
+      display: grid;
+      grid-template-columns: 130px minmax(0, 1fr) auto 24px;
       align-items: center;
-      gap: 14px;
-      flex-wrap: wrap;
-      padding: 14px 16px;
+      gap: 20px;
+      padding: 20px;
       cursor: pointer;
-      min-height: 32px;
+      list-style: none;
+    }
+    summary::-webkit-details-marker {
+      display: none;
+    }
+    summary:hover,
+    .entry[open] > summary {
+      background: var(--app-surface-hover);
+    }
+    .entry-reference,
+    .entry-description {
+      display: grid;
+      justify-items: start;
+      gap: 6px;
+      min-width: 0;
     }
     .ref {
       font-weight: 700;
@@ -222,34 +253,86 @@ interface RegisterEntry {
       min-width: 64px;
     }
     .when {
+      color: var(--app-muted);
+      font-size: 12px;
       white-space: nowrap;
     }
     .what {
-      flex: 1;
-      min-width: 140px;
+      width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      line-height: 1.5;
     }
     .amount {
       font-variant-numeric: tabular-nums;
       font-weight: 600;
+      text-align: right;
+      white-space: nowrap;
+    }
+    .expand-icon {
+      color: var(--app-muted);
+      transition: transform 150ms ease;
+    }
+    .entry[open] .expand-icon {
+      transform: rotate(180deg);
     }
     .cancelled summary .ref,
     .cancelled summary .what {
       text-decoration: line-through;
     }
     .entry-body {
-      padding: 0 16px 16px;
+      padding: 20px;
+      border-top: 1px solid var(--app-border-subtle);
+    }
+    .entry-narration {
+      margin: 0 0 12px;
+      line-height: 1.6;
+      overflow-wrap: anywhere;
     }
     .entry-body .hint {
       margin: 0 0 10px;
     }
     .entry-body button {
-      margin-top: 12px;
+      margin-top: 20px;
     }
     .register-footer {
       display: flex;
       justify-content: center;
       padding: 14px 16px;
       border-top: 1px solid var(--app-border);
+    }
+    @media (max-width: 720px) {
+      .filter-field {
+        width: 100%;
+      }
+      .toolbar-count {
+        margin-left: 0;
+        margin-right: auto;
+      }
+      summary {
+        grid-template-columns: minmax(0, 1fr) auto 20px;
+        gap: 12px;
+        padding: 18px 16px;
+      }
+      .entry-description {
+        grid-row: 2;
+        grid-column: 1 / -1;
+      }
+      .amount {
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .expand-icon {
+        grid-column: 3;
+        grid-row: 1;
+        width: 20px;
+        height: 20px;
+        font-size: 20px;
+      }
+      .entry-body {
+        padding: 18px 16px;
+      }
     }
   `,
 })

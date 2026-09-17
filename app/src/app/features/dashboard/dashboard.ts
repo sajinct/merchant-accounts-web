@@ -49,7 +49,7 @@ interface YearResult {
     CashFlowChart,
   ],
   template: `
-    <div class="page">
+    <div class="page dashboard-page">
       <app-page-header
         [eyebrow]="(today | date: 'EEEE, d MMMM yyyy') ?? ''"
         [heading]="'Welcome back, ' + firstName()"
@@ -198,8 +198,7 @@ interface YearResult {
                 <tr>
                   <th scope="col">Voucher</th>
                   <th scope="col">Date</th>
-                  <th scope="col">Reference</th>
-                  <th scope="col">Narration</th>
+                  <th scope="col">Details</th>
                   <th scope="col" class="num">Amount</th>
                 </tr>
               </thead>
@@ -212,14 +211,41 @@ interface YearResult {
                       }}</span>
                     </td>
                     <td class="nowrap">{{ voucher.voucher_date | date: 'dd-MMM-yyyy' }}</td>
-                    <td class="table-primary">{{ voucher.reference_no || '—' }}</td>
-                    <td class="table-secondary narration">{{ voucher.narration || '—' }}</td>
+                    <td class="narration">
+                      <span>{{ voucher.narration || 'No narration' }}</span>
+                      @if (voucher.reference_no) {
+                        <span class="table-secondary reference"
+                          >Ref: {{ voucher.reference_no }}</span
+                        >
+                      }
+                    </td>
                     <td class="num">{{ voucher.total_amount | number: '1.2-2' }}</td>
                   </tr>
                 }
               </tbody>
             </table>
           </div>
+          <ul class="recent-cards" aria-label="Recent vouchers">
+            @for (voucher of recent(); track voucher.id) {
+              <li>
+                <div class="recent-card-heading">
+                  <span class="voucher-ref" [class.receipt]="voucher.voucher_type === 1">{{
+                    voucherRef(voucher.voucher_type, voucher.voucher_no)
+                  }}</span>
+                  <strong>{{ voucher.total_amount | number: '1.2-2' }}</strong>
+                </div>
+                <p>{{ voucher.narration || 'No narration' }}</p>
+                <div class="recent-card-meta">
+                  <time [attr.datetime]="voucher.voucher_date">{{
+                    voucher.voucher_date | date: 'dd-MMM-yyyy'
+                  }}</time>
+                  @if (voucher.reference_no) {
+                    <span>Ref: {{ voucher.reference_no }}</span>
+                  }
+                </div>
+              </li>
+            }
+          </ul>
         } @else {
           <app-empty-state
             icon="receipt_long"
@@ -249,7 +275,8 @@ interface YearResult {
     </div>
   `,
   styles: `
-    :host {
+    .dashboard-page {
+      container: dashboard / inline-size;
     }
     .loading-slot {
       height: 4px;
@@ -257,16 +284,16 @@ interface YearResult {
     }
     .kpi-row {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 16px;
-      margin-bottom: 20px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 20px;
+      margin-bottom: 28px;
     }
     .kpi {
       display: grid;
       align-content: start;
-      gap: 6px;
+      gap: 10px;
       min-width: 0;
-      padding: 16px 18px;
+      padding: 22px 24px;
       border: 1px solid var(--app-border);
       border-radius: var(--app-radius);
       background: var(--app-surface);
@@ -286,7 +313,7 @@ interface YearResult {
       align-items: center;
       gap: 7px;
       color: var(--app-muted);
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 500;
     }
     .kpi-label mat-icon {
@@ -294,12 +321,14 @@ interface YearResult {
       height: 16px;
       font-size: 16px;
       color: var(--app-accent);
+      flex-shrink: 0;
     }
     .dot {
       width: 10px;
       height: 10px;
       margin: 0 3px;
       border-radius: 2px;
+      flex-shrink: 0;
     }
     .dot.in {
       background: var(--app-flow-in);
@@ -308,7 +337,7 @@ interface YearResult {
       background: var(--app-flow-out);
     }
     .kpi-value {
-      font-size: clamp(20px, 2vw, 25px);
+      font-size: clamp(23px, 2.2vw, 29px);
       font-weight: 650;
       letter-spacing: -0.6px;
       line-height: 1.25;
@@ -316,12 +345,13 @@ interface YearResult {
     }
     .kpi-note {
       color: var(--app-muted);
-      font-size: 11px;
+      font-size: 12px;
+      line-height: 1.5;
     }
     .dashboard-main {
       display: grid;
-      grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
-      gap: 20px;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 24px;
       align-items: start;
     }
     .dashboard-main .panel + .panel,
@@ -329,19 +359,19 @@ interface YearResult {
       margin-top: 0;
     }
     .recent {
-      margin-top: 20px;
+      margin-top: 28px;
     }
     .year-figures {
       display: grid;
-      gap: 2px;
-      margin: 0 0 12px;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+      margin: 0 0 20px;
     }
     .year-figures div {
-      display: flex;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 9px 0;
-      border-bottom: 1px solid var(--app-border);
+      display: grid;
+      align-content: start;
+      gap: 10px;
+      padding: 4px 0;
     }
     .year-figures dt {
       color: var(--app-muted);
@@ -350,6 +380,8 @@ interface YearResult {
       margin: 0;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
+      font-size: 18px;
+      overflow-wrap: anywhere;
     }
     .year-figures .net {
       border-bottom: 0;
@@ -382,33 +414,42 @@ interface YearResult {
       white-space: nowrap;
     }
     .narration {
-      max-width: 280px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      max-width: 440px;
+      overflow-wrap: anywhere;
+    }
+    .reference {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
     }
     .data-table {
-      min-width: 620px;
+      min-width: 560px;
+    }
+    .recent-cards {
+      display: none;
+      padding: 0;
+      margin: 0;
+      list-style: none;
     }
     .quick-links {
-      margin-top: 24px;
+      margin-top: 32px;
     }
     .quick-links h2 {
-      margin: 0 0 10px;
-      font-size: 14px;
+      margin: 0 0 16px;
+      font-size: 16px;
       font-weight: 650;
     }
     .quick-grid {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
     }
     .quick-link {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      min-height: 40px;
-      padding: 0 14px;
+      min-height: 48px;
+      padding: 8px 16px;
       border: 1px solid var(--app-border);
       border-radius: 8px;
       background: var(--app-surface);
@@ -441,18 +482,91 @@ interface YearResult {
       height: 16px;
       font-size: 16px;
     }
-    @media (max-width: 1199px) {
+    @container dashboard (min-width: 1020px) {
       .kpi-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-      .dashboard-main {
-        grid-template-columns: minmax(0, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
       }
     }
-    @media (max-width: 440px) {
+    @container dashboard (min-width: 900px) {
+      .dashboard-main {
+        grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+      }
+      .year-figures {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+      }
+      .year-figures div {
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 0;
+        border-bottom: 1px solid var(--app-border);
+      }
+    }
+    @container dashboard (max-width: 560px) {
       .kpi-row {
         grid-template-columns: minmax(0, 1fr);
-        gap: 10px;
+        gap: 12px;
+        margin-bottom: 24px;
+      }
+      .kpi {
+        padding: 18px 20px;
+        gap: 8px;
+      }
+      .year-figures {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0;
+      }
+      .year-figures div {
+        display: flex;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--app-border);
+      }
+      .recent > .table-wrap {
+        display: none;
+      }
+      .recent-cards {
+        display: block;
+      }
+      .recent-cards li {
+        padding: 18px 16px;
+        border-bottom: 1px solid var(--app-border);
+      }
+      .recent-cards li:last-child {
+        border-bottom: 0;
+      }
+      .recent-card-heading {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+      }
+      .recent-card-heading strong {
+        font-variant-numeric: tabular-nums;
+        overflow-wrap: anywhere;
+        text-align: right;
+      }
+      .recent-cards p {
+        margin: 10px 0 8px;
+        overflow-wrap: anywhere;
+      }
+      .recent-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 16px;
+        color: var(--app-muted);
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+      .quick-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .quick-link {
+        padding: 10px 12px;
+      }
+      .quick-link mat-icon,
+      .quick-links .hint mat-icon {
+        flex-shrink: 0;
       }
     }
   `,

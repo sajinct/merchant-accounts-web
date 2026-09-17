@@ -18,7 +18,7 @@ import { Shell } from './shell';
 class TestPage {}
 
 describe('Shell navigation', () => {
-  const mobileQuery = '(max-width: 959px)';
+  const mobileQuery = '(max-width: 1199px)';
   let viewport: BehaviorSubject<BreakpointState>;
   const state = (matches: boolean): BreakpointState => ({
     matches,

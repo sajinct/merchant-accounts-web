@@ -15,7 +15,7 @@ import { Component, input } from '@angular/core';
       }
       <ng-content select="[description]" />
     </div>
-    <ng-content />
+    <div class="page-header-actions"><ng-content /></div>
   `,
 })
 export class PageHeader {

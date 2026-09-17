@@ -96,6 +96,9 @@
 .workspace-topbar > button {
   flex: 0 0 auto;
 }
+.workspace-topbar app-financial-year-selector {
+  flex: 0 0 auto;
+}
 .topbar-company,
 .user-details {
   display: grid;
@@ -180,12 +183,15 @@
 .skip-link:focus {
   transform: none;
 }
-@media (max-width: 959px) {
+@media (max-width: 1199px) {
   .workspace-nav {
     min-width: 260px;
   }
   .nav-link {
     min-height: 44px;
+  }
+  .user-details {
+    display: none;
   }
 }
 @media (max-width: 599px) {
@@ -196,6 +202,9 @@
   }
   .user-details,
   .user-chevron {
+    display: none;
+  }
+  .topbar-company > span {
     display: none;
   }
   .workspace-breadcrumb {

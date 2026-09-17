@@ -483,7 +483,7 @@ export class Shell implements OnInit {
       else main.focus({ preventScroll: true });
     });
   }
-  protected readonly isMobile = signal(this.breakpoints.isMatched('(max-width: 959px)'));
+  protected readonly isMobile = signal(this.breakpoints.isMatched('(max-width: 1199px)'));
   protected readonly drawerOpen = signal(!this.isMobile());
   protected readonly userName = computed(
     () => this.auth.profile()?.full_name || this.auth.profile()?.username || 'My account',
@@ -518,7 +518,7 @@ export class Shell implements OnInit {
 
   constructor() {
     this.breakpoints
-      .observe('(max-width: 959px)')
+      .observe('(max-width: 1199px)')
       .pipe(takeUntilDestroyed())
       .subscribe(({ matches }) => {
         this.isMobile.set(matches);

@@ -77,17 +77,17 @@ import { EmptyState } from '../../shared/empty-state';
             <table class="report-table">
               <thead>
                 <tr>
-                  <th class="num">Code</th>
-                  <th>Account</th>
-                  <th class="num">Debit</th>
-                  <th class="num">Credit</th>
+                  <th scope="col" class="num">Code</th>
+                  <th scope="col">Account</th>
+                  <th scope="col" class="num">Debit</th>
+                  <th scope="col" class="num">Credit</th>
                 </tr>
               </thead>
               <tbody>
                 @for (row of rows(); track row.head_code) {
                   <tr>
                     <td class="num">{{ row.head_code }}</td>
-                    <td>{{ row.head_name }}</td>
+                    <td class="account-name">{{ row.head_name }}</td>
                     <td class="num">{{ row.debit ? (row.debit | number: '1.2-2') : '' }}</td>
                     <td class="num">{{ row.credit ? (row.credit | number: '1.2-2') : '' }}</td>
                   </tr>
@@ -126,6 +126,22 @@ import { EmptyState } from '../../shared/empty-state';
         }
       </app-report-shell>
     </div>
+  `,
+  styles: `
+    .report-table {
+      min-width: 540px;
+    }
+    .account-name {
+      min-width: 180px;
+      overflow-wrap: anywhere;
+      font-weight: 500;
+    }
+    @media print {
+      .report-table,
+      .account-name {
+        min-width: 0;
+      }
+    }
   `,
 })
 export class TrialBalanceReport {

@@ -3,14 +3,18 @@ import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
 import {
+  afterNextRender,
   Component,
   computed,
+  ElementRef,
   effect,
   inject,
+  Injector,
   input,
   LOCALE_ID,
   signal,
   untracked,
+  viewChild,
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -57,16 +61,23 @@ interface PaymentRow extends SubscriptionPayment {
     <section class="panel" aria-labelledby="subscription-heading">
       <div class="panel-header">
         <div>
-          <h2 id="subscription-heading">Subscription</h2>
+          <h2 #subscriptionHeading id="subscription-heading" tabindex="-1">Subscription</h2>
           <p>Yearly fee per financial year (April to March)</p>
         </div>
-        @if (!loading()) {
-          @if (totalDue() > 0) {
-            <span class="status-badge warning">Due {{ totalDue() | number: '1.2-2' }}</span>
-          } @else if (years().length) {
-            <span class="status-badge success">Fully paid</span>
+        <div class="subscription-actions">
+          @if (!loading()) {
+            @if (totalDue() > 0) {
+              <span class="status-badge warning">Due {{ totalDue() | number: '1.2-2' }}</span>
+            } @else if (years().length) {
+              <span class="status-badge success">Fully paid</span>
+            }
           }
-        }
+          @if (auth.canEdit() && payableYears().length && !paymentOpen()) {
+            <button mat-stroked-button type="button" (click)="startPayment()">
+              <mat-icon>payments</mat-icon> Record payment
+            </button>
+          }
+        </div>
       </div>
 
       @if (!loading() && !years().length) {
@@ -125,15 +136,16 @@ interface PaymentRow extends SubscriptionPayment {
         </div>
       }
 
-      @if (auth.canEdit() && payableYears().length) {
-        <app-financial-year-notice />
+      @if (auth.canEdit() && payableYears().length && paymentOpen()) {
         <form
+          #paymentForm
           appFinancialYearScope="entry"
           class="panel-body payment-form"
           [formGroup]="form"
           (ngSubmit)="record()"
         >
           <h3>Record a payment</h3>
+          <app-financial-year-notice />
           <div class="form-grid">
             <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
@@ -164,7 +176,7 @@ interface PaymentRow extends SubscriptionPayment {
                 #paid_onPicker
               />
             </mat-form-field>
-            <mat-form-field>
+            <mat-form-field class="payment-notes">
               <mat-label>Notes</mat-label>
               <input
                 matInput
@@ -187,8 +199,11 @@ interface PaymentRow extends SubscriptionPayment {
             >
               <mat-icon>payments</mat-icon> {{ saving() ? 'Saving…' : 'Record payment' }}
             </button>
-            <span class="hint">A receipt voucher is created automatically.</span>
+            <button mat-button type="button" [disabled]="saving()" (click)="closePayment()">
+              Cancel
+            </button>
           </div>
+          <p class="hint payment-hint">A receipt voucher is created automatically.</p>
         </form>
       }
 
@@ -257,6 +272,32 @@ interface PaymentRow extends SubscriptionPayment {
     .history {
       border-top: 1px solid var(--app-border);
     }
+    .subscription-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+    }
+    .payment-form .form-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px 24px;
+      max-width: 760px;
+    }
+    .payment-notes {
+      grid-column: 1 / -1;
+    }
+    .payment-hint {
+      margin: 12px 0 0;
+    }
+    @media (max-width: 600px) {
+      .payment-form .form-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .subscription-actions {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
     tr.cancelled td {
       color: var(--app-muted);
       text-decoration: line-through;
@@ -274,6 +315,9 @@ export class MemberSubscription {
   private readonly notify = inject(NotifyService);
   private readonly dialog = inject(MatDialog);
   private readonly locale = inject(LOCALE_ID);
+  private readonly injector = inject(Injector);
+  private readonly paymentForm = viewChild<ElementRef<HTMLFormElement>>('paymentForm');
+  private readonly subscriptionHeading = viewChild<ElementRef<HTMLElement>>('subscriptionHeading');
 
   protected readonly label = fyLabel;
   protected readonly currentFy = fyStart();
@@ -281,6 +325,7 @@ export class MemberSubscription {
   protected readonly payments = signal<PaymentRow[]>([]);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
+  protected readonly paymentOpen = signal(false);
 
   protected readonly totalDue = computed(() =>
     this.years()
@@ -320,8 +365,24 @@ export class MemberSubscription {
     });
   }
 
-  protected startPayment(year: MemberSubscriptionYear): void {
-    this.form.patchValue({ fy_start: year.fy_start, amount: Number(year.balance) });
+  protected startPayment(year?: MemberSubscriptionYear): void {
+    if (year) {
+      this.form.patchValue({ fy_start: year.fy_start, amount: Number(year.balance) });
+    }
+    this.paymentOpen.set(true);
+    afterNextRender(
+      () => {
+        const form = this.paymentForm()?.nativeElement;
+        form?.scrollIntoView({ block: 'nearest' });
+        form?.querySelector<HTMLElement>('mat-select')?.focus({ preventScroll: true });
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected closePayment(): void {
+    this.paymentOpen.set(false);
+    this.subscriptionHeading()?.nativeElement.focus({ preventScroll: true });
   }
 
   protected fillBalance(): void {
@@ -358,6 +419,7 @@ export class MemberSubscription {
       this.requestId = crypto.randomUUID();
       this.form.reset({ cash, fy_start: null, amount: null, paid_on: isoDate(), notes: '' });
       await this.load(this.memberCode());
+      this.closePayment();
     } catch (err) {
       this.notify.error(err);
     } finally {
@@ -415,7 +477,7 @@ export class MemberSubscription {
       const oldest =
         this.payableYears().find((y) => y.fy_start <= this.currentFy) ?? this.payableYears()[0];
       if (oldest && this.form.controls.fy_start.value === null && this.auth.canEdit()) {
-        this.startPayment(oldest);
+        this.form.patchValue({ fy_start: oldest.fy_start, amount: Number(oldest.balance) });
       }
     } catch (err) {
       this.notify.error(err);

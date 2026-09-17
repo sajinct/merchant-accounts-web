@@ -390,7 +390,7 @@ html {
         tertiary: mat.$azure-palette,
       ),
       typography: Inter,
-      density: -2,
+      density: -1,
     )
   );
   @include mat.theme-overrides(
@@ -405,8 +405,8 @@ html {
   @include mat.form-field-overrides(
     (
       outlined-container-shape: 7px,
-      container-height: 44px,
-      container-vertical-padding: 10px,
+      container-height: 48px,
+      container-vertical-padding: 12px,
       outlined-label-text-size: 13px,
       container-text-size: 13px,
       container-text-line-height: 22px,
@@ -419,9 +419,9 @@ html {
       outlined-container-shape: 7px,
       protected-container-shape: 7px,
       text-container-shape: 7px,
-      filled-container-height: 36px,
-      outlined-container-height: 36px,
-      text-container-height: 36px,
+      filled-container-height: 40px,
+      outlined-container-height: 40px,
+      text-container-height: 40px,
       filled-label-text-size: 13px,
       outlined-label-text-size: 13px,
       text-label-text-size: 13px,
@@ -431,7 +431,7 @@ html {
   );
   @include mat.icon-button-overrides(
     (
-      state-layer-size: 36px,
+      state-layer-size: 40px,
       icon-size: 20px,
     )
   );
@@ -544,7 +544,21 @@ a:focus-visible,
   margin-bottom: 22px;
 }
 .page-heading {
+  flex: 1 1 320px;
   min-width: 0;
+}
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  max-width: 100%;
+}
+.page-header-actions:empty {
+  display: none;
+}
+.page-header-actions .form-actions {
+  margin: 0;
 }
 .page-header h1 {
   margin: 0;
@@ -566,6 +580,7 @@ a:focus-visible,
 .page-description,
 .page-subtitle {
   margin: 6px 0 0;
+  max-width: 68ch;
   color: var(--app-muted);
   font-size: 13px;
   line-height: 1.6;
@@ -639,15 +654,15 @@ a:focus-visible,
   white-space: nowrap;
 }
 
-/* Compact controls and form layouts. */
+/* Give entry fields room to scan without squeezing adjacent controls. */
 mat-form-field {
   min-width: 0;
 }
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   align-items: start;
-  gap: 0 16px;
+  gap: 8px 20px;
 }
 .form-grid .wide {
   grid-column: span 2;
@@ -656,7 +671,7 @@ mat-form-field {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   margin: 4px 0 0;
 }
 .form-error {
@@ -700,11 +715,12 @@ mat-form-field {
 .field-stack {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 .inline-form {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-  gap: 0 16px;
+  gap: 8px 20px;
   padding: 20px;
   margin-bottom: 20px;
   border: 1px solid var(--app-border);
@@ -764,11 +780,11 @@ mat-form-field {
 .report-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1.5;
   th,
   td {
-    padding: 11px 16px;
+    padding: 13px 16px;
     text-align: left;
     border-bottom: 1px solid var(--app-border-subtle);
     vertical-align: middle;
@@ -1024,38 +1040,38 @@ app-report-shell {
   min-width: 0;
 }
 .report-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-  padding: 16px;
+  display: grid;
+  gap: 18px;
+  padding: 20px;
   margin-bottom: 20px;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius);
   background: var(--app-surface);
 }
 .report-filters {
-  flex: 1 1 auto;
   min-width: 0;
 }
 .filter-row,
 .report-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .filter-row > mat-form-field {
-  width: 160px;
+  flex: 1 1 180px;
+  width: 180px;
   max-width: 100%;
 }
 .filter-row .account-select {
-  width: 250px;
+  flex: 2 1 280px;
+  width: 280px;
   min-width: 0;
 }
 .report-actions {
-  flex-shrink: 0;
+  justify-content: flex-end;
+  padding-top: 16px;
+  border-top: 1px solid var(--app-border);
 }
 .report-page {
   min-width: 0;
@@ -1176,7 +1192,7 @@ app-report-shell {
   .side-form .field-stack {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 16px;
+    gap: 8px 20px;
   }
   .side-form .form-actions {
     grid-column: 1 / -1;
@@ -1231,7 +1247,7 @@ app-report-shell {
   }
   .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0 12px;
+    gap: 8px 16px;
   }
   .form-grid .wide {
     grid-column: 1 / -1;
@@ -1318,7 +1334,8 @@ app-report-shell {
   .form-grid,
   .member-form .form-grid,
   .side-form .field-stack,
-  .inline-form {
+  .inline-form,
+  .filter-row {
     grid-template-columns: minmax(0, 1fr);
   }
   .form-grid .wide {

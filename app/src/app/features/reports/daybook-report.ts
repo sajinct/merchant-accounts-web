@@ -88,27 +88,31 @@ import { EmptyState } from '../../shared/empty-state';
             <table class="report-table">
               <thead>
                 <tr>
-                  <th>Voucher</th>
-                  <th>Account</th>
-                  <th>Narration</th>
-                  <th class="num">Receipt</th>
-                  <th class="num">Payment</th>
-                  <th class="num">Balance</th>
+                  <th scope="col">Voucher</th>
+                  <th scope="col">Account</th>
+                  <th scope="col">Narration</th>
+                  <th scope="col" class="num">Receipt</th>
+                  <th scope="col" class="num">Payment</th>
+                  <th scope="col" class="num">Balance</th>
                 </tr>
               </thead>
-              
+
               @for (day of groupedDays(); track day.date) {
                 <tbody>
                   <tr class="opening">
-                    <td colspan="5"><strong>{{ day.date | date: 'dd-MMM-yyyy' }} - Opening Balance</strong></td>
-                    <td class="num"><strong>{{ day.openingBalance | number: '1.2-2' }}</strong></td>
+                    <td colspan="5">
+                      <strong>{{ day.date | date: 'dd-MMM-yyyy' }} - Opening Balance</strong>
+                    </td>
+                    <td class="num">
+                      <strong>{{ day.openingBalance | number: '1.2-2' }}</strong>
+                    </td>
                   </tr>
-                  
+
                   @for (row of day.entries; track row.seq) {
                     <tr>
                       <td>{{ row.voucher_ref }}</td>
-                      <td>{{ row.head_name }}</td>
-                      <td>{{ row.narration }}</td>
+                      <td class="account-name">{{ row.head_name }}</td>
+                      <td class="narration">{{ row.narration }}</td>
                       <td class="num">
                         {{ row.credit ? (row.credit | number: '1.2-2') : '' }}
                       </td>
@@ -118,16 +122,24 @@ import { EmptyState } from '../../shared/empty-state';
                       <td class="num">{{ row.balance | number: '1.2-2' }}</td>
                     </tr>
                   }
-                  
+
                   <tr class="date-footer">
-                    <td colspan="3"><strong>Total for {{ day.date | date: 'dd-MMM-yyyy' }}</strong></td>
-                    <td class="num"><strong>{{ day.totalReceipt | number: '1.2-2' }}</strong></td>
-                    <td class="num"><strong>{{ day.totalPayment | number: '1.2-2' }}</strong></td>
-                    <td class="num"><strong>{{ day.closingBalance | number: '1.2-2' }}</strong></td>
+                    <td colspan="3">
+                      <strong>Total for {{ day.date | date: 'dd-MMM-yyyy' }}</strong>
+                    </td>
+                    <td class="num">
+                      <strong>{{ day.totalReceipt | number: '1.2-2' }}</strong>
+                    </td>
+                    <td class="num">
+                      <strong>{{ day.totalPayment | number: '1.2-2' }}</strong>
+                    </td>
+                    <td class="num">
+                      <strong>{{ day.closingBalance | number: '1.2-2' }}</strong>
+                    </td>
                   </tr>
                 </tbody>
               }
-              
+
               <tfoot>
                 <tr>
                   <td colspan="3">Total / closing balance</td>
@@ -161,6 +173,43 @@ import { EmptyState } from '../../shared/empty-state';
       </app-report-shell>
     </div>
   `,
+  styles: `
+    .report-table {
+      min-width: 820px;
+    }
+    .account-name {
+      min-width: 140px;
+      max-width: 240px;
+      overflow-wrap: anywhere;
+      font-weight: 500;
+    }
+    .narration {
+      min-width: 190px;
+      max-width: 400px;
+      overflow-wrap: anywhere;
+      color: var(--app-muted);
+    }
+    .opening td {
+      padding-top: 16px;
+      padding-bottom: 16px;
+      border-top: 1px solid var(--app-border);
+    }
+    .date-footer td {
+      padding-top: 14px;
+      padding-bottom: 14px;
+      background: var(--app-surface-sunken);
+    }
+    @media print {
+      .report-table,
+      .account-name,
+      .narration {
+        min-width: 0;
+      }
+      .narration {
+        color: inherit;
+      }
+    }
+  `,
 })
 export class DaybookReport {
   private readonly sb = inject(SupabaseService).client;
@@ -179,21 +228,24 @@ export class DaybookReport {
   protected readonly groupedDays = computed(() => {
     const allRows = this.rows();
     if (!allRows.length) return [];
-    
-    const openingRow = allRows.find(r => r.row_kind === 'opening');
+
+    const openingRow = allRows.find((r) => r.row_kind === 'opening');
     let currentBalance = Number(openingRow?.balance ?? 0);
-    
-    const entries = allRows.filter(r => r.row_kind === 'entry');
-    
-    const daysMap = new Map<string, { 
-      date: string; 
-      entries: DaybookRow[]; 
-      openingBalance: number; 
-      closingBalance: number; 
-      totalReceipt: number; 
-      totalPayment: number; 
-    }>();
-    
+
+    const entries = allRows.filter((r) => r.row_kind === 'entry');
+
+    const daysMap = new Map<
+      string,
+      {
+        date: string;
+        entries: DaybookRow[];
+        openingBalance: number;
+        closingBalance: number;
+        totalReceipt: number;
+        totalPayment: number;
+      }
+    >();
+
     for (const entry of entries) {
       const dateKey = entry.tran_date ?? '';
       if (!daysMap.has(dateKey)) {
@@ -203,19 +255,19 @@ export class DaybookReport {
           openingBalance: currentBalance,
           closingBalance: 0,
           totalReceipt: 0,
-          totalPayment: 0
+          totalPayment: 0,
         });
       }
-      
+
       const day = daysMap.get(dateKey)!;
       day.entries.push(entry);
       day.totalReceipt += Number(entry.credit);
       day.totalPayment += Number(entry.debit);
-      
+
       currentBalance = currentBalance + Number(entry.credit) - Number(entry.debit);
       day.closingBalance = currentBalance;
     }
-    
+
     return Array.from(daysMap.values());
   });
 

@@ -126,6 +126,10 @@ const STARTING_LINES = 3;
         appEnterToNext
       >
         <div class="panel-body">
+          <div class="section-heading">
+            <h2>Voucher details</h2>
+            <p class="hint">Set the date and account, then add the entry lines below.</p>
+          </div>
           <div class="form-grid header-grid">
             <mat-form-field>
               <mat-label>Voucher date</mat-label>
@@ -137,11 +141,6 @@ const STARTING_LINES = 3;
               />
               <mat-datepicker-toggle matIconSuffix [for]="datePicker" />
               <mat-datepicker #datePicker />
-            </mat-form-field>
-
-            <mat-form-field>
-              <mat-label>Reference no.</mat-label>
-              <input matInput formControlName="referenceNo" maxlength="40" placeholder="Optional" />
             </mat-form-field>
 
             @if (config.primaryLabel && simplified()) {
@@ -176,17 +175,6 @@ const STARTING_LINES = 3;
               </mat-form-field>
             }
 
-            @if (config.partyLabel) {
-              <app-account-picker
-                formControlName="partyCode"
-                [label]="config.partyLabel"
-                placeholder="Search members by name or code"
-                hint="Optional"
-                [accounts]="parties()"
-                [loading]="loading()"
-              />
-            }
-
             <mat-form-field class="span-all">
               <mat-label>Narration</mat-label>
               <input
@@ -197,6 +185,37 @@ const STARTING_LINES = 3;
               />
             </mat-form-field>
           </div>
+
+          <details class="voucher-details">
+            <summary>
+              <span>{{ config.partyLabel ? 'Reference & member' : 'Reference number' }}</span>
+              <span class="hint">Optional</span>
+              @if (form.controls.referenceNo.value || form.controls.partyCode.value) {
+                <span class="status-badge neutral">Details added</span>
+              }
+            </summary>
+            <div class="form-grid details-grid">
+              <mat-form-field>
+                <mat-label>Reference no.</mat-label>
+                <input
+                  matInput
+                  formControlName="referenceNo"
+                  maxlength="40"
+                  placeholder="Optional"
+                />
+              </mat-form-field>
+              @if (config.partyLabel) {
+                <app-account-picker
+                  formControlName="partyCode"
+                  [label]="config.partyLabel"
+                  placeholder="Search members by name or code"
+                  hint="Optional"
+                  [accounts]="parties()"
+                  [loading]="loading()"
+                />
+              }
+            </div>
+          </details>
 
           <div class="lines-header">
             <div>
@@ -211,19 +230,19 @@ const STARTING_LINES = 3;
                 aria-label="Entry mode"
               >
                 <mat-button-toggle [value]="true">Simplified</mat-button-toggle>
-                <mat-button-toggle [value]="false">Advanced accounting view</mat-button-toggle>
+                <mat-button-toggle [value]="false">Debit / credit</mat-button-toggle>
               </mat-button-toggle-group>
             }
           </div>
 
           <div
             #grid
-            class="table-wrap"
+            class="table-wrap entry-wrap"
             tabindex="0"
             role="region"
             [attr.aria-label]="config.label + ' lines'"
           >
-            <table class="data-table entry-grid">
+            <table class="data-table entry-grid" [class.simplified]="simplified()">
               <thead>
                 <tr>
                   <th scope="col" class="account-col">Account head</th>
@@ -241,6 +260,7 @@ const STARTING_LINES = 3;
                 @for (line of lines(); track $index; let i = $index) {
                   <tr>
                     <td class="account-col">
+                      <span class="mobile-line-label">Line {{ i + 1 }}</span>
                       <app-account-picker
                         label="Account"
                         subscriptSizing="dynamic"
@@ -252,7 +272,7 @@ const STARTING_LINES = 3;
                         [disabled]="saving()"
                       />
                     </td>
-                    <td>
+                    <td class="description-col">
                       <mat-form-field subscriptSizing="dynamic">
                         <mat-label>Description</mat-label>
                         <input
@@ -334,46 +354,54 @@ const STARTING_LINES = 3;
             </table>
           </div>
 
-          <div class="totals" role="status">
-            @if (simplified()) {
-              <span class="total-main"
-                >{{ config.totalLabel }}
-                <strong>{{ totals().total / 100 | number: '1.2-2' }}</strong></span
-              >
-            } @else {
-              <span
-                >Debit <strong>{{ totals().debit / 100 | number: '1.2-2' }}</strong></span
-              >
-              <span
-                >Credit <strong>{{ totals().credit / 100 | number: '1.2-2' }}</strong></span
-              >
-              <span [class.danger]="totals().difference !== 0"
-                >Difference <strong>{{ totals().difference / 100 | number: '1.2-2' }}</strong></span
-              >
-            }
+          <div class="lines-footer">
+            <button mat-button type="button" (click)="addLine()" [disabled]="saving()">
+              <mat-icon>add</mat-icon> Add row
+            </button>
+            <div class="totals" role="status">
+              @if (simplified()) {
+                <span class="total-main"
+                  >{{ config.totalLabel }}
+                  <strong>{{ totals().total / 100 | number: '1.2-2' }}</strong></span
+                >
+              } @else {
+                <span
+                  >Debit <strong>{{ totals().debit / 100 | number: '1.2-2' }}</strong></span
+                >
+                <span
+                  >Credit <strong>{{ totals().credit / 100 | number: '1.2-2' }}</strong></span
+                >
+                <span [class.danger]="totals().difference !== 0"
+                  >Difference
+                  <strong>{{ totals().difference / 100 | number: '1.2-2' }}</strong></span
+                >
+              }
+            </div>
           </div>
 
           @if (simplified() && preview().length > 1) {
             <details class="posting-preview">
               <summary>Accounting entry this will post</summary>
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Account</th>
-                    <th scope="col" class="num">Debit</th>
-                    <th scope="col" class="num">Credit</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of preview(); track $index) {
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
                     <tr>
-                      <td>{{ accountName(row.account) }}</td>
-                      <td class="num">{{ row.debit ? (row.debit | number: '1.2-2') : '' }}</td>
-                      <td class="num">{{ row.credit ? (row.credit | number: '1.2-2') : '' }}</td>
+                      <th scope="col">Account</th>
+                      <th scope="col" class="num">Debit</th>
+                      <th scope="col" class="num">Credit</th>
                     </tr>
-                  }
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    @for (row of preview(); track $index) {
+                      <tr>
+                        <td>{{ accountName(row.account) }}</td>
+                        <td class="num">{{ row.debit ? (row.debit | number: '1.2-2') : '' }}</td>
+                        <td class="num">{{ row.credit ? (row.credit | number: '1.2-2') : '' }}</td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
             </details>
           }
 
@@ -381,7 +409,7 @@ const STARTING_LINES = 3;
             <p class="hint problem" role="status"><mat-icon>info</mat-icon> {{ message }}</p>
           }
 
-          <div class="form-actions">
+          <div class="form-actions voucher-actions">
             <button mat-flat-button type="submit" [disabled]="!canSave()">
               <mat-icon>check</mat-icon> {{ saving() ? 'Saving…' : 'Save' }}
             </button>
@@ -396,16 +424,21 @@ const STARTING_LINES = 3;
             >
               <mat-icon>print</mat-icon> Save &amp; print
             </button>
-            <button mat-button type="button" (click)="addLine()" [disabled]="saving()">
-              <mat-icon>add</mat-icon> Add row
+            <button
+              class="clear-action"
+              mat-button
+              type="button"
+              (click)="clear()"
+              [disabled]="saving()"
+            >
+              Clear
             </button>
-            <button mat-button type="button" (click)="clear()" [disabled]="saving()">Clear</button>
-            @if (!auth.canEdit()) {
-              <span class="hint">Your role can view vouchers but not enter them.</span>
-            } @else {
-              <span class="hint shortcut-hint">Ctrl + S saves and starts the next voucher</span>
-            }
           </div>
+          @if (!auth.canEdit()) {
+            <p class="hint">Your role can view vouchers but not enter them.</p>
+          } @else {
+            <p class="hint shortcut-hint">Ctrl + S saves and starts the next voucher</p>
+          }
         </div>
       </form>
 
@@ -496,7 +529,7 @@ const STARTING_LINES = 3;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin: 0 0 16px;
+      margin: 0 0 24px;
     }
     .type-link {
       display: inline-flex;
@@ -529,7 +562,39 @@ const STARTING_LINES = 3;
       font-variant-numeric: tabular-nums;
     }
     .header-grid {
-      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 880px;
+    }
+    .section-heading {
+      margin-bottom: 20px;
+    }
+    .section-heading h2 {
+      margin: 0;
+      font-size: 16px;
+    }
+    .section-heading .hint {
+      margin: 6px 0 0;
+    }
+    .voucher-details {
+      margin: 0 0 28px;
+      border-bottom: 1px solid var(--app-border);
+    }
+    .voucher-details summary {
+      padding: 8px 0 18px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .voucher-details summary > span + span {
+      margin-left: 8px;
+    }
+    .details-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      max-width: 880px;
+      padding-top: 6px;
+    }
+    .voucher-details:not([open]) .details-grid {
+      display: none;
     }
     .span-all {
       grid-column: 1 / -1;
@@ -540,23 +605,24 @@ const STARTING_LINES = 3;
       justify-content: space-between;
       gap: 16px;
       flex-wrap: wrap;
-      margin: 4px 0 12px;
+      margin: 0 0 20px;
     }
     .lines-header h2 {
       margin: 0;
-      font-size: 15px;
+      font-size: 16px;
     }
     .lines-header .hint {
       margin: 4px 0 0;
     }
     .entry-grid {
-      min-width: 720px;
+      min-width: 740px;
     }
     .entry-grid td {
       vertical-align: top;
     }
     .entry-grid .account-col {
-      min-width: 220px;
+      min-width: 240px;
+      width: 35%;
     }
     .entry-grid td.num mat-form-field {
       width: 130px;
@@ -564,13 +630,24 @@ const STARTING_LINES = 3;
     .entry-grid mat-form-field {
       width: 100%;
     }
+    .mobile-line-label {
+      display: none;
+    }
+    .lines-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin-top: 16px;
+    }
     .totals {
       display: flex;
       flex-wrap: wrap;
       gap: 24px;
       justify-content: flex-end;
-      margin: 14px 0 0;
-      padding: 12px 14px;
+      margin-left: auto;
+      padding: 16px 20px;
       border-radius: 8px;
       background: var(--app-surface-muted);
       font-variant-numeric: tabular-nums;
@@ -583,14 +660,14 @@ const STARTING_LINES = 3;
       font-size: 19px;
     }
     .posting-preview {
-      margin-top: 14px;
+      margin-top: 20px;
     }
     .posting-preview summary {
       cursor: pointer;
       min-height: 32px;
       font-weight: 600;
     }
-    .posting-preview .data-table {
+    .posting-preview .table-wrap {
       margin-top: 10px;
     }
     .problem {
@@ -600,12 +677,22 @@ const STARTING_LINES = 3;
       margin: 12px 0 0;
     }
     .problem mat-icon {
+      flex-shrink: 0;
       font-size: 18px;
       width: 18px;
       height: 18px;
     }
-    .shortcut-hint {
+    .voucher-actions {
+      gap: 12px;
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--app-border);
+    }
+    .clear-action {
       margin-left: auto;
+    }
+    .shortcut-hint {
+      margin: 12px 0 0;
     }
     .saved-banner {
       margin-top: 20px;
@@ -669,9 +756,129 @@ const STARTING_LINES = 3;
         font-size: 12px;
       }
     }
-    @media (max-width: 700px) {
+    @media (max-width: 720px) {
       .voucher-number {
         align-items: flex-start;
+      }
+      .type-switch {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+      }
+      .type-link {
+        justify-content: center;
+        min-height: 44px;
+        padding: 8px;
+      }
+      .header-grid,
+      .details-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .lines-header mat-button-toggle-group {
+        width: 100%;
+      }
+      .lines-header mat-button-toggle {
+        flex: 1;
+      }
+      .entry-wrap {
+        border: 0;
+        overflow: visible;
+        background: transparent;
+      }
+      .entry-grid {
+        display: block;
+        min-width: 0;
+      }
+      .entry-grid thead {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .entry-grid tbody {
+        display: grid;
+        gap: 16px;
+      }
+      .entry-grid tbody tr {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        padding: 16px;
+        border: 1px solid var(--app-border);
+        border-radius: 10px;
+        background: var(--app-surface);
+      }
+      .entry-grid td {
+        display: block;
+        min-width: 0;
+        padding: 0;
+        border: 0;
+      }
+      .entry-grid .account-col {
+        grid-column: 1 / -1;
+        min-width: 0;
+        width: auto;
+      }
+      .mobile-line-label {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        margin-bottom: 8px;
+        color: var(--app-muted);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .entry-grid .description-col {
+        grid-column: 1 / -1;
+      }
+      .entry-grid td.num {
+        grid-column: span 1;
+        white-space: normal;
+      }
+      .entry-grid td.num:nth-last-child(2) {
+        grid-column: 2 / -1;
+      }
+      .entry-grid.simplified td.num {
+        grid-column: 1 / -1;
+      }
+      .entry-grid td.num mat-form-field {
+        width: 100%;
+      }
+      .entry-grid .row-actions {
+        grid-column: 2;
+        grid-row: 1;
+        justify-self: end;
+        width: auto;
+        height: 44px;
+      }
+      .entry-grid .account-col {
+        grid-row: 1;
+      }
+      .lines-footer {
+        align-items: stretch;
+      }
+      .totals {
+        flex: 1 1 100%;
+        justify-content: space-between;
+        gap: 12px;
+        margin-left: 0;
+      }
+      .totals > span {
+        display: flex;
+        justify-content: space-between;
+        flex: 1 1 100%;
+        gap: 12px;
+      }
+      .voucher-actions > button {
+        flex: 1 1 calc(50% - 12px);
+      }
+      .clear-action {
+        margin-left: 0;
+      }
+      .shortcut-hint {
+        display: none;
       }
     }
   `,
@@ -776,7 +983,7 @@ export class VoucherEntry {
   private async applyType(type: VoucherTypeConfig): Promise<void> {
     const previous = this.applied;
     if (previous === type.slug) return;
-    
+
     this.applied = type.slug;
     this.advanced.set(false);
     this.opening.set(false);
