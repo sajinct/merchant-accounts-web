@@ -63,8 +63,6 @@ export type Database = {
         Row: {
           gstin: string | null
           id: boolean
-          joining_fee: number
-          joining_fee_head_code: number | null
           journal_allows_cash: boolean
           name: string
           phone: string | null
@@ -75,8 +73,6 @@ export type Database = {
         Insert: {
           gstin?: string | null
           id?: boolean
-          joining_fee?: number
-          joining_fee_head_code?: number | null
           journal_allows_cash?: boolean
           name?: string
           phone?: string | null
@@ -87,8 +83,6 @@ export type Database = {
         Update: {
           gstin?: string | null
           id?: boolean
-          joining_fee?: number
-          joining_fee_head_code?: number | null
           journal_allows_cash?: boolean
           name?: string
           phone?: string | null
@@ -97,13 +91,6 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
-          {
-            foreignKeyName: "company_settings_joining_fee_head_code_fkey"
-            columns: ["joining_fee_head_code"]
-            isOneToOne: false
-            referencedRelation: "account_heads"
-            referencedColumns: ["code"]
-          },
           {
             foreignKeyName: "company_settings_subscription_head_code_fkey"
             columns: ["subscription_head_code"]
@@ -125,7 +112,7 @@ export type Database = {
           id_no: string | null
           id_type: string | null
           joined_on: string | null
-          joining_fee: number
+          joining_fee: number | null
           left_on: string | null
           name: string
           name_sort: string | null
@@ -146,7 +133,7 @@ export type Database = {
           id_no?: string | null
           id_type?: string | null
           joined_on?: string | null
-          joining_fee?: number
+          joining_fee?: number | null
           left_on?: string | null
           name: string
           name_sort?: string | null
@@ -167,7 +154,7 @@ export type Database = {
           id_no?: string | null
           id_type?: string | null
           joined_on?: string | null
-          joining_fee?: number
+          joining_fee?: number | null
           left_on?: string | null
           name?: string
           name_sort?: string | null
@@ -380,6 +367,44 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "vouchers"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      joining_fees: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          fee: number
+          head_code: number
+          note: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_from: string
+          fee: number
+          head_code: number
+          note?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          fee?: number
+          head_code?: number
+          note?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "joining_fees_head_code_fkey"
+            columns: ["head_code"]
+            isOneToOne: false
+            referencedRelation: "account_heads"
+            referencedColumns: ["code"]
           },
         ]
       }
@@ -833,6 +858,25 @@ export type Database = {
       }
       fy_label: { Args: { p_fy_start: number }; Returns: string }
       fy_start_of: { Args: { p_date: string }; Returns: number }
+      joining_fee_on: {
+        Args: { p_on: string }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          fee: number
+          head_code: number
+          note: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "joining_fees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      member_joining_fee: { Args: { p_member_code: number }; Returns: number }
       member_subscription_years: {
         Args: { p_member_code: number }
         Returns: {

@@ -19,8 +19,6 @@ export interface CompanySettings {
   /** Whether a journal voucher may post to cash and bank accounts. */
   journal_allows_cash: boolean;
   subscription_head_code?: number | null;
-  joining_fee?: number;
-  joining_fee_head_code?: number | null;
 }
 
 export interface AccountHead {
@@ -50,13 +48,25 @@ export interface Customer {
   photo_path: string | null;
   joined_on: string | null;
   left_on: string | null;
-  joining_fee: number;
+  /** Override for this member only; null means the scheduled rate for their joining date. */
+  joining_fee: number | null;
 }
 
 /** Fee for one financial year; fy_start 2026 means 2026-27. */
 export interface SubscriptionYear {
   fy_start: number;
   fee: number;
+}
+
+/**
+ * One decision in the joining fee schedule: the fee and the account head it posts to, in force
+ * from `effective_from` until the next row starts. A member owes the rate for the day they joined.
+ */
+export interface JoiningFee {
+  effective_from: string;
+  fee: number;
+  head_code: number;
+  note: string | null;
 }
 
 export interface SubscriptionPayment {
@@ -180,4 +190,3 @@ export interface JoiningFeePayment {
   cancelled_at: string | null;
   cancel_reason: string | null;
 }
-

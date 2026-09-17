@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { SubscriptionFees } from './subscription-fees';
 import { SupabaseService } from '../../core/supabase.service';
 import { NotifyService } from '../../core/notify.service';
+import { provideIsoDateAdapter } from '../../shared/iso-date-adapter';
 
 describe('Inline fee keyboard editing', () => {
   it('consumes Escape without forwarding it to the navigation handler', async () => {
@@ -10,6 +11,7 @@ describe('Inline fee keyboard editing', () => {
     await TestBed.configureTestingModule({
       imports: [SubscriptionFees],
       providers: [
+        provideIsoDateAdapter(),
         { provide: SupabaseService, useValue: { client: {} } },
         { provide: NotifyService, useValue: { error: vi.fn(), success: vi.fn() } },
       ],

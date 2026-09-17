@@ -19,7 +19,9 @@ describe('Member subscription payment disclosure', () => {
                 { fy_start: year - 1, fee: 500, paid: 100, balance: 400, last_paid_on: null },
                 { fy_start: year, fee: 600, paid: 0, balance: 600, last_paid_on: null },
               ]
-            : null,
+            : name === 'member_joining_fee'
+              ? 100
+              : null,
         error: null,
       }),
     );
@@ -34,7 +36,7 @@ describe('Member subscription payment disclosure', () => {
           select: () => query,
           eq: () => query,
           order: () => query,
-          maybeSingle: () => Promise.resolve({ data: table === 'customers' ? { joining_fee: 100 } : null, error: null }),
+          maybeSingle: () => Promise.resolve({ data: null, error: null }),
           then: result.then.bind(result),
         };
         return query;
@@ -84,7 +86,10 @@ describe('Member subscription payment disclosure', () => {
     await settle();
     expect(host.querySelector('form')).toBeNull();
     expect(document.activeElement?.id).toBe('subscription-heading');
-    expect(rpc).toHaveBeenCalledTimes(1);
+    // The joining fee lookup also goes through rpc, so count the overview call specifically.
+    expect(
+      rpc.mock.calls.filter((call) => call[0] === 'member_subscription_years'),
+    ).toHaveLength(1);
   });
 
   it('records the selected payment and returns to the overview after success', async () => {

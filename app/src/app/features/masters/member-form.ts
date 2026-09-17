@@ -123,6 +123,11 @@ const TEXT_FIELDS = [
                 />
                 <mat-hint>Leave empty while the member is active</mat-hint>
               </mat-form-field>
+              <mat-form-field>
+                <mat-label>Joining fee</mat-label>
+                <input matInput type="number" min="0" step="0.01" formControlName="joining_fee" />
+                <mat-hint>Leave empty to use the scheduled fee</mat-hint>
+              </mat-form-field>
             </div>
           </section>
 
@@ -338,6 +343,7 @@ export class MemberForm implements OnInit {
     id_no: [''],
     joined_on: [isoDate()],
     left_on: [''],
+    joining_fee: [''],
   });
 
   async ngOnInit(): Promise<void> {
@@ -377,6 +383,7 @@ export class MemberForm implements OnInit {
     }
     record['joined_on'] = value.joined_on || null;
     record['left_on'] = value.left_on || null;
+    record['joining_fee'] = value.joining_fee === '' ? null : Number(value.joining_fee);
     if (value.joined_on && value.left_on && value.left_on < value.joined_on) {
       this.notify.error(new Error('"Left on" cannot be before "Joined on".'));
       this.saving.set(false);
@@ -476,6 +483,7 @@ export class MemberForm implements OnInit {
       ...Object.fromEntries(TEXT_FIELDS.map((f) => [f, member[f] ?? ''])),
       joined_on: member.joined_on ?? '',
       left_on: member.left_on ?? '',
+      joining_fee: member.joining_fee === null ? '' : String(member.joining_fee),
     });
     this.photoPath = member.photo_path;
     this.photoChange = undefined;
