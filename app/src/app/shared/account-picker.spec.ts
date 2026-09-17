@@ -1,18 +1,22 @@
 import { Component, signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
 import { AccountHead } from '../core/models';
 import { AccountPicker } from './account-picker';
+import { EnterToNext } from './enter-to-next.directive';
 
 @Component({
-  imports: [AccountPicker, ReactiveFormsModule],
-  template: `<app-account-picker
-    [formControl]="control"
-    [accounts]="accounts()"
-    [allLabel]="allLabel()"
-    (accountSelected)="selected($event)"
-  />`,
+  imports: [AccountPicker, ReactiveFormsModule, EnterToNext],
+  template: `<form appEnterToNext>
+    <app-account-picker
+      [formControl]="control"
+      [accounts]="accounts()"
+      [allLabel]="allLabel()"
+      (accountSelected)="selected($event)"
+    /><input id="next-field" aria-label="Amount" />
+  </form>`,
 })
 class Host {
   readonly control = new FormControl<number | null>(null);
@@ -32,9 +36,20 @@ describe('AccountPicker', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     const host = fixture.componentInstance;
-    const picker = fixture.debugElement.children[0].componentInstance as any;
+    const picker = fixture.debugElement.query(By.directive(AccountPicker)).componentInstance as any;
     const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
     return { fixture, host, picker, input };
+  }
+
+  function key(target: HTMLElement, value: string, keyCode: number) {
+    target.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: value,
+        keyCode,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
   }
 
   it('shows a value written before the accounts load', async () => {
@@ -82,5 +97,58 @@ describe('AccountPicker', () => {
     await fixture.whenStable();
     expect(picker.matches()[0]).toEqual({ code: 0, name: 'All accounts' });
     expect(input.value).toBe('All accounts');
+  });
+
+  it('opens on the first arrow press and advances after Enter selects an account', async () => {
+    const { fixture, host, input } = await setup();
+    host.accounts.set(heads);
+    fixture.detectChanges();
+    input.focus();
+    expect(input.getAttribute('aria-expanded')).not.toBe('true');
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+    expect(document.activeElement).toBe(input);
+    key(input, 'ArrowDown', 40);
+    key(input, 'Enter', 13);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(host.control.value).toBe(205);
+    expect(host.selected).toHaveBeenCalledWith(heads[1]);
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#next-field'));
+  });
+
+  it('keeps focus on the picker after a mouse selection', async () => {
+    const { fixture, host, input } = await setup();
+    host.accounts.set(heads);
+    fixture.detectChanges();
+    input.focus();
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    (document.querySelector('mat-option') as HTMLElement).click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(host.control.value).toBe(101);
+    expect(document.activeElement).toBe(input);
+  });
+
+  it('closes on Escape without selecting or advancing', async () => {
+    const { fixture, host, input } = await setup();
+    host.accounts.set(heads);
+    fixture.detectChanges();
+    input.focus();
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    key(input, 'Escape', 27);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(host.control.value).toBeNull();
+    expect(host.selected).not.toHaveBeenCalled();
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(input);
   });
 });

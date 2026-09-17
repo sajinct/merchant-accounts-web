@@ -5,13 +5,14 @@ import { MatSelectModule } from '@angular/material/select';
 import { AccountHead } from '../core/models';
 import { must, SupabaseService } from '../core/supabase.service';
 import { NotifyService } from '../core/notify.service';
+import { EntrySelect } from './entry-select.directive';
 
 @Component({
   selector: 'app-cash-account-field',
-  imports: [ReactiveFormsModule, MatFormFieldModule, MatSelectModule],
+  imports: [ReactiveFormsModule, MatFormFieldModule, MatSelectModule, EntrySelect],
   template: `<mat-form-field subscriptSizing="dynamic">
     <mat-label>Cash / bank account</mat-label>
-    <mat-select [formControl]="control()">
+    <mat-select appEntrySelect [formControl]="control()">
       @for (account of accounts(); track account.code) {
         <mat-option [value]="account.code">{{ account.name }}</mat-option>
       }

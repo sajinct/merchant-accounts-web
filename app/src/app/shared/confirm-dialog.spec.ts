@@ -45,6 +45,30 @@ describe('confirmAction', () => {
     expect(await result).toEqual({ reason: 'Duplicate entry' });
   });
 
+  it('moves Enter from a reason field to the explicit confirmation without confirming', async () => {
+    const { result, pane, confirm } = open({
+      title: 'Cancel voucher?',
+      destructive: true,
+      fields: [{ key: 'reason', label: 'Reason', required: true }],
+    });
+    type(pane, 0, 'Duplicate entry');
+    const input = pane.querySelector('input')!;
+    input.focus();
+    const event = new KeyboardEvent('keydown', {
+      key: 'Enter',
+      bubbles: true,
+      cancelable: true,
+    });
+    input.dispatchEvent(event);
+    TestBed.tick();
+    expect(event.defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(confirm);
+    expect(TestBed.inject(MatDialog).openDialogs.length).toBe(1);
+
+    confirm.click();
+    expect(await result).toEqual({ reason: 'Duplicate entry' });
+  });
+
   it('rejects dates outside the allowed range', async () => {
     const { result, pane, confirm } = open({
       title: 'Reverse?',

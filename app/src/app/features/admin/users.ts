@@ -15,12 +15,16 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { PageHeader } from '../../shared/page-header';
 import { EmptyState } from '../../shared/empty-state';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 
 const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
 
 @Component({
   selector: 'app-users',
   imports: [
+    EnterToNext,
+    EntrySelect,
     EmptyState,
     PageHeader,
     ReactiveFormsModule,
@@ -47,6 +51,7 @@ const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
 
       @if (showForm()) {
         <form
+          appEnterToNext
           class="panel new-user-panel"
           [formGroup]="form"
           (ngSubmit)="create()"
@@ -83,7 +88,7 @@ const ROLES: Role[] = ['admin', 'accountant', 'viewer'];
               </mat-form-field>
               <mat-form-field>
                 <mat-label>Access role</mat-label>
-                <mat-select formControlName="role">
+                <mat-select appEntrySelect formControlName="role">
                   @for (role of roles; track role) {
                     <mat-option [value]="role">{{ roleLabels[role] }}</mat-option>
                   }

@@ -1,5 +1,6 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, LOCALE_ID, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -34,6 +35,7 @@ const ALL = 0;
 @Component({
   selector: 'app-ledger-report',
   imports: [
+    EnterToNext,
     EmptyState,
     PageHeader,
     FinancialYearScope,
@@ -67,6 +69,7 @@ const ALL = 0;
       >
         <app-financial-year-notice />
         <form
+          appEnterToNext
           [appFinancialYearScope]="'report'"
           (yearChanged)="invalidateReport()"
           filters

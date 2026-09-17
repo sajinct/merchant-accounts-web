@@ -17,6 +17,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { firstValueFrom } from 'rxjs';
+import { EnterToNext } from './enter-to-next.directive';
 
 export interface ConfirmField {
   key: string;
@@ -56,6 +57,7 @@ function withinDates(min?: string, max?: string): ValidatorFn {
 @Component({
   selector: 'app-confirm-dialog',
   imports: [
+    EnterToNext,
     ReactiveFormsModule,
     MatButtonModule,
     MatDialogModule,
@@ -64,7 +66,7 @@ function withinDates(min?: string, max?: string): ValidatorFn {
     MatInputModule,
   ],
   template: `
-    <form [formGroup]="form" (ngSubmit)="confirm()">
+    <form [formGroup]="form" (ngSubmit)="confirm()" appEnterToNext>
       <h2 mat-dialog-title>
         @if (data.destructive) {
           <mat-icon class="title-icon">warning_amber</mat-icon>

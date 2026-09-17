@@ -179,4 +179,131 @@ describe('Voucher entry', () => {
     );
     expect(page.hasPendingChanges()).toBe(false);
   });
+
+  it('moves through line fields with Enter and between amounts with arrows without posting', async () => {
+    const { fixture, page, vouchers } = await setup('receipt');
+    page.form.patchValue({ cashAccount: 1001, narration: 'Annual dues' });
+    page.patch(0, { account: 4001, amount: 1000, description: 'Membership' });
+    fixture.detectChanges();
+    const rows = fixture.nativeElement.querySelectorAll('[data-entry-row]');
+    const description = rows[0].querySelector('[data-entry-column="description"] input');
+    const firstAmount = rows[0].querySelector('[data-entry-column="amount"] input');
+    const secondAmount = rows[1].querySelector('[data-entry-column="amount"] input');
+
+    description.focus();
+    description.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+    expect(document.activeElement).toBe(firstAmount);
+    firstAmount.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+    );
+    expect(document.activeElement).toBe(secondAmount);
+    secondAmount.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }),
+    );
+    expect(document.activeElement).toBe(firstAmount);
+    firstAmount.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Enter',
+        shiftKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    expect(document.activeElement).toBe(description);
+    firstAmount.focus();
+    firstAmount.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+    expect(document.activeElement).toBe(
+      rows[1].querySelector('[data-entry-column="account"] input'),
+    );
+    expect(page.lines()[0]).toMatchObject({ amount: 1000, description: 'Membership' });
+    expect(page.hasPendingChanges()).toBe(true);
+    expect(vouchers.post).not.toHaveBeenCalled();
+  });
+
+  it('keeps debit and credit columns aligned when navigating journal rows', async () => {
+    const { fixture } = await setup('journal');
+    const rows = fixture.nativeElement.querySelectorAll('[data-entry-row]');
+    for (const column of ['debit', 'credit']) {
+      const first = rows[0].querySelector(`[data-entry-column="${column}"] input`);
+      const second = rows[1].querySelector(`[data-entry-column="${column}"] input`);
+      first.focus();
+      first.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+      );
+      expect(document.activeElement).toBe(second);
+    }
+  });
+
+  it('adds and focuses rows repeatedly with Alt+Insert without making a blank voucher dirty', async () => {
+    const { fixture, page, vouchers } = await setup('receipt');
+    const form = fixture.nativeElement.querySelector('form');
+    for (const count of [4, 5]) {
+      form.dispatchEvent(
+        new KeyboardEvent('keydown', {
+          key: 'Insert',
+          altKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const rows = fixture.nativeElement.querySelectorAll('[data-entry-row]');
+      expect(rows.length).toBe(count);
+      expect(document.activeElement).toBe(rows[count - 1].querySelector('input'));
+    }
+    expect(page.hasPendingChanges()).toBe(false);
+    expect(vouchers.post).not.toHaveBeenCalled();
+
+    page.saving.set(true);
+    fixture.detectChanges();
+    form.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'Insert',
+        altKey: true,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    fixture.detectChanges();
+    expect(page.lines()).toHaveLength(5);
+  });
+
+  it('focuses the adjacent row after removing a line so entry can continue', async () => {
+    const { fixture, page } = await setup('receipt');
+    page.patch(0, { account: 4001, amount: 1000 });
+    fixture.detectChanges();
+    const remove = fixture.nativeElement.querySelector('[aria-label="Remove line 3"]');
+    remove.focus();
+    remove.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const rows = fixture.nativeElement.querySelectorAll('[data-entry-row]');
+    expect(rows).toHaveLength(2);
+    expect(document.activeElement).toBe(rows[1].querySelector('input'));
+    expect(page.lines()[0]).toMatchObject({ account: 4001, amount: 1000 });
+    expect(page.hasPendingChanges()).toBe(true);
+  });
+
+  it('preserves an unfinished voucher when Escape or an invalid save shortcut is used', async () => {
+    const { fixture, page, vouchers } = await setup('receipt');
+    page.form.patchValue({ narration: 'Still entering' });
+    page.patch(0, { account: 4001 });
+    fixture.detectChanges();
+    const narration = fixture.nativeElement.querySelector('[formControlName="narration"]');
+    narration.focus();
+    narration.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    narration.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 's', ctrlKey: true, bubbles: true, cancelable: true }),
+    );
+    await fixture.whenStable();
+    expect(vouchers.post).not.toHaveBeenCalled();
+    expect(page.form.controls.narration.value).toBe('Still entering');
+    expect(page.lines()[0].account).toBe(4001);
+    expect(page.hasPendingChanges()).toBe(true);
+  });
 });

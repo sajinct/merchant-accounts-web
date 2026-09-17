@@ -20,7 +20,7 @@ app/
   src/app/core/          Supabase client, auth, guards, models
   src/app/layout/        side-nav shell
   src/app/features/      auth, masters, transactions, reports, admin
-  src/app/shared/        report shell, webcam capture, Enter-to-next directive
+  src/app/shared/        report shell, webcam capture, keyboard entry directives
 ```
 
 ## 1. Database (Supabase cloud)
@@ -92,6 +92,19 @@ Service workers are disabled during normal `npm start` development. To check the
 The app ships both a light and a dark palette and follows the operating system's setting. **Account menu → Appearance** overrides it with *Light*, *Dark* or *Match system*; the choice is stored per browser and applied before the first paint, so switching never flashes the other theme. Printing always uses the light palette, whatever is on screen.
 
 Colours live in one place: the `scheme-light` and `scheme-dark` mixins in `app/src/styles.scss`. Components only ever reference an `--app-*` token, so a colour is defined twice and used everywhere. `npm run check:contrast` reads both mixins and measures every text, icon, focus-ring and chart pairing against WCAG 2.2 (4.5:1 for text, 3:1 for graphics). It needs no build, and CI runs it before the tests.
+
+### Keyboard entry
+
+Voucher, member, account-head, subscription, administration and report forms support keyboard navigation. Open **Keyboard shortcuts** from the account menu for a reminder.
+
+- **Enter** moves to the next field; **Shift + Enter** moves back. From the last field, Enter focuses the Save or action button. Press Enter again on that button to execute it.
+- **Up / Down** moves between controls. In the voucher grid it moves to the same column of the previous or next row.
+- **Left / Right** moves between controls when the cursor reaches the start or end of a text field. Within text it continues to move the cursor normally.
+- **Dropdowns and account lookup:** arrows choose an option, Enter confirms it and moves on, and Escape closes the list. Confirming a dropdown's existing value also continues to the next field.
+- **Tab / Shift + Tab** retains standard navigation, including calendar buttons and extra actions. Enter opens or closes a focused optional section; Space changes a checkbox or switch. Text areas retain normal text editing and Enter for a new line.
+- **Ctrl + S** saves the current voucher. Disabled, read-only and collapsed fields are skipped, and moving between fields never submits a form by itself.
+
+Sign-in and password-change screens retain their usual Enter-to-submit behavior. When editing an existing subscription fee inline, Enter saves that fee and Escape cancels the edit.
 
 ## Roles
 

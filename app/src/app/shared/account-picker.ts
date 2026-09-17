@@ -1,11 +1,24 @@
-import { Component, computed, effect, forwardRef, input, output, signal } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  DestroyRef,
+  ElementRef,
+  computed,
+  effect,
+  forwardRef,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import {
   ControlValueAccessor,
   FormControl,
   NG_VALUE_ACCESSOR,
   ReactiveFormsModule,
 } from '@angular/forms';
-import { MatAutocompleteModule } from '@angular/material/autocomplete';
+import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { MatFormFieldModule, SubscriptSizing } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -38,13 +51,13 @@ function isHead(value: unknown): value is AccountHead {
       <mat-label>{{ label() }}</mat-label>
       <mat-icon matPrefix>search</mat-icon>
       <input
+        #searchInput
         matInput
         [formControl]="search"
         [matAutocomplete]="auto"
         [matAutocompleteDisabled]="!engaged()"
         [placeholder]="placeholder()"
         (pointerdown)="engaged.set(true)"
-        (keydown)="engaged.set(true)"
         (input)="onType($any($event.target).value)"
         (blur)="onTouched?.()"
       />
@@ -77,7 +90,7 @@ function isHead(value: unknown): value is AccountHead {
     }
   `,
 })
-export class AccountPicker implements ControlValueAccessor {
+export class AccountPicker implements ControlValueAccessor, AfterViewInit {
   readonly accounts = input<AccountHead[]>([]);
   readonly label = input('Account');
   readonly placeholder = input('Search by name or code');
@@ -88,6 +101,11 @@ export class AccountPicker implements ControlValueAccessor {
   readonly allValue = input(0);
   readonly subscriptSizing = input<SubscriptSizing>('fixed');
   readonly accountSelected = output<AccountHead>();
+
+  private readonly searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
+  private readonly autocompleteTrigger = viewChild.required(MatAutocompleteTrigger);
+  private readonly destroyRef = inject(DestroyRef);
+  private confirmingWithEnter = false;
 
   protected readonly search = new FormControl<AccountHead | string | null>(null);
   /**
@@ -142,6 +160,49 @@ export class AccountPicker implements ControlValueAccessor {
     });
   }
 
+  ngAfterViewInit(): void {
+    const input = this.searchInput().nativeElement;
+    // Capture runs before Material's key handler. Updating only the signal in a
+    // template listener leaves the trigger disabled for the first arrow press.
+    input.addEventListener('keydown', this.prepareKeyboard, true);
+    input.addEventListener('keydown', this.keepPanelKeys);
+    this.destroyRef.onDestroy(() => {
+      input.removeEventListener('keydown', this.prepareKeyboard, true);
+      input.removeEventListener('keydown', this.keepPanelKeys);
+    });
+  }
+
+  private readonly prepareKeyboard = (event: KeyboardEvent): void => {
+    const trigger = this.autocompleteTrigger();
+    this.engaged.set(true);
+    trigger.autocompleteDisabled = false;
+    this.confirmingWithEnter =
+      event.key === 'Enter' &&
+      trigger.panelOpen &&
+      !!trigger.activeOption &&
+      !trigger.activeOption.disabled &&
+      !event.defaultPrevented &&
+      !event.repeat &&
+      !event.isComposing &&
+      event.keyCode !== 229 &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.shiftKey;
+    queueMicrotask(() => (this.confirmingWithEnter = false));
+  };
+
+  private readonly keepPanelKeys = (event: KeyboardEvent): void => {
+    // aria-expanded is rendered after this event bubbles. Keep the opening arrow
+    // in the picker before the parent form can interpret it as field navigation.
+    if (
+      this.autocompleteTrigger().panelOpen &&
+      (event.key === 'ArrowDown' || event.key === 'ArrowUp')
+    ) {
+      event.stopPropagation();
+    }
+  };
+
   protected onType(text: string): void {
     this.query.set(text);
     if (this.code() !== null) this.update(null);
@@ -151,6 +212,16 @@ export class AccountPicker implements ControlValueAccessor {
     this.query.set('');
     if (this.code() !== head.code) this.update(head.code);
     this.accountSelected.emit(head);
+    if (this.confirmingWithEnter) {
+      const input = this.searchInput().nativeElement;
+      // Material restores input focus after optionSelected and then closes its
+      // panel. Advance afterwards so that restoration cannot steal focus back.
+      queueMicrotask(() => {
+        if (!this.destroyRef.destroyed && input.ownerDocument.activeElement === input) {
+          input.dispatchEvent(new CustomEvent('app-field-advance', { bubbles: true }));
+        }
+      });
+    }
   }
 
   private update(code: number | null): void {

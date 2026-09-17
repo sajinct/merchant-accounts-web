@@ -24,10 +24,14 @@ import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { PageHeader } from '../../shared/page-header';
 import { EmptyState } from '../../shared/empty-state';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 
 @Component({
   selector: 'app-subscription-fees',
   imports: [
+    EnterToNext,
+    EntrySelect,
     EmptyState,
     PageHeader,
     DecimalPipe,
@@ -149,6 +153,7 @@ import { EmptyState } from '../../shared/empty-state';
       </section>
 
       <form
+        appEnterToNext
         class="panel"
         [formGroup]="addForm"
         (ngSubmit)="addYear()"
@@ -159,7 +164,7 @@ import { EmptyState } from '../../shared/empty-state';
           <div class="form-grid">
             <mat-form-field>
               <mat-label>Financial year</mat-label>
-              <mat-select formControlName="fy_start">
+              <mat-select appEntrySelect formControlName="fy_start">
                 @for (fy of availableYears(); track fy) {
                   <mat-option [value]="fy">{{ label(fy) }}</mat-option>
                 }
@@ -179,7 +184,12 @@ import { EmptyState } from '../../shared/empty-state';
         </div>
       </form>
 
-      <section class="panel" aria-labelledby="sub-head-heading">
+      <form
+        class="panel"
+        aria-labelledby="sub-head-heading"
+        appEnterToNext
+        (submit)="$event.preventDefault(); saveHead()"
+      >
         <div class="panel-header">
           <h2 id="sub-head-heading">Receipt account</h2>
           <span class="hint">Where subscription receipts are posted</span>
@@ -188,7 +198,11 @@ import { EmptyState } from '../../shared/empty-state';
           <div class="form-grid">
             <mat-form-field class="wide">
               <mat-label>Account head</mat-label>
-              <mat-select [value]="headCode()" (selectionChange)="headCode.set($event.value)">
+              <mat-select
+                appEntrySelect
+                [value]="headCode()"
+                (selectionChange)="headCode.set($event.value)"
+              >
                 @for (head of heads(); track head.code) {
                   <mat-option [value]="head.code">{{ head.code }} – {{ head.name }}</mat-option>
                 }
@@ -198,15 +212,14 @@ import { EmptyState } from '../../shared/empty-state';
           <div class="form-actions">
             <button
               mat-stroked-button
-              type="button"
-              (click)="saveHead()"
+              type="submit"
               [disabled]="!headCode() || headCode() === savedHeadCode() || saving()"
             >
               Save account
             </button>
           </div>
         </div>
-      </section>
+      </form>
     </div>
   `,
   styles: `

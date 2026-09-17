@@ -12,10 +12,12 @@ import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { addDays, isoDate } from '../../shared/dates';
 import { PageHeader } from '../../shared/page-header';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
 
 @Component({
   selector: 'app-daybook-posting',
   imports: [
+    EnterToNext,
     PageHeader,
     FinancialYearScope,
     FinancialYearNotice,
@@ -55,7 +57,13 @@ import { PageHeader } from '../../shared/page-header';
       </div>
 
       <app-financial-year-notice />
-      <form [appFinancialYearScope]="'report'" class="panel" [formGroup]="form" (ngSubmit)="post()">
+      <form
+        appEnterToNext
+        [appFinancialYearScope]="'report'"
+        class="panel"
+        [formGroup]="form"
+        (ngSubmit)="post()"
+      >
         <div class="panel-header">
           <div>
             <h2>Select verification period</h2>

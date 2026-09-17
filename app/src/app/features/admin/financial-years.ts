@@ -13,10 +13,14 @@ import { NotifyService } from '../../core/notify.service';
 import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { PageHeader } from '../../shared/page-header';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 
 @Component({
   selector: 'app-financial-years',
   imports: [
+    EnterToNext,
+    EntrySelect,
     PageHeader,
     FormsModule,
     DatePipe,
@@ -32,21 +36,27 @@ import { PageHeader } from '../../shared/page-header';
       heading="Financial years"
       description="April 1 to March 31. Close a year to transfer its result to equity and lock its entries."
     />
-    <section class="panel">
+    <form class="panel" appEnterToNext (ngSubmit)="create()" aria-label="Create a financial year">
       <div class="panel-body">
         <div class="form-grid">
           <mat-form-field
             ><mat-label>Starting year</mat-label
-            ><input matInput type="number" min="1900" max="9998" [(ngModel)]="newYear"
+            ><input
+              matInput
+              type="number"
+              min="1900"
+              max="9998"
+              name="newYear"
+              [(ngModel)]="newYear"
           /></mat-form-field>
-          <button mat-flat-button (click)="create()" [disabled]="busy()">Create year</button>
+          <button mat-flat-button type="submit" [disabled]="busy()">Create year</button>
         </div>
         <p class="hint">
           Balances carry forward through the ledger automatically. Do not re-enter opening balances
           when moving to the next year.
         </p>
       </div>
-    </section>
+    </form>
     <section class="panel years">
       <div class="table-wrap">
         <table class="data-table">
@@ -84,7 +94,12 @@ import { PageHeader } from '../../shared/page-header';
       </div>
     </section>
     @if (reviewing(); as year) {
-      <section class="panel years">
+      <form
+        class="panel years"
+        appEnterToNext
+        (ngSubmit)="close()"
+        aria-label="Close a financial year"
+      >
         <div class="panel-header">
           <h2>Close {{ label(year.start_year) }}</h2>
         </div>
@@ -98,7 +113,7 @@ import { PageHeader } from '../../shared/page-header';
           </p>
           <mat-form-field
             ><mat-label>Retained earnings / equity account</mat-label
-            ><mat-select [(ngModel)]="equity">
+            ><mat-select appEntrySelect name="equity" [(ngModel)]="equity">
               @for (account of accounts(); track account.code) {
                 <mat-option [value]="account.code">{{ account.name }}</mat-option>
               }</mat-select
@@ -112,12 +127,14 @@ import { PageHeader } from '../../shared/page-header';
             can close only once the year has ended and earlier years are closed.
           </p>
           <div class="form-actions">
-            <button mat-flat-button (click)="close()" [disabled]="busy() || !equity">
+            <button mat-flat-button type="submit" [disabled]="busy() || !equity">
               Close and lock year</button
-            ><button mat-button (click)="reviewing.set(null)" [disabled]="busy()">Cancel</button>
+            ><button mat-button type="button" (click)="reviewing.set(null)" [disabled]="busy()">
+              Cancel
+            </button>
           </div>
         </div>
-      </section>
+      </form>
     }
   </div>`,
   styles: `

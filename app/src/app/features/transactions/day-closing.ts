@@ -1,5 +1,6 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -22,6 +23,7 @@ import { StatCard } from '../../shared/stat-card';
 @Component({
   selector: 'app-day-closing',
   imports: [
+    EnterToNext,
     StatCard,
     EmptyState,
     PageHeader,
@@ -55,6 +57,7 @@ import { StatCard } from '../../shared/stat-card';
       >
         <app-financial-year-notice />
         <form
+          appEnterToNext
           [appFinancialYearScope]="'report'"
           (yearChanged)="invalidateReport()"
           filters

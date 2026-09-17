@@ -50,6 +50,7 @@ import {
 import { AccountPicker } from '../../shared/account-picker';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { PageHeader } from '../../shared/page-header';
@@ -72,6 +73,7 @@ const STARTING_LINES = 3;
     DatePipe,
     DecimalPipe,
     EnterToNext,
+    EntrySelect,
     FinancialYearNotice,
     FinancialYearScope,
     FormsModule,
@@ -123,6 +125,7 @@ const STARTING_LINES = 3;
         class="panel"
         [formGroup]="form"
         (ngSubmit)="save('stay')"
+        (keydown)="onEntryShortcut($event)"
         appEnterToNext
       >
         <div class="panel-body">
@@ -146,7 +149,7 @@ const STARTING_LINES = 3;
             @if (config.primaryLabel && simplified()) {
               <mat-form-field>
                 <mat-label>{{ config.primaryLabel }}</mat-label>
-                <mat-select formControlName="cashAccount">
+                <mat-select appEntrySelect formControlName="cashAccount">
                   @for (account of cashAccounts(); track account.code) {
                     <mat-option [value]="account.code">{{ account.name }}</mat-option>
                   }
@@ -163,7 +166,11 @@ const STARTING_LINES = 3;
             @if (config.code === 4 && auth.isAdmin()) {
               <mat-form-field>
                 <mat-label>Entry type</mat-label>
-                <mat-select [value]="opening()" (selectionChange)="opening.set($event.value)">
+                <mat-select
+                  appEntrySelect
+                  [value]="opening()"
+                  (selectionChange)="opening.set($event.value)"
+                >
                   <mat-option [value]="false">Journal voucher</mat-option>
                   <mat-option [value]="true">Opening balances</mat-option>
                 </mat-select>
@@ -258,8 +265,8 @@ const STARTING_LINES = 3;
               </thead>
               <tbody>
                 @for (line of lines(); track $index; let i = $index) {
-                  <tr>
-                    <td class="account-col">
+                  <tr data-entry-row>
+                    <td class="account-col" data-entry-column="account">
                       <span class="mobile-line-label">Line {{ i + 1 }}</span>
                       <app-account-picker
                         label="Account"
@@ -272,7 +279,7 @@ const STARTING_LINES = 3;
                         [disabled]="saving()"
                       />
                     </td>
-                    <td class="description-col">
+                    <td class="description-col" data-entry-column="description">
                       <mat-form-field subscriptSizing="dynamic">
                         <mat-label>Description</mat-label>
                         <input
@@ -286,7 +293,7 @@ const STARTING_LINES = 3;
                       </mat-form-field>
                     </td>
                     @if (simplified()) {
-                      <td class="num">
+                      <td class="num" data-entry-column="amount">
                         <mat-form-field subscriptSizing="dynamic">
                           <mat-label>{{ config.amountLabel }}</mat-label>
                           <input
@@ -303,7 +310,7 @@ const STARTING_LINES = 3;
                         </mat-form-field>
                       </td>
                     } @else {
-                      <td class="num">
+                      <td class="num" data-entry-column="debit">
                         <mat-form-field subscriptSizing="dynamic">
                           <mat-label>Debit</mat-label>
                           <input
@@ -319,7 +326,7 @@ const STARTING_LINES = 3;
                           />
                         </mat-form-field>
                       </td>
-                      <td class="num">
+                      <td class="num" data-entry-column="credit">
                         <mat-form-field subscriptSizing="dynamic">
                           <mat-label>Credit</mat-label>
                           <input
@@ -355,7 +362,13 @@ const STARTING_LINES = 3;
           </div>
 
           <div class="lines-footer">
-            <button mat-button type="button" (click)="addLine()" [disabled]="saving()">
+            <button
+              mat-button
+              type="button"
+              (click)="addLine(true)"
+              [disabled]="saving() || lines().length >= 200"
+              aria-keyshortcuts="Alt+Insert"
+            >
               <mat-icon>add</mat-icon> Add row
             </button>
             <div class="totals" role="status">
@@ -437,7 +450,10 @@ const STARTING_LINES = 3;
           @if (!auth.canEdit()) {
             <p class="hint">Your role can view vouchers but not enter them.</p>
           } @else {
-            <p class="hint shortcut-hint">Ctrl + S saves and starts the next voucher</p>
+            <p class="hint shortcut-hint">
+              Enter: next control · Shift + Enter: previous · ↑ / ↓: same field in another row · Alt
+              + Insert: add row · Ctrl + S: save and start the next voucher
+            </p>
           }
         </div>
       </form>
@@ -1035,13 +1051,34 @@ export class VoucherEntry {
     if (last && !isBlank(last, this.simplified()) && this.lines().length < 200) this.addLine();
   }
 
-  protected addLine(): void {
+  protected addLine(focus = false): void {
+    if (this.lines().length >= 200) return;
     this.lines.update((lines) => [...lines, emptyLine()]);
+    if (focus) this.focusRow(this.lines().length - 1);
   }
 
   protected removeLine(index: number): void {
     this.lines.update((lines) => lines.filter((_, i) => i !== index));
     if (!this.lines().length) this.addLine();
+    this.focusRow(Math.min(index, this.lines().length - 1));
+  }
+
+  /** Add a row from any voucher field without moving through the entire grid. */
+  protected onEntryShortcut(event: KeyboardEvent): void {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      event.isComposing ||
+      !event.altKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.key !== 'Insert'
+    ) {
+      return;
+    }
+    event.preventDefault();
+    if (!this.saving() && this.auth.canEdit() && !this.fy.closed()) this.addLine(true);
   }
 
   protected canSave(): boolean {
@@ -1162,6 +1199,16 @@ export class VoucherEntry {
   private focusGrid(): void {
     afterNextRender(
       () => this.grid()?.nativeElement.querySelector('input')?.focus({ preventScroll: true }),
+      { injector: this.injector },
+    );
+  }
+
+  private focusRow(index: number): void {
+    afterNextRender(
+      () => {
+        const rows = this.grid()?.nativeElement.querySelectorAll<HTMLElement>('[data-entry-row]');
+        rows?.[index]?.querySelector<HTMLInputElement>('input:not([disabled])')?.focus();
+      },
       { injector: this.injector },
     );
   }

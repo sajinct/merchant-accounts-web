@@ -20,6 +20,7 @@ import { AccountHead } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 import { PageHeader } from '../../shared/page-header';
 import { EmptyState } from '../../shared/empty-state';
 
@@ -38,6 +39,7 @@ const SYSTEM_CODE_START = 9000;
     MatIconModule,
     MatInputModule,
     EnterToNext,
+    EntrySelect,
   ],
   template: `
     <div class="page">
@@ -179,7 +181,7 @@ const SYSTEM_CODE_START = 9000;
               </mat-form-field>
               <mat-form-field
                 ><mat-label>Classification</mat-label>
-                <mat-select formControlName="account_type">
+                <mat-select appEntrySelect formControlName="account_type">
                   @for (type of ['asset', 'liability', 'equity', 'income', 'expense']; track type) {
                     <mat-option [value]="type">{{ type }}</mat-option>
                   }</mat-select
@@ -187,14 +189,14 @@ const SYSTEM_CODE_START = 9000;
               </mat-form-field>
               <mat-form-field
                 ><mat-label>Cash / bank account</mat-label>
-                <mat-select formControlName="is_cash_bank"
+                <mat-select appEntrySelect formControlName="is_cash_bank"
                   ><mat-option [value]="false">No</mat-option
                   ><mat-option [value]="true">Yes (asset only)</mat-option></mat-select
                 >
               </mat-form-field>
               <mat-form-field subscriptSizing="dynamic"
                 ><mat-label>Posting</mat-label>
-                <mat-select formControlName="posting">
+                <mat-select appEntrySelect formControlName="posting">
                   <mat-option value="ledger">Ledger</mat-option>
                   <mat-option value="group">Group</mat-option>
                   <mat-option value="retired">Retired</mat-option>

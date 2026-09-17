@@ -1,5 +1,6 @@
 import { FinancialYearScope } from '../../shared/financial-year-scope';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, LOCALE_ID, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -20,6 +21,7 @@ import { EmptyState } from '../../shared/empty-state';
 @Component({
   selector: 'app-daybook-report',
   imports: [
+    EnterToNext,
     EmptyState,
     PageHeader,
     FinancialYearScope,
@@ -51,6 +53,7 @@ import { EmptyState } from '../../shared/empty-state';
       >
         <app-financial-year-notice />
         <form
+          appEnterToNext
           [appFinancialYearScope]="'report'"
           (yearChanged)="invalidateReport()"
           filters

@@ -33,6 +33,8 @@ import { must, SupabaseService } from '../../core/supabase.service';
 import { isoDate } from '../../shared/dates';
 import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 
 interface PaymentRow extends SubscriptionPayment {
   voucher: { voucher_no: number } | null;
@@ -42,6 +44,8 @@ interface PaymentRow extends SubscriptionPayment {
 @Component({
   selector: 'app-member-subscription',
   imports: [
+    EnterToNext,
+    EntrySelect,
     FinancialYearScope,
     FinancialYearNotice,
     CashAccountField,
@@ -139,6 +143,7 @@ interface PaymentRow extends SubscriptionPayment {
       @if (auth.canEdit() && payableYears().length && paymentOpen()) {
         <form
           #paymentForm
+          appEnterToNext
           appFinancialYearScope="entry"
           class="panel-body payment-form"
           [formGroup]="form"
@@ -150,7 +155,11 @@ interface PaymentRow extends SubscriptionPayment {
             <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
               <mat-label>For year</mat-label>
-              <mat-select formControlName="fy_start" (selectionChange)="fillBalance()">
+              <mat-select
+                appEntrySelect
+                formControlName="fy_start"
+                (selectionChange)="fillBalance()"
+              >
                 @for (year of payableYears(); track year.fy_start) {
                   <mat-option [value]="year.fy_start">
                     {{ label(year.fy_start) }} · balance {{ year.balance | number: '1.2-2' }}

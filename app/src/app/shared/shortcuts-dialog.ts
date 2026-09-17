@@ -24,13 +24,43 @@ import { NAV, NavItem } from '../layout/navigation';
         </div>
         <div>
           <dt><kbd>Enter</kbd></dt>
-          <dd>Moves to the next field while entering a voucher, and saves from the last one.</dd>
+          <dd>
+            Moves to the next entry field, then to Save. Press Enter on a button to activate it.
+          </dd>
+        </div>
+        <div>
+          <dt><kbd>Shift</kbd> + <kbd>Enter</kbd></dt>
+          <dd>Returns to the previous entry field.</dd>
+        </div>
+        <div>
+          <dt><kbd>↑</kbd> / <kbd>↓</kbd></dt>
+          <dd>
+            Moves between controls. In voucher lines, moves to the same column in the previous or
+            next row.
+          </dd>
+        </div>
+        <div>
+          <dt><kbd>←</kbd> / <kbd>→</kbd></dt>
+          <dd>
+            Moves between controls at the start or end of text. Within text, moves the cursor.
+          </dd>
+        </div>
+        <div>
+          <dt><kbd>Tab</kbd></dt>
+          <dd>
+            Moves through all controls; Shift + Tab goes back. Use this for calendar buttons and
+            other extra actions.
+          </dd>
         </div>
         <div>
           <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt>
           <dd>Saves the voucher you are entering.</dd>
         </div>
       </dl>
+      <p class="hint">
+        In a dropdown, use the arrows to choose and Enter to confirm and continue. Escape closes it.
+        Text areas keep normal text editing and newlines.
+      </p>
 
       <h3>Menu letters</h3>
       <p class="hint">
@@ -75,7 +105,7 @@ import { NAV, NavItem } from '../layout/navigation';
       padding: 5px 0;
     }
     .rules dt {
-      flex: 0 0 96px;
+      flex: 0 0 112px;
       white-space: nowrap;
     }
     .rules dd {
@@ -83,6 +113,16 @@ import { NAV, NavItem } from '../layout/navigation';
       color: var(--app-muted);
       font-size: 12px;
       line-height: 1.6;
+    }
+    @media (max-width: 420px) {
+      .rules div {
+        flex-direction: column;
+        gap: 4px;
+        padding: 7px 0;
+      }
+      .rules dt {
+        flex-basis: auto;
+      }
     }
     h3 {
       margin: 0 0 4px;
