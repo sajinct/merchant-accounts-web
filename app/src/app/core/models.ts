@@ -59,13 +59,13 @@ export interface SubscriptionYear {
 }
 
 /**
- * One decision in the joining fee schedule: the fee and the account head it posts to, in force
+ * One decision in the joining fee schedule: the fee in force
  * from `effective_from` until the next row starts. A member owes the rate for the day they joined.
  */
 export interface JoiningFee {
   effective_from: string;
   fee: number;
-  head_code: number;
+  head_code: number | null;
   note: string | null;
 }
 
@@ -75,7 +75,8 @@ export interface SubscriptionPayment {
   fy_start: number;
   paid_on: string;
   amount: number;
-  voucher_id: number;
+  /** Null for historical membership records which do not post to accounts. */
+  voucher_id: number | null;
   notes: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
@@ -185,7 +186,8 @@ export interface JoiningFeePayment {
   member_code: number;
   paid_on: string;
   amount: number;
-  voucher_id: number;
+  /** Null for historical membership records which do not post to accounts. */
+  voucher_id: number | null;
   notes: string | null;
   cancelled_at: string | null;
   cancel_reason: string | null;

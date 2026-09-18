@@ -1,6 +1,3 @@
-import { FinancialYearScope } from '../../shared/financial-year-scope';
-import { FinancialYearNotice } from '../../shared/financial-year-notice';
-import { CashAccountField } from '../../shared/cash-account-field';
 import { DatePipe, DecimalPipe, formatDate, formatNumber } from '@angular/common';
 import {
   afterNextRender,
@@ -27,7 +24,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth.service';
-import { MemberSubscriptionYear, SubscriptionPayment, JoiningFeePayment } from '../../core/models';
+import { MemberSubscriptionYear, SubscriptionPayment } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { isoDate } from '../../shared/dates';
@@ -35,10 +32,6 @@ import { fyLabel, fyStart } from '../../shared/fy';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { EntrySelect } from '../../shared/entry-select.directive';
-
-interface JoiningFeePaymentRow extends JoiningFeePayment {
-  voucher: { voucher_no: number } | null;
-}
 
 interface PaymentRow extends SubscriptionPayment {
   voucher: { voucher_no: number } | null;
@@ -50,9 +43,6 @@ interface PaymentRow extends SubscriptionPayment {
   imports: [
     EnterToNext,
     EntrySelect,
-    FinancialYearScope,
-    FinancialYearNotice,
-    CashAccountField,
     DatePipe,
     DecimalPipe,
     ReactiveFormsModule,
@@ -82,7 +72,7 @@ interface PaymentRow extends SubscriptionPayment {
           }
           @if (auth.canEdit() && payableYears().length && !paymentOpen()) {
             <button mat-stroked-button type="button" (click)="startPayment()">
-              <mat-icon>payments</mat-icon> Record payment
+              <mat-icon>history</mat-icon> Record past payment
             </button>
           }
         </div>
@@ -133,7 +123,7 @@ interface PaymentRow extends SubscriptionPayment {
                   <td class="row-actions">
                     @if (auth.canEdit() && year.balance > 0) {
                       <button mat-stroked-button type="button" (click)="startPayment(year)">
-                        Pay
+                        Record past payment
                       </button>
                     }
                   </td>
@@ -148,15 +138,15 @@ interface PaymentRow extends SubscriptionPayment {
         <form
           #paymentForm
           appEnterToNext
-          appFinancialYearScope="entry"
           class="panel-body payment-form"
           [formGroup]="form"
           (ngSubmit)="record()"
         >
-          <h3>Record a payment</h3>
-          <app-financial-year-notice />
+          <h3>Record a past subscription payment</h3>
+          <p class="hint">
+            Updates membership records only. No receipt voucher or daybook entry is created.
+          </p>
           <div class="form-grid">
-            <app-cash-account-field [control]="form.controls.cash" />
             <mat-form-field>
               <mat-label>For year</mat-label>
               <mat-select
@@ -195,7 +185,7 @@ interface PaymentRow extends SubscriptionPayment {
                 matInput
                 formControlName="notes"
                 maxlength="200"
-                placeholder="Cash, UPI ref…"
+                placeholder="Original receipt or payment reference"
               />
             </mat-form-field>
           </div>
@@ -210,13 +200,12 @@ interface PaymentRow extends SubscriptionPayment {
               type="submit"
               [disabled]="form.invalid || amountTooHigh() || saving()"
             >
-              <mat-icon>payments</mat-icon> {{ saving() ? 'Saving…' : 'Record payment' }}
+              <mat-icon>history</mat-icon> {{ saving() ? 'Saving…' : 'Record past payment' }}
             </button>
             <button mat-button type="button" [disabled]="saving()" (click)="closePayment()">
               Cancel
             </button>
           </div>
-          <p class="hint payment-hint">A receipt voucher is created automatically.</p>
         </form>
       }
 
@@ -229,7 +218,7 @@ interface PaymentRow extends SubscriptionPayment {
                 <tr>
                   <th scope="col">Paid on</th>
                   <th scope="col">Year</th>
-                  <th scope="col">Receipt</th>
+                  <th scope="col">Record</th>
                   <th scope="col" class="num">Amount</th>
                   <th scope="col">Notes</th>
                   <th scope="col"><span class="sr-only">Actions</span></th>
@@ -240,7 +229,15 @@ interface PaymentRow extends SubscriptionPayment {
                   <tr [class.cancelled]="p.cancelled_at">
                     <td>{{ p.paid_on | date: 'dd MMM yyyy' }}</td>
                     <td>{{ label(p.fy_start) }}</td>
-                    <td>{{ p.voucher ? 'R-' + p.voucher.voucher_no : '—' }}</td>
+                    <td>
+                      {{
+                        p.voucher_id === null
+                          ? 'Historical record'
+                          : p.voucher
+                            ? 'R-' + p.voucher.voucher_no
+                            : 'Linked receipt'
+                      }}
+                    </td>
                     <td class="num">{{ p.amount | number: '1.2-2' }}</td>
                     <td class="table-secondary">
                       @if (p.cancelled_at) {
@@ -255,6 +252,7 @@ interface PaymentRow extends SubscriptionPayment {
                           mat-icon-button
                           type="button"
                           class="danger"
+                          [disabled]="saving()"
                           (click)="cancel(p)"
                           matTooltip="Cancel payment"
                           aria-label="Cancel payment"
@@ -299,9 +297,6 @@ interface PaymentRow extends SubscriptionPayment {
     .payment-notes {
       grid-column: 1 / -1;
     }
-    .payment-hint {
-      margin: 12px 0 0;
-    }
     @media (max-width: 600px) {
       .payment-form .form-grid {
         grid-template-columns: minmax(0, 1fr);
@@ -322,6 +317,7 @@ interface PaymentRow extends SubscriptionPayment {
 })
 export class MemberSubscription {
   readonly memberCode = input.required<number>();
+  readonly refreshKey = input(0);
 
   protected readonly auth = inject(AuthService);
   private readonly sb = inject(SupabaseService).client;
@@ -340,23 +336,6 @@ export class MemberSubscription {
   protected readonly saving = signal(false);
   protected readonly paymentOpen = signal(false);
 
-  protected readonly joiningFee = signal<number>(0);
-  protected readonly joiningPayments = signal<JoiningFeePaymentRow[]>([]);
-  protected readonly joiningPaid = computed(() =>
-    this.joiningPayments()
-      .filter((p) => !p.cancelled_at)
-      .reduce((sum, p) => sum + Number(p.amount), 0),
-  );
-  protected readonly joiningBalance = computed(() => this.joiningFee() - this.joiningPaid());
-
-  protected readonly joiningForm = inject(FormBuilder).group({
-    cash: [null as number | null, Validators.required],
-    amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
-    paid_on: [isoDate(), Validators.required],
-    notes: [''],
-  });
-  protected readonly joiningPaymentOpen = signal(false);
-
   protected readonly totalDue = computed(() =>
     this.years()
       .filter((y) => y.fy_start <= this.currentFy)
@@ -369,7 +348,6 @@ export class MemberSubscription {
   private requestId = crypto.randomUUID();
   protected readonly form = inject(FormBuilder).group({
     fy_start: [null as number | null, Validators.required],
-    cash: [null as number | null, Validators.required],
     amount: [null as number | null, [Validators.required, Validators.min(0.01)]],
     paid_on: [isoDate(), Validators.required],
     notes: [''],
@@ -391,6 +369,7 @@ export class MemberSubscription {
     this.form.valueChanges.subscribe(() => this.formValue.set(this.form.getRawValue()));
     effect(() => {
       const code = this.memberCode();
+      this.refreshKey();
       untracked(() => this.load(code));
     });
   }
@@ -421,10 +400,11 @@ export class MemberSubscription {
   }
 
   protected async record(): Promise<void> {
-    const { fy_start, amount, paid_on, notes, cash } = this.form.getRawValue();
+    const { fy_start, amount, paid_on, notes } = this.form.getRawValue();
     if (
       this.saving() ||
-      !cash ||
+      !this.auth.canEdit() ||
+      this.loading() ||
       this.form.invalid ||
       this.amountTooHigh() ||
       fy_start === null ||
@@ -441,13 +421,12 @@ export class MemberSubscription {
           p_amount: amount,
           p_paid_on: paid_on,
           p_notes: notes ?? '',
-          p_cash_account_code: cash,
           p_request_id: this.requestId,
         }),
       );
-      this.notify.success(`Payment of ${amount.toFixed(2)} for ${fyLabel(fy_start)} recorded`);
+      this.notify.success(`Past payment of ${amount.toFixed(2)} for ${fyLabel(fy_start)} recorded`);
       this.requestId = crypto.randomUUID();
-      this.form.reset({ cash, fy_start: null, amount: null, paid_on: isoDate(), notes: '' });
+      this.form.reset({ fy_start: null, amount: null, paid_on: isoDate(), notes: '' });
       await this.load(this.memberCode());
       this.closePayment();
     } catch (err) {
@@ -458,9 +437,13 @@ export class MemberSubscription {
   }
 
   protected async cancel(payment: PaymentRow): Promise<void> {
+    if (!this.auth.isAdmin() || this.saving() || payment.cancelled_at) return;
     const result = await confirmAction(this.dialog, {
       title: 'Cancel this payment?',
-      message: 'Its receipt voucher is cancelled too, with a balancing reversal.',
+      message:
+        payment.voucher_id !== null
+          ? 'This payment has a linked receipt voucher. Cancelling also reverses that accounting entry.'
+          : 'Removes this past payment from the membership balance. Accounts and the daybook are unchanged.',
       details: [
         { label: 'Year', value: fyLabel(payment.fy_start) },
         { label: 'Paid on', value: formatDate(payment.paid_on, 'dd-MMM-yyyy', this.locale) },
@@ -471,7 +454,8 @@ export class MemberSubscription {
       cancelLabel: 'Keep payment',
       destructive: true,
     });
-    if (!result) return;
+    if (!result || this.saving()) return;
+    this.saving.set(true);
     try {
       await must(
         this.sb.rpc('cancel_subscription_payment', {
@@ -479,17 +463,24 @@ export class MemberSubscription {
           p_reason: result['reason'],
         }),
       );
-      this.notify.success('Payment cancelled with a balancing reversal.');
+      this.notify.success(
+        payment.voucher_id !== null
+          ? 'Payment cancelled with a balancing reversal.'
+          : 'Past payment cancelled. Membership balance updated.',
+      );
       await this.load(this.memberCode());
+      this.subscriptionHeading()?.nativeElement.focus({ preventScroll: true });
     } catch (err) {
       this.notify.error(err);
+    } finally {
+      this.saving.set(false);
     }
   }
 
   private async load(code: number): Promise<void> {
     this.loading.set(true);
     try {
-      const [years, payments, memberRes, joiningPayments] = await Promise.all([
+      const [years, payments] = await Promise.all([
         must(this.sb.rpc('member_subscription_years', { p_member_code: code })),
         must(
           this.sb
@@ -501,22 +492,9 @@ export class MemberSubscription {
             .order('paid_on', { ascending: false })
             .order('id', { ascending: false }),
         ),
-        must(this.sb.rpc('member_joining_fee', { p_member_code: code })),
-        must(
-          this.sb
-            .from('joining_fee_payments')
-            .select(
-              'id, member_code, paid_on, amount, voucher_id, notes, cancelled_at, cancel_reason, voucher:vouchers(voucher_no)',
-            )
-            .eq('member_code', code)
-            .order('paid_on', { ascending: false })
-            .order('id', { ascending: false }),
-        ),
       ]);
       this.years.set(years as MemberSubscriptionYear[]);
       this.payments.set(payments as unknown as PaymentRow[]);
-      this.joiningFee.set(Number(memberRes) || 0);
-      this.joiningPayments.set(joiningPayments as unknown as JoiningFeePaymentRow[]);
 
       const oldest =
         this.payableYears().find((y) => y.fy_start <= this.currentFy) ?? this.payableYears()[0];

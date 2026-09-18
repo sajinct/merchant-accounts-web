@@ -19,7 +19,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { AccountHead, JoiningFee, SubscriptionYear } from '../../core/models';
+import { JoiningFee, SubscriptionYear } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
 import { displayDate, isoDate } from '../../shared/dates';
@@ -52,7 +52,7 @@ import { EntrySelect } from '../../shared/entry-select.directive';
       <app-page-header
         eyebrow="Membership"
         heading="Fees"
-        description="The joining fee is paid once when a member joins. The subscription fee is owed every financial year. Both are kept as a history, so changing a fee never rewrites what was already charged."
+        description="Maintain joining and yearly subscription rates for membership records. Fees and payments recorded here do not create account entries or daybook transactions."
       />
 
       <!-- ------------------------------------------------------------------ -->
@@ -71,9 +71,7 @@ import { EntrySelect } from '../../shared/entry-select.directive';
           <div class="panel-header">
             <h3 id="joining-history-heading">Rate history</h3>
             @if (currentJoining(); as current) {
-              <span class="status-badge success"
-                >Now {{ current.fee | number: '1.2-2' }} to {{ headName(current.head_code) }}</span
-              >
+              <span class="status-badge success">Now {{ current.fee | number: '1.2-2' }}</span>
             } @else {
               <span class="status-badge neutral">Not set</span>
             }
@@ -89,7 +87,6 @@ import { EntrySelect } from '../../shared/entry-select.directive';
                 <tr>
                   <th scope="col">Effective from</th>
                   <th scope="col" class="num">Fee</th>
-                  <th scope="col">Posts to</th>
                   <th scope="col">Note</th>
                   <th scope="col"><span class="sr-only">Actions</span></th>
                 </tr>
@@ -121,7 +118,6 @@ import { EntrySelect } from '../../shared/entry-select.directive';
                         {{ rate.fee | number: '1.2-2' }}
                       }
                     </td>
-                    <td>{{ headName(rate.head_code) }}</td>
                     <td class="muted">{{ rate.note || '—' }}</td>
                     <td class="row-actions">
                       @if (editingJoining() === rate.effective_from) {
@@ -168,7 +164,7 @@ import { EntrySelect } from '../../shared/entry-select.directive';
                   </tr>
                 } @empty {
                   <tr>
-                    <td colspan="5">
+                    <td colspan="4">
                       <app-empty-state
                         icon="how_to_reg"
                         [heading]="loading() ? 'Loading fees' : 'No joining fee set'"
@@ -212,16 +208,6 @@ import { EntrySelect } from '../../shared/entry-select.directive';
                 <mat-label>Joining fee</mat-label>
                 <input matInput type="number" min="0" step="0.01" formControlName="fee" />
                 <mat-error>Enter a fee of zero or more.</mat-error>
-              </mat-form-field>
-              <mat-form-field class="wide">
-                <mat-label>Account head</mat-label>
-                <mat-select appEntrySelect formControlName="head_code">
-                  @for (head of heads(); track head.code) {
-                    <mat-option [value]="head.code">{{ head.code }} – {{ head.name }}</mat-option>
-                  }
-                </mat-select>
-                <mat-hint>Receipts for this fee post here</mat-hint>
-                <mat-error>Choose the account head to post to.</mat-error>
               </mat-form-field>
               <mat-form-field class="wide">
                 <mat-label>Note</mat-label>
@@ -381,43 +367,6 @@ import { EntrySelect } from '../../shared/entry-select.directive';
             </div>
           </div>
         </form>
-
-        <form
-          class="panel"
-          aria-labelledby="sub-head-heading"
-          appEnterToNext
-          (submit)="$event.preventDefault(); saveHead()"
-        >
-          <div class="panel-header">
-            <h3 id="sub-head-heading">Receipt account</h3>
-            <span class="hint">Where subscription receipts are posted</span>
-          </div>
-          <div class="panel-body">
-            <div class="form-grid">
-              <mat-form-field class="wide">
-                <mat-label>Account head</mat-label>
-                <mat-select
-                  appEntrySelect
-                  [value]="headCode()"
-                  (selectionChange)="headCode.set($event.value)"
-                >
-                  @for (head of heads(); track head.code) {
-                    <mat-option [value]="head.code">{{ head.code }} – {{ head.name }}</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            </div>
-            <div class="form-actions">
-              <button
-                mat-stroked-button
-                type="submit"
-                [disabled]="!headCode() || headCode() === savedHeadCode() || saving()"
-              >
-                Save account
-              </button>
-            </div>
-          </div>
-        </form>
       </section>
     </div>
   `,
@@ -459,9 +408,6 @@ export class SubscriptionFees implements OnInit {
   protected readonly label = fyLabel;
   protected readonly years = signal<SubscriptionYear[]>([]);
   protected readonly joiningFees = signal<JoiningFee[]>([]);
-  protected readonly heads = signal<AccountHead[]>([]);
-  protected readonly headCode = signal<number | null>(null);
-  protected readonly savedHeadCode = signal<number | null>(null);
   protected readonly loading = signal(true);
   protected readonly saving = signal(false);
   protected readonly editing = signal<number | null>(null);
@@ -495,17 +441,11 @@ export class SubscriptionFees implements OnInit {
   protected readonly joiningForm = this.fb.group({
     effective_from: [null as Date | string | null, Validators.required],
     fee: [null as number | null, [Validators.required, Validators.min(0)]],
-    head_code: [null as number | null, Validators.required],
     note: [''],
   });
 
   protected date(iso: string): string {
     return displayDate(iso, this.locale);
-  }
-
-  protected headName(code: number): string {
-    const head = this.heads().find((h) => h.code === code);
-    return head ? `${head.code} – ${head.name}` : String(code);
   }
 
   async ngOnInit(): Promise<void> {
@@ -518,7 +458,6 @@ export class SubscriptionFees implements OnInit {
     const current = this.currentJoining();
     this.joiningForm.patchValue({
       fee: current?.fee ?? null,
-      head_code: current?.head_code ?? null,
     });
   }
 
@@ -527,15 +466,15 @@ export class SubscriptionFees implements OnInit {
   // --------------------------------------------------------------------------
 
   protected async addJoiningFee(): Promise<void> {
-    const { effective_from, fee, head_code, note } = this.joiningForm.getRawValue();
-    if (this.joiningForm.invalid || !effective_from || fee === null || head_code === null) return;
+    const { effective_from, fee, note } = this.joiningForm.getRawValue();
+    if (this.joiningForm.invalid || !effective_from || fee === null) return;
     const from = effective_from instanceof Date ? isoDate(effective_from) : effective_from;
     this.saving.set(true);
     try {
       await must(
         this.sb
           .from('joining_fees')
-          .insert({ effective_from: from, fee, head_code, note: note?.trim() || null }),
+          .insert({ effective_from: from, fee, note: note?.trim() || null }),
       );
       this.notify.success(`Joining fee of ${fee} effective ${this.date(from)} added`);
       await this.load();
@@ -626,7 +565,7 @@ export class SubscriptionFees implements OnInit {
     const confirmed = await confirmAction(this.dialog, {
       title: `Remove the rate effective ${this.date(rate.effective_from)}?`,
       message:
-        'Members who joined on or after this date fall back to the rate before it. Payments already recorded keep their own receipts.',
+        'Members who joined on or after this date fall back to the rate before it. Existing payment records are kept.',
       confirmLabel: 'Remove rate',
       destructive: true,
     });
@@ -752,27 +691,10 @@ export class SubscriptionFees implements OnInit {
     }
   }
 
-  protected async saveHead(): Promise<void> {
-    const code = this.headCode();
-    if (!code) return;
-    this.saving.set(true);
-    try {
-      await must(
-        this.sb.from('company_settings').update({ subscription_head_code: code }).eq('id', true),
-      );
-      this.savedHeadCode.set(code);
-      this.notify.success('Subscription receipt account saved');
-    } catch (err) {
-      this.notify.error(err);
-    } finally {
-      this.saving.set(false);
-    }
-  }
-
   private async load(): Promise<void> {
     this.loading.set(true);
     try {
-      const [years, joining, heads, settings] = await Promise.all([
+      const [years, joining] = await Promise.all([
         must(
           this.sb
             .from('subscription_years')
@@ -782,28 +704,12 @@ export class SubscriptionFees implements OnInit {
         must(
           this.sb
             .from('joining_fees')
-            .select('effective_from, fee, head_code, note')
+            .select('effective_from, fee, note')
             .order('effective_from', { ascending: false }),
-        ),
-        must(
-          this.sb
-            .from('account_heads')
-            .select('code, name')
-            .eq('account_type', 'income')
-            .order('name'),
-        ),
-        must(
-          this.sb
-            .from('company_settings')
-            .select('subscription_head_code')
-            .maybeSingle<{ subscription_head_code: number | null }>(),
         ),
       ]);
       this.years.set(years as SubscriptionYear[]);
       this.joiningFees.set(joining as JoiningFee[]);
-      this.heads.set(heads as AccountHead[]);
-      this.headCode.set(settings?.subscription_head_code ?? null);
-      this.savedHeadCode.set(settings?.subscription_head_code ?? null);
     } catch (err) {
       this.notify.error(err);
     } finally {

@@ -128,14 +128,17 @@ Members pay one yearly subscription per **financial year (1 April – 31 March)*
 
 - **Fees:** an admin sets the fee for each year under Membership → Subscription Fees. Everyone pays the same fee for a given year, and changing a year's fee changes the balances for that year.
 - **Who owes what:** a member owes the fee for every year from the financial year of *Joined on* up to the financial year of *Left on*. A member with no join date owes all years that have a fee.
-- **Payments:** on the member's page, record a payment against a year. Part payments are allowed, but a payment can't exceed that year's balance. Unpaid balances carry forward as **arrears**.
-- **Accounts:** each payment creates a receipt voucher against the subscription account head, through the same posting engine as any other receipt. The migration creates a `MEMBERSHIP SUBSCRIPTION` head and selects it; you can change it on the Subscription Fees page. Receipts reach the day book and reports after **Day Book Posting**, like any other voucher.
-- **Cancelling:** only admins can cancel a payment, from the member's page. That also cancels its receipt voucher. Subscription receipts can't be cancelled from the voucher register.
+- **Existing members:** add the member with their original joining date, then use **Record past payment** for the joining fee and for each subscription year already paid. Enter the original payment date and optional receipt reference. Saving a profile does not mark any fees paid automatically.
+- **Payments:** past payments update membership balances only. Part payments are allowed, but a payment can't exceed the remaining fee. Unpaid balances carry forward as **arrears**. Historical payment dates are independent of the selected accounting year.
+- **Accounts:** membership fee setup and payment entry do not require an account head or cash account. They create no receipt vouchers, accounting journals or daybook entries, so amounts already entered in the accounts are not posted again. Request IDs prevent duplicate entries when a save is retried.
+- **Cancelling:** only admins can cancel a payment, from the member's page. Cancelling a historical record updates membership balances only. A payment recorded before this change may still have a linked receipt; cancelling that payment also reverses that receipt, and the confirmation says so. Existing accounting entries are otherwise preserved.
 - **Reports:** Membership → Subscriptions lists every member for a year with fee, paid, balance, arrears and total due. It can be filtered to *Owing* or *Paid up*, printed, or exported to CSV.
 
 - **Dashboard:** the *Subscription dues* figure comes from `subscription_dues_summary`, which totals the outstanding balances in the database and returns a single row. The per-member report behind the Subscriptions page is unchanged; only the dashboard stopped downloading it.
 
 Database objects: `subscription_years`, `subscription_payments`, `record_subscription_payment`, `cancel_subscription_payment`, `member_subscription_years`, `rpt_subscription_status`, `subscription_dues_summary`.
+
+Apply `supabase/migrations/20260920000005_membership_history_without_posting.sql` before deploying this UI. It allows membership payments without vouchers and joining fee rates without account heads, adds payment request IDs, and switches both current and cached payment RPC signatures to membership-only recording. Existing payment rows and their voucher links remain intact.
 
 ## Vouchers
 

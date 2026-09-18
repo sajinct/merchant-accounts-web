@@ -5,6 +5,67 @@ import { SupabaseService } from '../../core/supabase.service';
 import { NotifyService } from '../../core/notify.service';
 import { provideIsoDateAdapter } from '../../shared/iso-date-adapter';
 
+describe('Membership fee setup without accounts', () => {
+  it.each(['subscription', 'joining'] as const)(
+    'loads and saves a %s fee using only membership records',
+    async (kind) => {
+      const insert = vi.fn().mockResolvedValue({ data: null, error: null });
+      const from = vi.fn((table: string) => {
+        if (table !== 'subscription_years' && table !== 'joining_fees') {
+          throw new Error(`Fee setup must not access ${table}`);
+        }
+        return {
+          insert,
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        };
+      });
+      const error = vi.fn();
+      await TestBed.configureTestingModule({
+        imports: [SubscriptionFees],
+        providers: [
+          provideIsoDateAdapter(),
+          { provide: SupabaseService, useValue: { client: { from } } },
+          { provide: NotifyService, useValue: { error, success: vi.fn() } },
+        ],
+      }).compileComponents();
+      const fixture = TestBed.createComponent(SubscriptionFees);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const component = fixture.componentInstance;
+
+      if (kind === 'joining') {
+        component['joiningForm'].setValue({
+          effective_from: '2020-04-01',
+          fee: 250,
+          note: ' Existing member rate ',
+        });
+        expect(component['joiningForm'].valid).toBe(true);
+        await component['addJoiningFee']();
+        expect(insert).toHaveBeenCalledExactlyOnceWith({
+          effective_from: '2020-04-01',
+          fee: 250,
+          note: 'Existing member rate',
+        });
+      } else {
+        component['addForm'].setValue({ fy_start: 2026, fee: 500 });
+        expect(component['addForm'].valid).toBe(true);
+        await component['addYear']();
+        expect(insert).toHaveBeenCalledExactlyOnceWith({ fy_start: 2026, fee: 500 });
+      }
+
+      expect(error).not.toHaveBeenCalled();
+      expect(new Set(from.mock.calls.map(([table]) => table))).toEqual(
+        new Set(['subscription_years', 'joining_fees']),
+      );
+      expect(fixture.nativeElement.textContent).not.toContain('Account head');
+      expect(fixture.nativeElement.textContent).not.toContain('Receipt account');
+      expect(component['saving']()).toBe(false);
+    },
+  );
+});
+
 describe('Inline fee keyboard editing', () => {
   it('consumes Escape without forwarding it to the navigation handler', async () => {
     vi.spyOn(SubscriptionFees.prototype, 'ngOnInit').mockResolvedValue();

@@ -16,6 +16,7 @@ import { WebcamCapture } from '../../shared/webcam-capture';
 import { isoDate } from '../../shared/dates';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { MemberSubscription } from '../membership/member-subscription';
+import { MemberJoiningFee } from '../membership/member-joining-fee';
 import { PageHeader } from '../../shared/page-header';
 
 const PHOTO_BUCKET = 'customer-photos';
@@ -46,6 +47,7 @@ const TEXT_FIELDS = [
     EnterToNext,
     WebcamCapture,
     MemberSubscription,
+    MemberJoiningFee,
   ],
   template: `
     <div class="page">
@@ -56,7 +58,7 @@ const TEXT_FIELDS = [
         "
         [description]="
           isNew()
-            ? 'Create a member profile with contact and identity details.'
+            ? 'Add a member with their original joining date. Saving the profile does not post to accounts.'
             : 'View and maintain this member’s profile.'
         "
       >
@@ -126,7 +128,7 @@ const TEXT_FIELDS = [
               <mat-form-field>
                 <mat-label>Joining fee</mat-label>
                 <input matInput type="number" min="0" step="0.01" formControlName="joining_fee" />
-                <mat-hint>Leave empty to use the scheduled fee</mat-hint>
+                <mat-hint>Fee owed, not a payment. Leave empty to use the scheduled fee.</mat-hint>
               </mat-form-field>
             </div>
           </section>
@@ -238,7 +240,14 @@ const TEXT_FIELDS = [
 
       @if (!isNew() && form.controls.code.value) {
         <div class="member-subscription">
-          <app-member-subscription [memberCode]="form.controls.code.value" />
+          <app-member-joining-fee
+            [memberCode]="form.controls.code.value"
+            [refreshKey]="memberVersion()"
+          />
+          <app-member-subscription
+            [memberCode]="form.controls.code.value"
+            [refreshKey]="memberVersion()"
+          />
         </div>
       }
     </div>
@@ -286,6 +295,8 @@ const TEXT_FIELDS = [
       top: 96px;
     }
     .member-subscription {
+      display: grid;
+      gap: 24px;
       margin-top: 32px;
     }
     @media (max-width: 1100px) {
@@ -324,6 +335,7 @@ export class MemberForm implements OnInit {
   protected readonly isNew = signal(true);
   protected readonly saving = signal(false);
   protected readonly photoUrl = signal<string | null>(null);
+  protected readonly memberVersion = signal(0);
   /** undefined = unchanged, null = remove, Blob = new photo. */
   protected photoChange: Blob | null | undefined;
   private photoPath: string | null = null;
@@ -485,6 +497,7 @@ export class MemberForm implements OnInit {
       left_on: member.left_on ?? '',
       joining_fee: member.joining_fee === null ? '' : String(member.joining_fee),
     });
+    this.memberVersion.update((version) => version + 1);
     this.photoPath = member.photo_path;
     this.photoChange = undefined;
     if (member.photo_path) {
