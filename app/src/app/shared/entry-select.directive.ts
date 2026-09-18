@@ -14,7 +14,9 @@ export class EntrySelect {
   constructor() {
     this.host.addEventListener('keydown', this.prepareKeyboard, true);
     this.host.ownerDocument.addEventListener('keydown', this.prepareKeyboard, true);
-    
+    this.host.ownerDocument.addEventListener('keyup', this.clearKeyboardConfirmation, true);
+    this.host.ownerDocument.addEventListener('pointerdown', this.clearKeyboardConfirmation, true);
+
     this.select.optionSelectionChanges.pipe(takeUntilDestroyed()).subscribe((event) => {
       // optionSelectionChanges also emits when the existing value is confirmed;
       // selectionChange only covers changes in value.
@@ -24,6 +26,7 @@ export class EntrySelect {
     });
     this.select.openedChange.pipe(takeUntilDestroyed()).subscribe((open) => {
       if (!open) {
+        this.confirmingWithEnter = false;
         const shouldAdvance = this.advanceAfterClose;
         this.advanceAfterClose = false;
         // openedChange runs after Material commits the value and restores focus.
@@ -35,33 +38,66 @@ export class EntrySelect {
     this.destroyRef.onDestroy(() => {
       this.host.removeEventListener('keydown', this.prepareKeyboard, true);
       this.host.ownerDocument.removeEventListener('keydown', this.prepareKeyboard, true);
+      this.host.ownerDocument.removeEventListener('keyup', this.clearKeyboardConfirmation, true);
+      this.host.ownerDocument.removeEventListener(
+        'pointerdown',
+        this.clearKeyboardConfirmation,
+        true,
+      );
     });
   }
 
+  private readonly clearKeyboardConfirmation = (): void => {
+    this.confirmingWithEnter = false;
+  };
+
   private readonly prepareKeyboard = (event: KeyboardEvent): void => {
-    const plainKey =
+    const navigationKey =
       !event.defaultPrevented &&
       !event.repeat &&
       !event.isComposing &&
       event.keyCode !== 229 &&
       !event.altKey &&
       !event.ctrlKey &&
-      !event.metaKey &&
-      !event.shiftKey;
+      !event.metaKey;
+    const plainKey = navigationKey && !event.shiftKey;
 
     const target = event.target as HTMLElement;
+    const onHost = target === this.host || this.host.contains(target);
+    const inPanel = this.select.panelOpen && this.select.panel?.nativeElement.contains(target);
+    if (onHost || inPanel) this.confirmingWithEnter = false;
+
+    if (
+      navigationKey &&
+      event.shiftKey &&
+      event.key === 'Enter' &&
+      (onHost || inPanel) &&
+      this.host.closest('form[appEnterToNext]')
+    ) {
+      // Material interprets modified Enter as a selection too. Handle backwards
+      // navigation before it can commit the highlighted option.
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.advanceAfterClose = false;
+      this.select.close();
+      this.select.focus();
+      queueMicrotask(() => {
+        if (!this.destroyRef.destroyed) {
+          this.host.dispatchEvent(new CustomEvent('app-field-back', { bubbles: true }));
+        }
+      });
+      return;
+    }
 
     if (this.select.panelOpen) {
-      // If panel is open, intercept Enter on options
-      if (
-        plainKey &&
-        event.key === 'Enter' &&
-        this.select.panel?.nativeElement.contains(target)
-      ) {
+      // Material can keep DOM focus on the trigger while the list is open;
+      // options may also receive focus in overlay implementations and tests.
+      if (plainKey && event.key === 'Enter' && (onHost || inPanel)) {
         this.confirmingWithEnter = true;
-        queueMicrotask(() => (this.confirmingWithEnter = false));
+        // Native browser events may flush microtasks between capture and target
+        // listeners. Keep this flag until selection/keyup, not a microtask.
       }
-    } else if (target === this.host || this.host.contains(target)) {
+    } else if (onHost) {
       // If panel is closed, intercept Arrow/Enter on the host itself
       if (
         plainKey &&

@@ -53,6 +53,10 @@ import { NAV, NavItem } from '../layout/navigation';
           </dd>
         </div>
         <div>
+          <dt><kbd>Alt</kbd> + <kbd>Insert</kbd></dt>
+          <dd>Adds a voucher line and focuses its account field.</dd>
+        </div>
+        <div>
           <dt><kbd>Ctrl</kbd> + <kbd>S</kbd></dt>
           <dd>Saves the voucher you are entering.</dd>
         </div>

@@ -11,6 +11,7 @@ import { EntrySelect } from './entry-select.directive';
   imports: [ReactiveFormsModule, MatFormFieldModule, MatSelectModule, EntrySelect, EnterToNext],
   template: `
     <form appEnterToNext>
+      <input id="previous-field" aria-label="Description" />
       <mat-form-field>
         <mat-label>Payment mode</mat-label>
         <mat-select appEntrySelect [formControl]="control">
@@ -38,13 +39,19 @@ describe('EntrySelect', () => {
     return { fixture, select, element, control: fixture.componentInstance.control };
   }
 
-  function key(target: HTMLElement, value: string, keyCode: number) {
+  function key(
+    target: HTMLElement,
+    value: string,
+    keyCode: number,
+    options: KeyboardEventInit = {},
+  ) {
     target.dispatchEvent(
       new KeyboardEvent('keydown', {
         key: value,
         keyCode,
         bubbles: true,
         cancelable: true,
+        ...options,
       }),
     );
   }
@@ -79,6 +86,20 @@ describe('EntrySelect', () => {
     expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#next-field'));
   });
 
+  it('advances when the open select keeps keyboard focus on its trigger', async () => {
+    const { fixture, select, element, control } = await setup();
+    key(element, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    key(element, 'ArrowDown', 40);
+    key(element, 'Enter', 13);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(control.value).toBe('bank');
+    expect(select.panelOpen).toBe(false);
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#next-field'));
+  });
+
   it('does not advance when the selected option was clicked', async () => {
     const { fixture, select, element, control } = await setup();
     key(element, 'Enter', 13);
@@ -104,5 +125,29 @@ describe('EntrySelect', () => {
     expect(control.value).toBe('cash');
     expect(select.panelOpen).toBe(false);
     expect(document.activeElement).toBe(element);
+  });
+
+  it('moves backwards from a closed select with Shift+Enter without changing its value', async () => {
+    const { fixture, select, element, control } = await setup();
+    key(element, 'Enter', 13, { shiftKey: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(select.panelOpen).toBe(false);
+    expect(control.value).toBe('cash');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#previous-field'));
+  });
+
+  it('moves backwards out of an open select without committing the highlighted option', async () => {
+    const { fixture, select, element, control } = await setup();
+    key(element, 'Enter', 13);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    key(select.panel.nativeElement, 'ArrowDown', 40);
+    key(select.panel.nativeElement, 'Enter', 13, { shiftKey: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(select.panelOpen).toBe(false);
+    expect(control.value).toBe('cash');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#previous-field'));
   });
 });

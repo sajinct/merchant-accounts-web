@@ -45,6 +45,17 @@ describe('Enter to next field', () => {
     expect(document.activeElement).toBe(input);
   });
 
+  it('moves past a focused read-only code without implicitly submitting the form', async () => {
+    const root = await render(
+      '<input id="first"><input readonly value="101"><input id="last"><button type="submit">Save</button>',
+    );
+    const code = root.querySelector<HTMLInputElement>('[readonly]')!;
+    expect(enter(code).defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(root.querySelector('#last'));
+    expect(enter(code, { shiftKey: true }).defaultPrevented).toBe(true);
+    expect(document.activeElement).toBe(root.querySelector('#first'));
+  });
+
   it('leaves composition and modified Enter alone and prevents repeated focus jumps', async () => {
     const root = await render('<input id="first"><input>');
     const first = root.querySelector<HTMLElement>('#first')!;
@@ -82,7 +93,9 @@ describe('Enter to next field', () => {
   });
 
   it('moves backwards with Shift+Enter without submitting from the first field', async () => {
-    const root = await render('<input id="first"><input id="second"><button type="submit">Save</button>');
+    const root = await render(
+      '<input id="first"><input id="second"><button type="submit">Save</button>',
+    );
     const first = root.querySelector<HTMLInputElement>('#first')!;
     enter(root.querySelector<HTMLInputElement>('#second')!, { shiftKey: true });
     expect(document.activeElement).toBe(first);
@@ -91,7 +104,9 @@ describe('Enter to next field', () => {
   });
 
   it('moves up and down without changing number values or wrapping at a boundary', async () => {
-    const root = await render('<input id="name"><input type="number" value="125.50"><button type="submit">Save</button>');
+    const root = await render(
+      '<input id="name"><input type="number" value="125.50"><button type="submit">Save</button>',
+    );
     const amount = root.querySelector<HTMLInputElement>('input[type="number"]')!;
     expect(enter(amount, { key: 'ArrowUp' }).defaultPrevented).toBe(true);
     expect(document.activeElement).toBe(root.querySelector('#name'));
@@ -104,7 +119,9 @@ describe('Enter to next field', () => {
   });
 
   it('preserves text editing and selection and exits horizontally only at the caret boundary', async () => {
-    const root = await render('<input id="first"><input id="middle" value="Merchant"><input id="last">');
+    const root = await render(
+      '<input id="first"><input id="middle" value="Merchant"><input id="last">',
+    );
     const middle = root.querySelector<HTMLInputElement>('#middle')!;
     middle.setSelectionRange(3, 3);
     expect(enter(middle, { key: 'ArrowRight' }).defaultPrevented).toBe(false);
@@ -120,8 +137,12 @@ describe('Enter to next field', () => {
   });
 
   it('retains native caret, multiline, choice and modified arrow behavior', async () => {
-    const root = await render('<input type="number" value="25"><textarea>Notes</textarea><select><option>A</option></select><input type="radio"><input type="range"><input id="last">');
-    for (const field of root.querySelectorAll<HTMLElement>('textarea,select,input[type="radio"],input[type="range"]')) {
+    const root = await render(
+      '<input type="number" value="25"><textarea>Notes</textarea><select><option>A</option></select><input type="radio"><input type="range"><input id="last">',
+    );
+    for (const field of root.querySelectorAll<HTMLElement>(
+      'textarea,select,input[type="radio"],input[type="range"]',
+    )) {
       expect(enter(field, { key: 'ArrowDown' }).defaultPrevented).toBe(false);
       expect(document.activeElement).toBe(field);
     }
@@ -132,7 +153,9 @@ describe('Enter to next field', () => {
   });
 
   it('keeps optional sections keyboard reachable while skipping their collapsed fields', async () => {
-    const root = await render('<input id="first"><details><summary>Optional</summary><input id="optional"></details><input id="last">');
+    const root = await render(
+      '<input id="first"><details><summary>Optional</summary><input id="optional"></details><input id="last">',
+    );
     const summary = root.querySelector('summary')!;
     enter(root.querySelector<HTMLInputElement>('#first')!);
     expect(document.activeElement).toBe(summary);
@@ -145,12 +168,16 @@ describe('Enter to next field', () => {
   });
 
   it('skips auxiliary buttons during entry and keeps their native activation', async () => {
-    const root = await render('<input id="first"><button type="button">Remove</button><input id="last"><button type="submit">Save</button>');
+    const root = await render(
+      '<input id="first"><button type="button">Remove</button><input id="last"><button type="submit">Save</button>',
+    );
     enter(root.querySelector<HTMLInputElement>('#first')!);
     expect(document.activeElement).toBe(root.querySelector('#last'));
     enter(root.querySelector<HTMLInputElement>('#last')!);
     expect(document.activeElement).toBe(root.querySelector('[type="submit"]'));
-    expect(enter(root.querySelector<HTMLButtonElement>('[type="submit"]')!).defaultPrevented).toBe(false);
+    expect(enter(root.querySelector<HTMLButtonElement>('[type="submit"]')!).defaultPrevented).toBe(
+      false,
+    );
     enter(root.querySelector<HTMLInputElement>('#first')!, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(root.querySelector('[type="button"]'));
   });

@@ -57,7 +57,7 @@ import { SUPPORT } from '../../core/support';
           <span class="login-welcome">WELCOME BACK</span>
           <h2 id="login-heading">Sign in to your workspace</h2>
           <p class="login-description">Enter your credentials to access your accounts.</p>
-          <form [formGroup]="form" (ngSubmit)="submit()" [attr.aria-busy]="busy()" appEnterToNext>
+          <form [formGroup]="form" (ngSubmit)="submit()" [attr.aria-busy]="busy()">
             <mat-form-field>
               <mat-label>Email address</mat-label>
               <input

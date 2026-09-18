@@ -564,6 +564,10 @@ export class SubscriptionFees implements OnInit {
 
   protected cancelJoiningEdit(rate: JoiningFee): void {
     this.editingJoining.set(null);
+    this.focusJoiningEditButton(rate);
+  }
+
+  private focusJoiningEditButton(rate: JoiningFee): void {
     afterNextRender(
       () => {
         if (this.editingJoining() === null)
@@ -612,6 +616,7 @@ export class SubscriptionFees implements OnInit {
       this.notify.success(`Joining fee effective ${this.date(rate.effective_from)} corrected`);
       this.editingJoining.set(null);
       await this.load();
+      this.focusJoiningEditButton(rate);
     } catch (err) {
       this.notify.error(err);
     }
@@ -671,6 +676,10 @@ export class SubscriptionFees implements OnInit {
 
   protected cancelEdit(year: SubscriptionYear): void {
     this.editing.set(null);
+    this.focusEditButton(year);
+  }
+
+  private focusEditButton(year: SubscriptionYear): void {
     afterNextRender(
       () => {
         if (this.editing() === null)
@@ -719,6 +728,7 @@ export class SubscriptionFees implements OnInit {
       );
       this.editing.set(null);
       await this.load();
+      this.focusEditButton(year);
     } catch (err) {
       this.notify.error(err);
     }

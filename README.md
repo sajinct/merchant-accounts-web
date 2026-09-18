@@ -102,9 +102,9 @@ Voucher, member, account-head, subscription, administration and report forms sup
 - **Left / Right** moves between controls when the cursor reaches the start or end of a text field. Within text it continues to move the cursor normally.
 - **Dropdowns and account lookup:** arrows choose an option, Enter confirms it and moves on, and Escape closes the list. Confirming a dropdown's existing value also continues to the next field.
 - **Tab / Shift + Tab** retains standard navigation, including calendar buttons and extra actions. Enter opens or closes a focused optional section; Space changes a checkbox or switch. Text areas retain normal text editing and Enter for a new line.
-- **Ctrl + S** saves the current voucher. Disabled, read-only and collapsed fields are skipped, and moving between fields never submits a form by itself.
+- **Alt + Insert** adds a voucher line and focuses its account field. **Ctrl + S** saves the current voucher. Disabled, read-only and collapsed fields are skipped, and moving between fields never submits a form by itself.
 
-Sign-in and password-change screens retain their usual Enter-to-submit behavior. When editing an existing subscription fee inline, Enter saves that fee and Escape cancels the edit.
+Sign-in and password-change screens retain their usual Enter-to-submit behavior. When editing an existing subscription or joining fee inline, Enter saves that fee and Escape cancels the edit. Both return focus to that row's Edit button.
 
 ## Roles
 

@@ -106,6 +106,7 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
   private readonly autocompleteTrigger = viewChild.required(MatAutocompleteTrigger);
   private readonly destroyRef = inject(DestroyRef);
   private confirmingWithEnter = false;
+  private closingWithEscape = false;
 
   protected readonly search = new FormControl<AccountHead | string | null>(null);
   /**
@@ -166,14 +167,46 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
     // template listener leaves the trigger disabled for the first arrow press.
     input.addEventListener('keydown', this.prepareKeyboard, true);
     input.addEventListener('keydown', this.keepPanelKeys);
+    input.ownerDocument.addEventListener('keyup', this.clearKeyboardConfirmation, true);
+    input.ownerDocument.addEventListener('pointerdown', this.clearKeyboardConfirmation, true);
     this.destroyRef.onDestroy(() => {
       input.removeEventListener('keydown', this.prepareKeyboard, true);
       input.removeEventListener('keydown', this.keepPanelKeys);
+      input.ownerDocument.removeEventListener('keyup', this.clearKeyboardConfirmation, true);
+      input.ownerDocument.removeEventListener('pointerdown', this.clearKeyboardConfirmation, true);
     });
   }
 
+  private readonly clearKeyboardConfirmation = (): void => {
+    this.confirmingWithEnter = false;
+  };
+
   private readonly prepareKeyboard = (event: KeyboardEvent): void => {
     const trigger = this.autocompleteTrigger();
+    this.closingWithEscape = event.key === 'Escape' && trigger.panelOpen;
+    if (
+      event.key === 'Enter' &&
+      event.shiftKey &&
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      !event.isComposing &&
+      event.keyCode !== 229 &&
+      !event.defaultPrevented &&
+      this.searchInput().nativeElement.closest('form[appEnterToNext]')
+    ) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      this.confirmingWithEnter = false;
+      if (!event.repeat) {
+        trigger.closePanel();
+        this.writeValue(this.code());
+        this.searchInput().nativeElement.dispatchEvent(
+          new CustomEvent('app-field-back', { bubbles: true }),
+        );
+      }
+      return;
+    }
     this.engaged.set(true);
     trigger.autocompleteDisabled = false;
     this.confirmingWithEnter =
@@ -189,10 +222,20 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
       !event.ctrlKey &&
       !event.metaKey &&
       !event.shiftKey;
-    queueMicrotask(() => (this.confirmingWithEnter = false));
+    // Clear on selection, keyup or pointerdown. A capture-listener microtask can
+    // run before Material handles a native key event in the browser.
   };
 
   private readonly keepPanelKeys = (event: KeyboardEvent): void => {
+    // The overlay is already gone when Escape bubbles to the shell. Consume the
+    // closing key so it cannot also open the navigation menu and steal focus.
+    if (this.closingWithEscape && event.key === 'Escape') {
+      this.autocompleteTrigger().closePanel();
+      this.writeValue(this.code());
+      event.preventDefault();
+      event.stopPropagation();
+      return;
+    }
     // aria-expanded is rendered after this event bubbles. Keep the opening arrow
     // in the picker before the parent form can interpret it as field navigation.
     if (
@@ -213,6 +256,7 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
     if (this.code() !== head.code) this.update(head.code);
     this.accountSelected.emit(head);
     if (this.confirmingWithEnter) {
+      this.confirmingWithEnter = false;
       const input = this.searchInput().nativeElement;
       // Material restores input focus after optionSelected and then closes its
       // panel. Advance afterwards so that restoration cannot steal focus back.

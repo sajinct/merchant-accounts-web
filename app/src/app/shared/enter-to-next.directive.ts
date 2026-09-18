@@ -10,6 +10,7 @@ const FOCUSABLE =
   host: {
     '(keydown)': 'navigate($event)',
     '(app-field-advance)': 'advance($event)',
+    '(app-field-back)': 'back($event)',
   },
 })
 export class EnterToNext {
@@ -68,7 +69,15 @@ export class EnterToNext {
     }
     const fields = this.fields(event.key !== 'Enter');
     const index = fields.indexOf(target);
-    if (index < 0) return;
+    if (index < 0) {
+      // Read-only codes can still receive focus through Tab. Enter must move past
+      // them instead of falling through to the browser's implicit form submit.
+      if (event.key === 'Enter' && target.matches('input[readonly]')) {
+        event.preventDefault();
+        if (!event.repeat) this.adjacent(target, fields, event.shiftKey ? -1 : 1)?.focus();
+      }
+      return;
+    }
     // Suppress implicit submission and number spinners even at the form boundary.
     event.preventDefault();
     if (event.repeat) return;
@@ -82,6 +91,14 @@ export class EnterToNext {
   }
 
   advance(event: Event): void {
+    this.moveAfterSelection(event, 1);
+  }
+
+  back(event: Event): void {
+    this.moveAfterSelection(event, -1);
+  }
+
+  private moveAfterSelection(event: Event, direction: number): void {
     const target = event.target;
     if (!(target instanceof HTMLElement) || target.closest('form') !== this.host.nativeElement) {
       return;
@@ -90,7 +107,18 @@ export class EnterToNext {
     const index = fields.indexOf(target);
     if (index < 0 || document.activeElement !== target) return;
     event.stopPropagation();
-    fields[index + 1]?.focus();
+    fields[index + direction]?.focus();
+  }
+
+  private adjacent(
+    target: HTMLElement,
+    fields: HTMLElement[],
+    direction: number,
+  ): HTMLElement | undefined {
+    const candidates = direction > 0 ? fields : [...fields].reverse();
+    const position =
+      direction > 0 ? Node.DOCUMENT_POSITION_FOLLOWING : Node.DOCUMENT_POSITION_PRECEDING;
+    return candidates.find((field) => !!(target.compareDocumentPosition(field) & position));
   }
 
   private fields(includeActions: boolean): HTMLElement[] {
@@ -149,7 +177,7 @@ export class EnterToNext {
       return start !== null && start === end && start === (direction < 0 ? 0 : target.value.length);
     } catch {
       // Inputs like type="number" or type="email" may throw InvalidStateError on selectionStart
-      return true;
+      return false;
     }
   }
 

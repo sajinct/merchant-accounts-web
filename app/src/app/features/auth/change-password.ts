@@ -37,7 +37,7 @@ function passwordsMatch(group: AbstractControl): ValidationErrors | null {
       />
       <section class="panel">
         <div class="panel-body">
-          <form [formGroup]="form" (ngSubmit)="save()" appEnterToNext>
+          <form [formGroup]="form" (ngSubmit)="save()">
             <mat-form-field class="full">
               <mat-label>New password</mat-label>
               <input

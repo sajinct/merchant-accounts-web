@@ -10,6 +10,7 @@ import { EnterToNext } from './enter-to-next.directive';
 @Component({
   imports: [AccountPicker, ReactiveFormsModule, EnterToNext],
   template: `<form appEnterToNext>
+    <input id="previous-field" aria-label="Description" />
     <app-account-picker
       [formControl]="control"
       [accounts]="accounts()"
@@ -37,17 +38,25 @@ describe('AccountPicker', () => {
     await fixture.whenStable();
     const host = fixture.componentInstance;
     const picker = fixture.debugElement.query(By.directive(AccountPicker)).componentInstance as any;
-    const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
+    const input = fixture.nativeElement.querySelector(
+      'app-account-picker input',
+    ) as HTMLInputElement;
     return { fixture, host, picker, input };
   }
 
-  function key(target: HTMLElement, value: string, keyCode: number) {
+  function key(
+    target: HTMLElement,
+    value: string,
+    keyCode: number,
+    options: KeyboardEventInit = {},
+  ) {
     target.dispatchEvent(
       new KeyboardEvent('keydown', {
         key: value,
         keyCode,
         bubbles: true,
         cancelable: true,
+        ...options,
       }),
     );
   }
@@ -150,5 +159,45 @@ describe('AccountPicker', () => {
     expect(host.selected).not.toHaveBeenCalled();
     expect(input.getAttribute('aria-expanded')).toBe('false');
     expect(document.activeElement).toBe(input);
+  });
+
+  it('moves back from an open lookup without confirming its highlighted account', async () => {
+    const { fixture, host, input } = await setup();
+    host.accounts.set(heads);
+    fixture.detectChanges();
+    input.focus();
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    key(input, 'Enter', 13, { shiftKey: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(host.control.value).toBeNull();
+    expect(host.selected).not.toHaveBeenCalled();
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#previous-field'));
+  });
+
+  it('consumes Escape when closing the lookup but leaves a later Escape for page navigation', async () => {
+    const { fixture, host, input } = await setup();
+    host.accounts.set(heads);
+    fixture.detectChanges();
+    input.focus();
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const pageKey = vi.fn();
+    document.addEventListener('keydown', pageKey);
+    try {
+      key(input, 'Escape', 27);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      expect(pageKey).not.toHaveBeenCalled();
+      expect(document.activeElement).toBe(input);
+      key(input, 'Escape', 27);
+      expect(pageKey).toHaveBeenCalledTimes(1);
+    } finally {
+      document.removeEventListener('keydown', pageKey);
+    }
   });
 });
