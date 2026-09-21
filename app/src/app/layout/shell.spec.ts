@@ -159,7 +159,9 @@ describe('Shell navigation', () => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(element.querySelectorAll('nav a').length).toBe(3);
+    expect(element.querySelectorAll('nav a').length).toBe(
+      NAV.find((group) => group.shortcut === 'R')!.items.length,
+    );
     // Every group stays visible, with Reports expanded in place.
     expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
     expect(element.querySelector('.nav-group.is-open')!.getAttribute('data-group')).toBe('R');

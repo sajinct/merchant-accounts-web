@@ -1153,6 +1153,25 @@ app-report-shell {
 .report-table tr.negative td {
   color: var(--mat-sys-error);
 }
+/* Statement sections: a heading row, then the accounts, then the section total. */
+.report-table tr.section-head td {
+  padding-top: 18px;
+  padding-bottom: 10px;
+  border-top: 1px solid var(--app-border);
+  color: var(--app-ink-table-head);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+}
+.report-table tbody:first-of-type tr.section-head td {
+  padding-top: 13px;
+  border-top: 0;
+}
+.report-table tr.section-total td {
+  background: var(--app-surface-sunken);
+  font-weight: 650;
+}
 .report-table td:first-child {
   white-space: nowrap;
 }

@@ -79,6 +79,19 @@ export const NAV: NavGroup[] = [
       { label: 'Day Book', shortcut: 'D', link: '/reports/daybook', icon: 'menu_book' },
       { label: 'Ledger', shortcut: 'L', link: '/reports/ledger', icon: 'account_balance_wallet' },
       { label: 'Trial Balance', shortcut: 'T', link: '/reports/trial-balance', icon: 'balance' },
+      {
+        label: 'Profit & Loss',
+        shortcut: 'P',
+        link: '/reports/profit-and-loss',
+        icon: 'trending_up',
+      },
+      {
+        label: 'Balance Sheet',
+        shortcut: 'B',
+        link: '/reports/balance-sheet',
+        icon: 'account_balance',
+      },
+      { label: 'Cash Flow', shortcut: 'C', link: '/reports/cash-flow', icon: 'savings' },
     ],
   },
   {
