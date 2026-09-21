@@ -103,6 +103,16 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
+    heading: 'Kuri',
+    icon: 'casino',
+    shortcut: 'K',
+    items: [
+      { label: 'Schemes', shortcut: 'S', link: '/kuri/schemes', icon: 'event_note' },
+      { label: 'Defaulters', shortcut: 'D', link: '/kuri/defaulters', icon: 'money_off' },
+      { label: 'Member Ledger', shortcut: 'L', link: '/kuri/ledger', icon: 'receipt_long' },
+    ],
+  },
+  {
     heading: 'Masters',
     icon: 'folder_open',
     shortcut: 'A',
