@@ -141,6 +141,10 @@ $dark-error: #ff8d90;
   --app-border-subtle: #edf1f4; /* between table rows */
   --app-border-dashed: #cad7dc;
 
+  /* Scrollbars */
+  --app-scrollbar-thumb: #c2d0d9;
+  --app-scrollbar-thumb-hover: #9cafba;
+
   /* Accent */
   --app-accent: #{$accent};
   --app-accent-strong: #{$accent-strong};
@@ -200,6 +204,8 @@ $dark-error: #ff8d90;
   --app-nav-key: #a9bfc9;
   --app-nav-hover: #ffffff09;
   --app-nav-line: #ffffff26;
+  --app-nav-scrollbar-thumb: #ffffff26;
+  --app-nav-scrollbar-thumb-hover: #ffffff45;
   --app-nav-active-bg: #28524f;
   --app-nav-active-ink: #d6fff3;
   --app-nav-accent: #6ed3bd;
@@ -288,6 +294,10 @@ $dark-error: #ff8d90;
   --app-border-subtle: #243542; /* between table rows */
   --app-border-dashed: #46606f;
 
+  /* Scrollbars */
+  --app-scrollbar-thumb: #3b4f5d;
+  --app-scrollbar-thumb-hover: #55707f;
+
   /* Accent */
   --app-accent: #{$dark-accent};
   --app-accent-strong: #{$dark-accent-strong};
@@ -347,6 +357,8 @@ $dark-error: #ff8d90;
   --app-nav-key: #a9bfc9;
   --app-nav-hover: #ffffff0f;
   --app-nav-line: #ffffff26;
+  --app-nav-scrollbar-thumb: #ffffff26;
+  --app-nav-scrollbar-thumb-hover: #ffffff45;
   --app-nav-active-bg: #1e4a46;
   --app-nav-active-ink: #d6fff3;
   --app-nav-accent: #6ed3bd;
@@ -478,6 +490,36 @@ body {
   color: var(--app-ink);
   background: var(--app-canvas);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbars. Thin, with no track and a rounded thumb that only darkens under
+   the pointer, so a scrolling panel is not outlined by a heavy grey bar. The
+   two blocks say the same thing twice: Firefox reads the first, WebKit and
+   Chromium the second. Dark surfaces such as the drawer override the two
+   thumb tokens rather than repeating these rules. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-scrollbar-thumb) transparent;
+}
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  /* A transparent border inset by content-box keeps the bar 4px wide while
+     leaving a comfortable hit area for the pointer. */
+  border: 3px solid transparent;
+  border-radius: 8px;
+  background: var(--app-scrollbar-thumb);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--app-scrollbar-thumb-hover);
+  background-clip: content-box;
 }
 button,
 input,
@@ -1272,9 +1314,6 @@ app-report-shell {
   }
   .summary-label {
     font-size: 11px;
-  }
-  .table-wrap {
-    scrollbar-width: thin;
   }
   .data-table,
   .report-table {

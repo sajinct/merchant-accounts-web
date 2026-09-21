@@ -14,6 +14,10 @@
   border-radius: 0;
   background: var(--app-nav-bg);
   color: var(--app-nav-ink-soft);
+  // The drawer is dark ink in both schemes, so its scrollbar takes the light
+  // thumb rather than the one mixed for the page surface.
+  --app-scrollbar-thumb: var(--app-nav-scrollbar-thumb);
+  --app-scrollbar-thumb-hover: var(--app-nav-scrollbar-thumb-hover);
 }
 .brand {
   display: flex;
