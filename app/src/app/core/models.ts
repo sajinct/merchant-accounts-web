@@ -163,6 +163,9 @@ export interface LedgerRow {
   row_kind: 'opening' | 'entry';
   tran_date: string | null;
   voucher_ref: string | null;
+  /** The account on the other side of the journal; null when the entry splits across several. */
+  contra_code: number | null;
+  contra_name: string | null;
   narration: string | null;
   debit: number;
   credit: number;

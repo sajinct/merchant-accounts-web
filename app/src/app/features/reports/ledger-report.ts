@@ -135,6 +135,7 @@ const ALL = 0;
                   <tr>
                     <th scope="col">Date</th>
                     <th scope="col">Voucher</th>
+                    <th scope="col">Account</th>
                     <th scope="col">Narration</th>
                     <th scope="col" class="num">Debit</th>
                     <th scope="col" class="num">Credit</th>
@@ -146,6 +147,7 @@ const ALL = 0;
                     <tr [class.opening]="row.row_kind === 'opening'">
                       <td>{{ row.tran_date | date: 'dd-MMM-yyyy' }}</td>
                       <td>{{ row.voucher_ref }}</td>
+                      <td class="contra">{{ row.contra_name || '—' }}</td>
                       <td class="narration">{{ row.narration }}</td>
                       <td class="num">
                         {{ row.row_kind === 'entry' ? (row.debit | number: '1.2-2') : '' }}
@@ -159,7 +161,7 @@ const ALL = 0;
                 </tbody>
                 <tfoot>
                   <tr>
-                    <td colspan="3">Total / closing balance</td>
+                    <td colspan="4">Total / closing balance</td>
                     <td class="num">{{ group.debit | number: '1.2-2' }}</td>
                     <td class="num">{{ group.credit | number: '1.2-2' }}</td>
                     <td class="num">{{ group.closing | drCr }}</td>
@@ -204,7 +206,11 @@ const ALL = 0;
       font-weight: 500;
     }
     .report-table {
-      min-width: 780px;
+      min-width: 900px;
+    }
+    .contra {
+      min-width: 140px;
+      overflow-wrap: anywhere;
     }
     .narration {
       min-width: 220px;
@@ -213,6 +219,7 @@ const ALL = 0;
     }
     @media print {
       .report-table,
+      .contra,
       .narration {
         min-width: 0;
       }
@@ -319,6 +326,7 @@ export class LedgerReport implements OnInit {
         'Account',
         'Date',
         'Voucher',
+        'Contra account',
         'Narration',
         'Debit',
         'Credit',
@@ -329,6 +337,7 @@ export class LedgerReport implements OnInit {
         r.head_name,
         r.tran_date,
         r.voucher_ref,
+        r.contra_name,
         r.narration,
         r.debit,
         r.credit,
