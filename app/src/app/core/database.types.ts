@@ -1589,6 +1589,29 @@ export type Database = {
         Args: { p_date: string; p_id: number; p_reason: string }
         Returns: number
       }
+      rpt_balance_sheet: {
+        Args: { p_as_on: string }
+        Returns: {
+          amount: number
+          head_code: number
+          head_name: string
+          row_kind: string
+          section: string
+        }[]
+      }
+      rpt_cash_flow: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          balance: number
+          head_code: number
+          head_name: string
+          inflow: number
+          outflow: number
+          row_kind: string
+          section: string
+          seq: number
+        }[]
+      }
       rpt_day_closing: {
         Args: { p_from: string; p_negative_only?: boolean; p_to: string }
         Returns: {
@@ -1626,6 +1649,15 @@ export type Database = {
           seq: number
           tran_date: string
           voucher_ref: string
+        }[]
+      }
+      rpt_profit_and_loss: {
+        Args: { p_from: string; p_to: string }
+        Returns: {
+          amount: number
+          head_code: number
+          head_name: string
+          section: string
         }[]
       }
       rpt_subscription_status: {

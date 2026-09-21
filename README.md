@@ -1,6 +1,6 @@
 # Merchant Accounts (web)
 
-Double-entry accounting for Merchant Accounts: receipt, payment, contra and journal vouchers on one entry screen, opening balances, subscriptions, and cash book / ledger / trial balance reports.
+Double-entry accounting for Merchant Accounts: receipt, payment, contra and journal vouchers on one entry screen, opening balances, subscriptions, and reports — cash book, ledger, trial balance, profit & loss, balance sheet and cash flow.
 
 - **Backend:** Supabase cloud (Postgres, Auth, Storage, Edge Functions)
 - **Frontend:** Angular 21 + Angular Material (`app/`)
@@ -175,14 +175,16 @@ Database objects: `vouchers` (header), `daybook` (details), `journals` (posting,
 | Day Book Posting | Transactions → Day Book Posting |
 | Day Closing Balance | Transactions → Day Closing Balance |
 | Day Book, Ledger, Trial Balance (Crystal) | Reports → print to A4 / PDF, or export CSV |
+| — (not in the desktop app) | Reports → Profit & Loss, Balance Sheet, Cash Flow |
 | Account Heads, Member Details | Masters |
 | User Creation, Change Password | Utilities → Users, Change Password |
 | Registration, DB Settings, Fix Day Book Errors, Compact DB | Dropped (no licence file; foreign keys prevent orphan rows) |
 
 ## Open items
 
-- **P&L and Balance Sheet** are not built yet. They depend on the meaning of legacy `MAS_HEADS.CKORC` / `CBORP` (stored as `account_heads.kind` / `group_type`).
 - **Report layouts:** printed samples of the Crystal reports are needed to match layouts and the debit/credit sign convention in the trial balance.
+- **Cash flow activities:** the statement groups flows by account classification, because the chart of accounts does not record whether an account is operating, investing or financing, nor current or non-current. Splitting it that way needs that decision per account head.
+- **Legacy `MAS_HEADS.CKORC` / `CBORP`** (kept as `account_heads.kind` / `group_type`) are still unexplained. The financial statements do not use them; they read `account_type` instead.
 - **Data migration** (Phase 5). Rotate the Azure SQL password committed in the VB repo before running it.
 
 ### Release version numbers

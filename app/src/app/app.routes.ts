@@ -77,6 +77,24 @@ export const routes: Routes = [
           import('./features/reports/trial-balance-report').then((m) => m.TrialBalanceReport),
         title: 'Trial Balance',
       },
+      {
+        path: 'reports/profit-and-loss',
+        loadComponent: () =>
+          import('./features/reports/profit-and-loss-report').then((m) => m.ProfitAndLossReport),
+        title: 'Profit & Loss',
+      },
+      {
+        path: 'reports/balance-sheet',
+        loadComponent: () =>
+          import('./features/reports/balance-sheet-report').then((m) => m.BalanceSheetReport),
+        title: 'Balance Sheet',
+      },
+      {
+        path: 'reports/cash-flow',
+        loadComponent: () =>
+          import('./features/reports/cash-flow-report').then((m) => m.CashFlowReport),
+        title: 'Cash Flow',
+      },
 
       {
         path: 'masters/account-heads',

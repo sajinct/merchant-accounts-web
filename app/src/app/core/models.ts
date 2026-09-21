@@ -179,6 +179,38 @@ export interface TrialBalanceRow {
   credit: number;
 }
 
+/** One account on the profit & loss (rpt_profit_and_loss); amounts are positive. */
+export interface ProfitAndLossRow {
+  section: 'income' | 'expense';
+  head_code: number;
+  head_name: string;
+  amount: number;
+}
+
+/** One line of the balance sheet (rpt_balance_sheet); assets are debits, the rest credits. */
+export interface BalanceSheetRow {
+  section: 'asset' | 'liability' | 'equity';
+  /** `result` is the surplus not yet transferred to equity, so it has no account. */
+  row_kind: 'account' | 'result';
+  head_code: number | null;
+  head_name: string;
+  amount: number;
+}
+
+/** One line of the cash flow statement (rpt_cash_flow). */
+export interface CashFlowRow {
+  seq: number;
+  row_kind: 'opening' | 'flow' | 'closing';
+  /** The classification of the account the money moved against; null on balance rows. */
+  section: 'income' | 'expense' | 'asset' | 'liability' | 'equity' | null;
+  head_code: number | null;
+  head_name: string;
+  inflow: number;
+  outflow: number;
+  /** The cash and bank balance; on the opening and closing rows only. */
+  balance: number;
+}
+
 export interface DayClosingRow {
   tran_date: string;
   closing_balance: number;
