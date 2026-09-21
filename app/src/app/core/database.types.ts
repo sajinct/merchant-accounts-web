@@ -325,7 +325,8 @@ export type Database = {
           member_code: number
           notes: string | null
           paid_on: string
-          voucher_id: number
+          request_id: string
+          voucher_id: number | null
         }
         Insert: {
           amount: number
@@ -338,7 +339,8 @@ export type Database = {
           member_code: number
           notes?: string | null
           paid_on: string
-          voucher_id: number
+          request_id?: string
+          voucher_id?: number | null
         }
         Update: {
           amount?: number
@@ -351,7 +353,8 @@ export type Database = {
           member_code?: number
           notes?: string | null
           paid_on?: string
-          voucher_id?: number
+          request_id?: string
+          voucher_id?: number | null
         }
         Relationships: [
           {
@@ -376,7 +379,7 @@ export type Database = {
           created_by: string | null
           effective_from: string
           fee: number
-          head_code: number
+          head_code: number | null
           note: string | null
           updated_at: string
         }
@@ -385,7 +388,7 @@ export type Database = {
           created_by?: string | null
           effective_from: string
           fee: number
-          head_code: number
+          head_code?: number | null
           note?: string | null
           updated_at?: string
         }
@@ -394,7 +397,7 @@ export type Database = {
           created_by?: string | null
           effective_from?: string
           fee?: number
-          head_code?: number
+          head_code?: number | null
           note?: string | null
           updated_at?: string
         }
@@ -462,6 +465,210 @@ export type Database = {
           },
         ]
       }
+      kuri_lots: {
+        Row: {
+          drawn_at: string
+          drawn_by: string | null
+          id: number
+          installment_no: number
+          payout_amount: number
+          payout_date: string | null
+          payout_status: string
+          scheme_id: number
+          winner_member_id: number
+        }
+        Insert: {
+          drawn_at?: string
+          drawn_by?: string | null
+          id?: never
+          installment_no: number
+          payout_amount: number
+          payout_date?: string | null
+          payout_status?: string
+          scheme_id: number
+          winner_member_id: number
+        }
+        Update: {
+          drawn_at?: string
+          drawn_by?: string | null
+          id?: never
+          installment_no?: number
+          payout_amount?: number
+          payout_date?: string | null
+          payout_status?: string
+          scheme_id?: number
+          winner_member_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kuri_lots_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "kuri_schemes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kuri_lots_winner_member_id_fkey"
+            columns: ["winner_member_id"]
+            isOneToOne: false
+            referencedRelation: "kuri_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kuri_members: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          customer_code: number
+          id: number
+          notes: string | null
+          scheme_id: number
+          ticket_no: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          customer_code: number
+          id?: never
+          notes?: string | null
+          scheme_id: number
+          ticket_no: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          customer_code?: number
+          id?: never
+          notes?: string | null
+          scheme_id?: number
+          ticket_no?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kuri_members_customer_code_fkey"
+            columns: ["customer_code"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "kuri_members_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "kuri_schemes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kuri_payments: {
+        Row: {
+          amount: number
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          id: number
+          installment_no: number
+          member_id: number
+          notes: string | null
+          paid_on: string
+          request_id: string
+          scheme_id: number
+        }
+        Insert: {
+          amount: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: never
+          installment_no: number
+          member_id: number
+          notes?: string | null
+          paid_on: string
+          request_id?: string
+          scheme_id: number
+        }
+        Update: {
+          amount?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: never
+          installment_no?: number
+          member_id?: number
+          notes?: string | null
+          paid_on?: string
+          request_id?: string
+          scheme_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kuri_payments_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "kuri_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kuri_payments_scheme_id_fkey"
+            columns: ["scheme_id"]
+            isOneToOne: false
+            referencedRelation: "kuri_schemes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kuri_schemes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: number
+          installment_amount: number
+          max_deduction_pct: number
+          name: string
+          notes: string | null
+          num_installments: number
+          num_members: number
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: never
+          installment_amount: number
+          max_deduction_pct?: number
+          name: string
+          notes?: string | null
+          num_installments?: number
+          num_members?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: never
+          installment_amount?: number
+          max_deduction_pct?: number
+          name?: string
+          notes?: string | null
+          num_installments?: number
+          num_members?: number
+          start_date?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -502,7 +709,8 @@ export type Database = {
           member_code: number
           notes: string | null
           paid_on: string
-          voucher_id: number
+          request_id: string
+          voucher_id: number | null
         }
         Insert: {
           amount: number
@@ -516,7 +724,8 @@ export type Database = {
           member_code: number
           notes?: string | null
           paid_on: string
-          voucher_id: number
+          request_id?: string
+          voucher_id?: number | null
         }
         Update: {
           amount?: number
@@ -530,7 +739,8 @@ export type Database = {
           member_code?: number
           notes?: string | null
           paid_on?: string
-          voucher_id?: number
+          request_id?: string
+          voucher_id?: number | null
         }
         Relationships: [
           {
@@ -678,6 +888,52 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      activate_kuri_scheme: {
+        Args: { p_scheme_id: number }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: number
+          installment_amount: number
+          max_deduction_pct: number
+          name: string
+          notes: string | null
+          num_installments: number
+          num_members: number
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "kuri_schemes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      add_kuri_member: {
+        Args: {
+          p_customer_code: number
+          p_notes?: string
+          p_scheme_id: number
+          p_ticket_no: number
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          customer_code: number
+          id: number
+          notes: string | null
+          scheme_id: number
+          ticket_no: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "kuri_members"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       app_role: { Args: never; Returns: string }
       cancel_joining_fee_payment: {
         Args: { p_id: number; p_reason: string }
@@ -692,11 +948,36 @@ export type Database = {
           member_code: number
           notes: string | null
           paid_on: string
-          voucher_id: number
+          request_id: string
+          voucher_id: number | null
         }
         SetofOptions: {
           from: "*"
           to: "joining_fee_payments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_kuri_payment: {
+        Args: { p_id: number; p_reason: string }
+        Returns: {
+          amount: number
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          id: number
+          installment_no: number
+          member_id: number
+          notes: string | null
+          paid_on: string
+          request_id: string
+          scheme_id: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "kuri_payments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -715,7 +996,8 @@ export type Database = {
           member_code: number
           notes: string | null
           paid_on: string
-          voucher_id: number
+          request_id: string
+          voucher_id: number | null
         }
         SetofOptions: {
           from: "*"
@@ -771,6 +1053,36 @@ export type Database = {
           p_request_id: string
         }
         Returns: number
+      }
+      create_kuri_scheme: {
+        Args: {
+          p_installment_amount: number
+          p_max_deduction_pct?: number
+          p_name: string
+          p_notes?: string
+          p_num_members?: number
+          p_start_date?: string
+        }
+        Returns: {
+          created_at: string
+          created_by: string | null
+          id: number
+          installment_amount: number
+          max_deduction_pct: number
+          name: string
+          notes: string | null
+          num_installments: number
+          num_members: number
+          start_date: string | null
+          status: string
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "kuri_schemes"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_voucher:
         | {
@@ -848,6 +1160,30 @@ export type Database = {
             }
           }
       daybook_last_date: { Args: never; Returns: string }
+      draw_kuri_lot: {
+        Args: {
+          p_installment_no: number
+          p_scheme_id: number
+          p_winner_member_id: number
+        }
+        Returns: {
+          drawn_at: string
+          drawn_by: string | null
+          id: number
+          installment_no: number
+          payout_amount: number
+          payout_date: string | null
+          payout_status: string
+          scheme_id: number
+          winner_member_id: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "kuri_lots"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       financial_year_summary: {
         Args: { p_start_year: number }
         Returns: {
@@ -865,13 +1201,135 @@ export type Database = {
           created_by: string | null
           effective_from: string
           fee: number
-          head_code: number
+          head_code: number | null
           note: string | null
           updated_at: string
         }
         SetofOptions: {
           from: "*"
           to: "joining_fees"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      kuri_collection_status: {
+        Args: { p_installment_no: number; p_scheme_id: number }
+        Returns: {
+          amount_due: number
+          amount_paid: number
+          balance: number
+          customer_code: number
+          customer_name: string
+          has_won_lot: boolean
+          last_paid_on: string
+          member_id: number
+          phone: string
+          ticket_no: number
+          won_installment: number
+        }[]
+      }
+      kuri_defaulters: {
+        Args: { p_installment_no: number; p_scheme_id: number }
+        Returns: {
+          amount_due: number
+          amount_paid: number
+          balance: number
+          customer_code: number
+          customer_name: string
+          member_id: number
+          phone: string
+          ticket_no: number
+        }[]
+      }
+      kuri_member_ledger: {
+        Args: { p_member_id: number; p_scheme_id: number }
+        Returns: {
+          amount_due: number
+          amount_paid: number
+          balance: number
+          installment_no: number
+          last_paid_on: string
+        }[]
+      }
+      kuri_payment_history: {
+        Args: { p_member_id: number; p_scheme_id: number }
+        Returns: {
+          amount: number
+          cancel_reason: string
+          cancelled_at: string
+          created_at: string
+          id: number
+          installment_no: number
+          notes: string
+          paid_on: string
+        }[]
+      }
+      kuri_payout_schedule: {
+        Args: { p_scheme_id: number }
+        Returns: {
+          installment_no: number
+          lot_number: number
+          payout_amount: number
+        }[]
+      }
+      kuri_scheme_detail: {
+        Args: { p_scheme_id: number }
+        Returns: {
+          created_at: string
+          enrolled_count: number
+          id: number
+          installment_amount: number
+          lots_drawn: number
+          lots_paid_out: number
+          max_deduction_pct: number
+          name: string
+          notes: string
+          num_installments: number
+          num_members: number
+          start_date: string
+          status: string
+          total_collected: number
+          total_paid_out: number
+          total_value: number
+        }[]
+      }
+      kuri_scheme_list: {
+        Args: never
+        Returns: {
+          created_at: string
+          enrolled_count: number
+          id: number
+          installment_amount: number
+          lots_drawn: number
+          name: string
+          num_installments: number
+          num_members: number
+          start_date: string
+          status: string
+          total_collected: number
+          total_value: number
+        }[]
+      }
+      kuri_sync_scheme_status: {
+        Args: { p_scheme_id: number }
+        Returns: undefined
+      }
+      mark_kuri_payout: {
+        Args: { p_lot_id: number; p_payout_date?: string }
+        Returns: {
+          drawn_at: string
+          drawn_by: string | null
+          id: number
+          installment_no: number
+          payout_amount: number
+          payout_date: string | null
+          payout_status: string
+          scheme_id: number
+          winner_member_id: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "kuri_lots"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -929,12 +1387,82 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      record_joining_fee_payment: {
+      record_joining_fee_payment:
+        | {
+            Args: {
+              p_amount: number
+              p_member_code: number
+              p_notes?: string
+              p_paid_on: string
+            }
+            Returns: {
+              amount: number
+              cancel_reason: string | null
+              cancelled_at: string | null
+              cancelled_by: string | null
+              created_at: string
+              created_by: string | null
+              id: number
+              member_code: number
+              notes: string | null
+              paid_on: string
+              request_id: string
+              voucher_id: number | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "joining_fee_payments"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_amount: number
+              p_member_code: number
+              p_notes: string
+              p_paid_on: string
+              p_request_id: string
+            }
+            Returns: {
+              amount: number
+              cancel_reason: string | null
+              cancelled_at: string | null
+              cancelled_by: string | null
+              created_at: string
+              created_by: string | null
+              id: number
+              member_code: number
+              notes: string | null
+              paid_on: string
+              request_id: string
+              voucher_id: number | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "joining_fee_payments"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      record_kuri_bulk_payment: {
         Args: {
-          p_amount: number
-          p_member_code: number
+          p_installment_no: number
           p_notes?: string
           p_paid_on: string
+          p_scheme_id: number
+        }
+        Returns: number
+      }
+      record_kuri_payment: {
+        Args: {
+          p_amount: number
+          p_installment_no: number
+          p_member_id: number
+          p_notes?: string
+          p_paid_on: string
+          p_request_id?: string
+          p_scheme_id: number
         }
         Returns: {
           amount: number
@@ -944,14 +1472,16 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: number
-          member_code: number
+          installment_no: number
+          member_id: number
           notes: string | null
           paid_on: string
-          voucher_id: number
+          request_id: string
+          scheme_id: number
         }
         SetofOptions: {
           from: "*"
-          to: "joining_fee_payments"
+          to: "kuri_payments"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -977,7 +1507,8 @@ export type Database = {
               member_code: number
               notes: string | null
               paid_on: string
-              voucher_id: number
+              request_id: string
+              voucher_id: number | null
             }
             SetofOptions: {
               from: "*"
@@ -1008,7 +1539,8 @@ export type Database = {
               member_code: number
               notes: string | null
               paid_on: string
-              voucher_id: number
+              request_id: string
+              voucher_id: number | null
             }
             SetofOptions: {
               from: "*"
@@ -1017,6 +1549,38 @@ export type Database = {
               isSetofReturn: false
             }
           }
+        | {
+            Args: {
+              p_amount: number
+              p_fy_start: number
+              p_member_code: number
+              p_notes: string
+              p_paid_on: string
+              p_request_id: string
+            }
+            Returns: {
+              amount: number
+              cancel_reason: string | null
+              cancelled_at: string | null
+              cancelled_by: string | null
+              created_at: string
+              created_by: string | null
+              fy_start: number
+              id: number
+              member_code: number
+              notes: string | null
+              paid_on: string
+              request_id: string
+              voucher_id: number | null
+            }
+            SetofOptions: {
+              from: "*"
+              to: "subscription_payments"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+      remove_kuri_member: { Args: { p_member_id: number }; Returns: undefined }
       reopen_financial_year: {
         Args: { p_reason: string; p_start_year: number }
         Returns: undefined
@@ -1051,6 +1615,8 @@ export type Database = {
         Args: { p_from: string; p_head_code: number; p_to: string }
         Returns: {
           balance: number
+          contra_code: number
+          contra_name: string
           credit: number
           debit: number
           head_code: number

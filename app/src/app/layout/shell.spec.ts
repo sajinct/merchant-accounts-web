@@ -12,6 +12,7 @@ import { AuthService } from '../core/auth.service';
 import { CompanyService } from '../core/company.service';
 import { NotifyService } from '../core/notify.service';
 import { ShortcutsService } from '../core/shortcuts.service';
+import { NAV } from './navigation';
 import { Shell } from './shell';
 
 @Component({ template: '<form><input aria-label="Test field" /></form>' })
@@ -153,19 +154,19 @@ describe('Shell navigation', () => {
   it('shows only groups initially and restores the group list with Escape and Back', async () => {
     const fixture = await createShell(false);
     const element = fixture.nativeElement as HTMLElement;
-    expect(element.querySelectorAll('.nav-group').length).toBe(5);
+    expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
     expect(element.querySelector('nav a')).toBeNull();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
     expect(element.querySelectorAll('nav a').length).toBe(3);
     // Every group stays visible, with Reports expanded in place.
-    expect(element.querySelectorAll('.nav-group').length).toBe(5);
+    expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
     expect(element.querySelector('.nav-group.is-open')!.getAttribute('data-group')).toBe('R');
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(element.querySelectorAll('.nav-group').length).toBe(5);
+    expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
     expect(document.activeElement).toBe(element.querySelector('[data-group="R"]'));
     // Clicking the open group collapses it again.
     element.querySelector<HTMLButtonElement>('[data-group="T"]')!.click();
@@ -174,7 +175,7 @@ describe('Shell navigation', () => {
     element.querySelector<HTMLButtonElement>('[data-group="T"]')!.click();
     fixture.detectChanges();
     expect(element.querySelector('nav a')).toBeNull();
-    expect(element.querySelectorAll('.nav-group').length).toBe(5);
+    expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
   });
 
   it('ignores shortcuts while typing and keeps the mobile drawer open when Escape goes back', async () => {
@@ -199,7 +200,7 @@ describe('Shell navigation', () => {
     fixture.detectChanges();
     await fixture.whenStable();
     expect(drawer.opened).toBe(true);
-    expect(element.querySelectorAll('.nav-group').length).toBe(5);
+    expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
   });
 
   it('switches between groups while one is open', async () => {
@@ -249,7 +250,7 @@ describe('Shell navigation', () => {
     const keys = Array.from(element.querySelectorAll('.nav-group'), (node) =>
       node.getAttribute('aria-keyshortcuts')!,
     );
-    expect(new Set(keys).size).toBe(5);
+    expect(new Set(keys).size).toBe(NAV.length);
     for (const groupKey of keys) {
       document.dispatchEvent(
         new KeyboardEvent('keydown', { key: groupKey.toLowerCase(), bubbles: true }),
@@ -397,7 +398,7 @@ describe('Shell navigation', () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
         fixture.detectChanges();
         await fixture.whenStable();
-        expect(element.querySelectorAll('.nav-group').length).toBe(5);
+        expect(element.querySelectorAll('.nav-group').length).toBe(NAV.length);
       },
     );
   }

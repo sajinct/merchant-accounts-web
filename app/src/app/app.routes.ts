@@ -117,6 +117,45 @@ export const routes: Routes = [
         title: 'Fees & Settings',
       },
 
+      // Kuri (Chit Fund) Management
+      {
+        path: 'kuri/schemes',
+        loadComponent: () => import('./features/kuri/kuri-schemes').then((m) => m.KuriSchemes),
+        title: 'Kuri Schemes',
+      },
+      {
+        path: 'kuri/schemes/new',
+        canActivate: [editors],
+        canDeactivate: [pendingChangesGuard],
+        loadComponent: () =>
+          import('./features/kuri/kuri-scheme-form').then((m) => m.KuriSchemeForm),
+        title: 'New Kuri Scheme',
+      },
+      {
+        path: 'kuri/schemes/:id',
+        loadComponent: () =>
+          import('./features/kuri/kuri-scheme-detail').then((m) => m.KuriSchemeDetail),
+        title: 'Kuri Scheme',
+      },
+      {
+        path: 'kuri/schemes/:id/installments/:no',
+        loadComponent: () =>
+          import('./features/kuri/kuri-installment').then((m) => m.KuriInstallment),
+        title: 'Kuri Installment',
+      },
+      {
+        path: 'kuri/defaulters',
+        loadComponent: () =>
+          import('./features/kuri/kuri-defaulters').then((m) => m.KuriDefaulters),
+        title: 'Kuri Defaulters',
+      },
+      {
+        path: 'kuri/ledger',
+        loadComponent: () =>
+          import('./features/kuri/kuri-member-ledger').then((m) => m.KuriMemberLedger),
+        title: 'Kuri Member Ledger',
+      },
+
       {
         path: 'admin/financial-years',
         canActivate: [admins],
