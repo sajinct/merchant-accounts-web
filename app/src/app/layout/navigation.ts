@@ -113,18 +113,11 @@ export const NAV: NavGroup[] = [
     ],
   },
   {
-    heading: 'Masters',
-    icon: 'folder_open',
-    shortcut: 'A',
-    items: [
-      { label: 'Account Heads', shortcut: 'A', link: '/masters/account-heads', icon: 'list_alt' },
-    ],
-  },
-  {
     heading: 'Utilities',
     icon: 'settings',
     shortcut: 'U',
     items: [
+      { label: 'Account Heads', shortcut: 'A', link: '/masters/account-heads', icon: 'list_alt' },
       {
         label: 'Company Settings',
         shortcut: 'C',
