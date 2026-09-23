@@ -7,12 +7,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatIconModule } from '@angular/material/icon';
-import { MatNativeDateModule } from '@angular/material/core';
 import { DecimalPipe } from '@angular/common';
 
 import { PageHeader } from '../../shared/page-header';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
-import { isoDate } from '../../shared/dates';
 import { HasPendingChanges } from '../../core/pending-changes';
 import { NotifyService } from '../../core/notify.service';
 import { KuriService } from './kuri.service';
@@ -25,7 +23,6 @@ import { KuriService } from './kuri.service';
     MatFormFieldModule,
     MatInputModule,
     MatDatepickerModule,
-    MatNativeDateModule,
     MatIconModule,
     RouterLink,
     PageHeader,
@@ -48,39 +45,58 @@ import { KuriService } from './kuri.service';
         <section class="panel" aria-labelledby="scheme-details-heading">
           <div class="panel-header"><h2 id="scheme-details-heading">Scheme details</h2></div>
           <div class="panel-body form-grid">
-            <mat-form-field class="wide">
+            <mat-form-field subscriptSizing="dynamic" class="wide">
               <mat-label>Name</mat-label>
               <input matInput formControlName="name" maxlength="80" placeholder="e.g. Daily 1000" />
               <mat-error>Enter a name for the scheme.</mat-error>
             </mat-form-field>
 
-            <mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>Installment amount</mat-label>
-              <input matInput type="number" formControlName="installment_amount" min="1" />
-              <mat-error>Enter an amount greater than zero.</mat-error>
+              <input
+                matInput
+                type="number"
+                formControlName="installment_amount"
+                min="0.01"
+                step="0.01"
+              />
+              <mat-error>Enter a positive amount with at most two decimal places.</mat-error>
             </mat-form-field>
 
-            <mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>Number of members</mat-label>
-              <input matInput type="number" formControlName="num_members" min="2" />
+              <input
+                matInput
+                type="number"
+                formControlName="num_members"
+                min="2"
+                max="32766"
+                step="1"
+              />
               <mat-hint>One ticket each; the scheme runs for one more month than this.</mat-hint>
-              <mat-error>At least two members are needed.</mat-error>
+              <mat-error>Enter a whole number from 2 to 32,766.</mat-error>
             </mat-form-field>
 
-            <mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>Max deduction %</mat-label>
               <input matInput type="number" formControlName="max_deduction_pct" step="0.01" />
               <mat-error>Enter a percentage between 0 and 100.</mat-error>
             </mat-form-field>
 
-            <mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
               <mat-label>Start date (optional)</mat-label>
-              <input matInput [matDatepicker]="picker" formControlName="start_date" />
+              <input
+                matInput
+                [matDatepicker]="picker"
+                formControlName="start_date"
+                placeholder="dd/mm/yyyy"
+              />
               <mat-datepicker-toggle matIconSuffix [for]="picker" />
               <mat-datepicker #picker />
+              <mat-error>Enter a valid date as dd/mm/yyyy.</mat-error>
             </mat-form-field>
 
-            <mat-form-field class="wide">
+            <mat-form-field subscriptSizing="dynamic" class="wide">
               <mat-label>Notes</mat-label>
               <textarea matInput formControlName="notes" rows="3"></textarea>
             </mat-form-field>
@@ -135,6 +151,9 @@ import { KuriService } from './kuri.service';
       flex-direction: column;
       gap: 20px;
     }
+    .scheme-form > .panel + .panel {
+      margin-top: 0;
+    }
     .preview-stats {
       margin: 0;
       display: grid;
@@ -170,15 +189,26 @@ export class KuriSchemeForm implements HasPendingChanges {
   protected readonly saving = signal(false);
 
   protected readonly form = this.fb.group({
-    name: this.fb.nonNullable.control('', [Validators.required]),
-    installment_amount: this.fb.nonNullable.control(0, [Validators.required, Validators.min(0.01)]),
-    num_members: this.fb.nonNullable.control(25, [Validators.required, Validators.min(2)]),
+    name: this.fb.nonNullable.control('', [Validators.required, Validators.pattern(/\S/)]),
+    installment_amount: this.fb.nonNullable.control(0, [
+      Validators.required,
+      Validators.min(0.01),
+      Validators.max(9999999999.99),
+      Validators.pattern(/^\d+(\.\d{1,2})?$/),
+    ]),
+    num_members: this.fb.nonNullable.control(25, [
+      Validators.required,
+      Validators.min(2),
+      Validators.max(32766),
+      Validators.pattern(/^\d+$/),
+    ]),
     max_deduction_pct: this.fb.nonNullable.control(20.4, [
       Validators.required,
       Validators.min(0.01),
       Validators.max(99.99),
+      Validators.pattern(/^\d+(\.\d{1,2})?$/),
     ]),
-    start_date: this.fb.control<Date | null>(null),
+    start_date: this.fb.control<string | null>(null),
     notes: this.fb.control<string | null>(null),
   });
 
@@ -230,7 +260,7 @@ export class KuriSchemeForm implements HasPendingChanges {
         p_installment_amount: val.installment_amount,
         p_num_members: val.num_members,
         p_max_deduction_pct: val.max_deduction_pct,
-        p_start_date: val.start_date ? isoDate(val.start_date) : null,
+        p_start_date: val.start_date || null,
         p_notes: val.notes || null,
       });
       this.notify.success('Scheme created successfully');

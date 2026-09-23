@@ -10,6 +10,7 @@ import { NotifyService } from '../../core/notify.service';
 import { downloadCsv } from '../../shared/csv';
 import { EmptyState } from '../../shared/empty-state';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 import { PageHeader } from '../../shared/page-header';
 import { ReportShell } from '../../shared/report-shell';
 import { KuriService } from './kuri.service';
@@ -25,6 +26,7 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
     MatIconModule,
     MatSelectModule,
     EnterToNext,
+    EntrySelect,
     EmptyState,
     PageHeader,
     ReportShell,
@@ -48,7 +50,7 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
         <form appEnterToNext filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
           <mat-form-field subscriptSizing="dynamic" class="scheme-select">
             <mat-label>Scheme</mat-label>
-            <mat-select formControlName="scheme">
+            <mat-select appEntrySelect formControlName="scheme">
               @for (scheme of schemes(); track scheme.id) {
                 <mat-option [value]="scheme.id">{{ scheme.name }}</mat-option>
               }
@@ -60,7 +62,7 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
 
           <mat-form-field subscriptSizing="dynamic">
             <mat-label>Installment</mat-label>
-            <mat-select formControlName="installment">
+            <mat-select appEntrySelect formControlName="installment">
               @for (no of installments(); track no) {
                 <mat-option [value]="no">{{ no }}</mat-option>
               }
@@ -132,10 +134,17 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
   `,
   styles: `
     .scheme-select {
-      min-width: 220px;
+      min-width: 0;
+      width: 260px;
+      max-width: 100%;
     }
     .report-table {
       min-width: 640px;
+    }
+    @media (max-width: 720px) {
+      .scheme-select {
+        width: 100%;
+      }
     }
     @media print {
       .report-table {
@@ -154,6 +163,7 @@ export class KuriDefaulters implements OnInit {
   protected readonly loading = signal(false);
   protected readonly ran = signal(false);
   protected readonly subtitle = signal('');
+  private reportRequest = 0;
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     scheme: [0, [Validators.required, Validators.min(1)]],
@@ -207,17 +217,24 @@ export class KuriDefaulters implements OnInit {
   }
 
   private invalidate(): void {
+    this.reportRequest++;
     this.ran.set(false);
     this.rows.set([]);
+    this.subtitle.set('');
   }
 
   protected async run(): Promise<void> {
     if (this.form.invalid || this.loading()) return;
     const { scheme: schemeId, installment } = this.form.getRawValue();
     const scheme = this.schemes().find((s) => s.id === schemeId);
+    if (!scheme || installment > scheme.num_installments) return;
+    this.invalidate();
+    const request = this.reportRequest;
     this.loading.set(true);
     try {
-      this.rows.set(await this.kuri.getDefaulters(schemeId, installment));
+      const rows = await this.kuri.getDefaulters(schemeId, installment);
+      if (request !== this.reportRequest) return;
+      this.rows.set(rows);
       this.subtitle.set(
         `${scheme?.name ?? 'Scheme ' + schemeId} — installment ${installment} of ${scheme?.num_installments ?? installment}`,
       );

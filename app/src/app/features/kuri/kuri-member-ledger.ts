@@ -14,6 +14,7 @@ import { confirmAction } from '../../shared/confirm-dialog';
 import { downloadCsv } from '../../shared/csv';
 import { EmptyState } from '../../shared/empty-state';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 import { PageHeader } from '../../shared/page-header';
 import { ReportShell } from '../../shared/report-shell';
 import { KuriService } from './kuri.service';
@@ -31,6 +32,7 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
     MatSelectModule,
     MatTooltipModule,
     EnterToNext,
+    EntrySelect,
     EmptyState,
     PageHeader,
     ReportShell,
@@ -54,7 +56,7 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
         <form appEnterToNext filters [formGroup]="form" (ngSubmit)="run()" class="filter-row">
           <mat-form-field subscriptSizing="dynamic" class="scheme-select">
             <mat-label>Scheme</mat-label>
-            <mat-select formControlName="scheme">
+            <mat-select appEntrySelect formControlName="scheme">
               @for (scheme of schemes(); track scheme.id) {
                 <mat-option [value]="scheme.id">{{ scheme.name }}</mat-option>
               }
@@ -66,7 +68,7 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
 
           <mat-form-field subscriptSizing="dynamic" class="member-select">
             <mat-label>Ticket</mat-label>
-            <mat-select formControlName="member">
+            <mat-select appEntrySelect formControlName="member">
               @for (member of members(); track member.id) {
                 <mat-option [value]="member.id">
                   #{{ member.ticket_no }} — {{ member.customer?.name }}
@@ -78,7 +80,11 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
             }
           </mat-form-field>
 
-          <button mat-flat-button type="submit" [disabled]="form.invalid || loading()">
+          <button
+            mat-flat-button
+            type="submit"
+            [disabled]="form.invalid || loading() || loadingMembers() || saving()"
+          >
             <mat-icon>play_arrow</mat-icon>{{ loading() ? 'Loading…' : 'Run report' }}
           </button>
         </form>
@@ -162,6 +168,7 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
                           class="danger"
                           [disabled]="saving()"
                           matTooltip="Cancel this payment"
+                          aria-label="Cancel this payment"
                           (click)="cancel(payment)"
                         >
                           <mat-icon>block</mat-icon>
@@ -197,7 +204,9 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
   styles: `
     .scheme-select,
     .member-select {
-      min-width: 220px;
+      min-width: 0;
+      width: 260px;
+      max-width: 100%;
     }
     .report-table {
       min-width: 620px;
@@ -213,6 +222,12 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
     }
     tr.cancelled .table-secondary {
       text-decoration: none;
+    }
+    @media (max-width: 720px) {
+      .scheme-select,
+      .member-select {
+        width: 100%;
+      }
     }
     @media print {
       .report-table {
@@ -238,6 +253,8 @@ export class KuriMemberLedger implements OnInit {
   protected readonly saving = signal(false);
   protected readonly ran = signal(false);
   protected readonly subtitle = signal('');
+  private reportRequest = 0;
+  private memberRequest = 0;
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     scheme: [0, [Validators.required, Validators.min(1)]],
@@ -284,33 +301,44 @@ export class KuriMemberLedger implements OnInit {
   }
 
   private async loadMembers(schemeId: number): Promise<void> {
+    const request = ++this.memberRequest;
     this.members.set([]);
-    if (!schemeId) return;
+    if (!schemeId) {
+      this.loadingMembers.set(false);
+      return;
+    }
     this.loadingMembers.set(true);
     try {
-      this.members.set(await this.kuri.getMembers(schemeId));
+      const members = await this.kuri.getMembers(schemeId);
+      if (request === this.memberRequest) this.members.set(members);
     } catch (err) {
       this.notify.error(err);
     } finally {
-      this.loadingMembers.set(false);
+      if (request === this.memberRequest) this.loadingMembers.set(false);
     }
   }
 
   private invalidate(): void {
+    this.reportRequest++;
     this.ran.set(false);
     this.ledger.set([]);
     this.payments.set([]);
+    this.subtitle.set('');
   }
 
   protected async run(): Promise<void> {
-    if (this.form.invalid || this.loading()) return;
+    if (this.form.invalid || this.loading() || this.loadingMembers()) return;
     const { scheme: schemeId, member: memberId } = this.form.getRawValue();
+    if (!this.members().some((member) => member.id === memberId)) return;
+    this.invalidate();
+    const request = this.reportRequest;
     this.loading.set(true);
     try {
       const [ledger, payments] = await Promise.all([
         this.kuri.getMemberLedger(schemeId, memberId),
         this.kuri.getPaymentHistory(schemeId, memberId),
       ]);
+      if (request !== this.reportRequest) return;
       this.ledger.set(ledger);
       this.payments.set(payments);
       this.subtitle.set(this.describe(schemeId, memberId));

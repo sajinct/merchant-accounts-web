@@ -17,6 +17,8 @@ import { PageHeader } from '../../shared/page-header';
 import { EmptyState } from '../../shared/empty-state';
 import { StatCard } from '../../shared/stat-card';
 import { confirmAction } from '../../shared/confirm-dialog';
+import { EnterToNext } from '../../shared/enter-to-next.directive';
+import { EntrySelect } from '../../shared/entry-select.directive';
 import { isoDate } from '../../shared/dates';
 import { KuriService } from './kuri.service';
 import {
@@ -44,6 +46,8 @@ import {
     PageHeader,
     EmptyState,
     StatCard,
+    EnterToNext,
+    EntrySelect,
   ],
   template: `
     <div class="page">
@@ -69,15 +73,15 @@ import {
           <mat-tab label="Payout Schedule">
             <div class="panel">
               <div class="panel-body">
-                <div class="table-wrap">
+                <div class="table-wrap" role="region" tabindex="0" aria-label="Payout schedule">
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th>Installment</th>
-                        <th>Lot #</th>
-                        <th class="num">Payout Amount</th>
-                        <th>Winner</th>
-                        <th>Status</th>
+                        <th scope="col">Installment</th>
+                        <th scope="col">Lot #</th>
+                        <th scope="col" class="num">Payout Amount</th>
+                        <th scope="col">Winner</th>
+                        <th scope="col">Status</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -121,15 +125,15 @@ import {
           <mat-tab label="Members ({{ members().length }})">
             <div class="panel">
               <div class="panel-body">
-                <div class="table-wrap">
+                <div class="table-wrap" role="region" tabindex="0" aria-label="Scheme members">
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th>Ticket #</th>
-                        <th>Name</th>
-                        <th>Phone</th>
-                        <th>Lot Won</th>
-                        <th>Actions</th>
+                        <th scope="col">Ticket #</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Phone</th>
+                        <th scope="col">Lot Won</th>
+                        <th scope="col">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -143,7 +147,9 @@ import {
                             @if (s.status === 'draft' && auth.isAdmin()) {
                               <button
                                 mat-icon-button
-                                color="warn"
+                                class="danger"
+                                [disabled]="busy()"
+                                [attr.aria-label]="'Remove ticket ' + m.ticket_no"
                                 (click)="removeMember(m)"
                                 matTooltip="Remove"
                               >
@@ -162,20 +168,42 @@ import {
                   </table>
                 </div>
 
-                @if (s.status === 'draft' && auth.canEdit()) {
+                @if (s.status === 'draft' && auth.canEdit() && members().length < s.num_members) {
                   <div class="panel-header" style="margin-top: 2rem;">
                     <h2>Add Member</h2>
                   </div>
-                  <form [formGroup]="memberForm" (ngSubmit)="addMember()" class="form-grid">
-                    <mat-form-field>
+                  <form
+                    appEnterToNext
+                    [formGroup]="memberForm"
+                    (ngSubmit)="addMember()"
+                    class="form-grid"
+                  >
+                    <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Customer Code</mat-label>
-                      <input matInput type="number" formControlName="customerCode" />
+                      <input
+                        matInput
+                        type="number"
+                        formControlName="customerCode"
+                        min="1"
+                        step="1"
+                      />
+                      <mat-error>Enter a positive whole-number customer code.</mat-error>
                     </mat-form-field>
-                    <mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Ticket #</mat-label>
-                      <input matInput type="number" formControlName="ticketNo" />
+                      <input
+                        matInput
+                        type="number"
+                        formControlName="ticketNo"
+                        min="1"
+                        [max]="s.num_members"
+                        step="1"
+                      />
+                      <mat-error
+                        >Enter an available ticket number from 1 to {{ s.num_members }}.</mat-error
+                      >
                     </mat-form-field>
-                    <div class="form-actions">
+                    <div class="form-actions full">
                       <button
                         mat-flat-button
                         type="submit"
@@ -193,16 +221,16 @@ import {
           <mat-tab label="Lot History">
             <div class="panel">
               <div class="panel-body">
-                <div class="table-wrap">
+                <div class="table-wrap" role="region" tabindex="0" aria-label="Lot history">
                   <table class="data-table">
                     <thead>
                       <tr>
-                        <th>Installment</th>
-                        <th>Winner</th>
-                        <th class="num">Payout Amount</th>
-                        <th>Status</th>
-                        <th>Payout Date</th>
-                        <th>Actions</th>
+                        <th scope="col">Installment</th>
+                        <th scope="col">Winner</th>
+                        <th scope="col" class="num">Payout Amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Payout Date</th>
+                        <th scope="col">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -241,22 +269,32 @@ import {
                   </table>
                 </div>
 
-                @if (s.status === 'active' && auth.canEdit()) {
+                @if (
+                  s.status === 'active' &&
+                  auth.canEdit() &&
+                  pendingLots().length &&
+                  eligibleMembers().length
+                ) {
                   <div class="panel-header" style="margin-top: 2rem;">
                     <h2>Draw Lot</h2>
                   </div>
-                  <form [formGroup]="drawForm" (ngSubmit)="drawLot()" class="form-grid">
-                    <mat-form-field>
+                  <form
+                    appEnterToNext
+                    [formGroup]="drawForm"
+                    (ngSubmit)="drawLot()"
+                    class="form-grid"
+                  >
+                    <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Installment</mat-label>
-                      <mat-select formControlName="installmentNo">
+                      <mat-select appEntrySelect formControlName="installmentNo">
                         @for (inst of pendingLots(); track inst) {
                           <mat-option [value]="inst">{{ inst }}</mat-option>
                         }
                       </mat-select>
                     </mat-form-field>
-                    <mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Winner</mat-label>
-                      <mat-select formControlName="winnerMemberId">
+                      <mat-select appEntrySelect formControlName="winnerMemberId">
                         @for (m of eligibleMembers(); track m.id) {
                           <mat-option [value]="m.id"
                             >{{ m.customer?.name }} (Tkt: {{ m.ticket_no }})</mat-option
@@ -264,7 +302,7 @@ import {
                         }
                       </mat-select>
                     </mat-form-field>
-                    <div class="form-actions">
+                    <div class="form-actions full">
                       <button mat-flat-button type="submit" [disabled]="drawForm.invalid || busy()">
                         Record Lot Draw
                       </button>
@@ -276,32 +314,25 @@ import {
           </mat-tab>
         </mat-tab-group>
       } @else {
-        <app-empty-state icon="pending" message="Loading scheme details..." />
+        <app-empty-state
+          icon="pending"
+          [message]="loading() ? 'Loading scheme details…' : 'Unable to load scheme details.'"
+        />
+        @if (!loading()) {
+          <button mat-stroked-button type="button" (click)="loadData()">Retry</button>
+        }
       }
     </div>
   `,
+  styleUrl: './kuri-summary.scss',
   styles: `
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1.5rem;
-      margin-bottom: 2rem;
+    .panel-body > .form-grid {
+      margin-top: 16px;
     }
     .empty-cell {
       text-align: center;
       color: var(--app-muted);
       padding: 2rem !important;
-    }
-    .form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      align-items: center;
-    }
-    .form-actions {
-      display: flex;
-      align-items: center;
-      padding-bottom: 1.25rem;
     }
   `,
 })
@@ -320,10 +351,18 @@ export class KuriSchemeDetail implements OnInit {
   protected readonly members = signal<KuriMember[]>([]);
   protected readonly lots = signal<KuriLot[]>([]);
   protected readonly busy = signal(false);
+  protected readonly loading = signal(true);
+  private loadRequest = 0;
 
   protected readonly memberForm = this.fb.group({
-    customerCode: [null as number | null, Validators.required],
-    ticketNo: [null as number | null, Validators.required],
+    customerCode: [
+      null as number | null,
+      [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+    ],
+    ticketNo: [
+      null as number | null,
+      [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
+    ],
   });
 
   protected readonly drawForm = this.fb.group({
@@ -387,12 +426,17 @@ export class KuriSchemeDetail implements OnInit {
       const id = Number(params.get('id'));
       if (id) {
         this.schemeId.set(id);
+        this.scheme.set(null);
+        this.memberForm.reset();
+        this.drawForm.reset();
         void this.loadData();
       }
     });
   }
 
-  private async loadData(): Promise<void> {
+  protected async loadData(): Promise<void> {
+    const request = ++this.loadRequest;
+    this.loading.set(true);
     try {
       const id = this.schemeId();
       const [schemes, slots, members, lots] = await Promise.all([
@@ -401,17 +445,30 @@ export class KuriSchemeDetail implements OnInit {
         this.kuri.getMembers(id),
         this.kuri.getLots(id),
       ]);
+      if (request !== this.loadRequest) return;
       this.scheme.set(schemes[0] || null);
       this.slots.set(slots);
       this.members.set(members);
       this.lots.set(lots);
+      this.memberForm.controls.ticketNo.setValidators([
+        Validators.required,
+        Validators.min(1),
+        Validators.max(schemes[0]?.num_members ?? 0),
+        Validators.pattern(/^\d+$/),
+      ]);
+      this.memberForm.controls.ticketNo.updateValueAndValidity();
 
       const pending = this.pendingLots();
       if (pending.length > 0) {
         this.drawForm.patchValue({ installmentNo: pending[0] });
       }
     } catch (err) {
-      this.notify.error(err);
+      if (request === this.loadRequest) {
+        this.scheme.set(null);
+        this.notify.error(err);
+      }
+    } finally {
+      if (request === this.loadRequest) this.loading.set(false);
     }
   }
 
@@ -433,6 +490,7 @@ export class KuriSchemeDetail implements OnInit {
     if (this.memberForm.invalid || this.busy()) return;
     const v = this.memberForm.value;
     this.busy.set(true);
+    this.memberForm.disable({ emitEvent: false });
     try {
       await this.kuri.addMember(this.schemeId(), v.customerCode!, v.ticketNo!);
       this.notify.success('Member added');
@@ -441,18 +499,21 @@ export class KuriSchemeDetail implements OnInit {
     } catch (err) {
       this.notify.error(err);
     } finally {
+      this.memberForm.enable({ emitEvent: false });
       this.busy.set(false);
     }
   }
 
   protected async removeMember(m: KuriMember): Promise<void> {
+    if (this.busy()) return;
+    const schemeId = this.schemeId();
     const result = await confirmAction(this.dialog, {
       title: 'Remove Member?',
       message: `Remove ticket #${m.ticket_no} (${m.customer?.name}) from this scheme?`,
       destructive: true,
       confirmLabel: 'Remove',
     });
-    if (!result) return;
+    if (!result || this.busy() || schemeId !== this.schemeId()) return;
     this.busy.set(true);
     try {
       await this.kuri.removeMember(m.id);
@@ -469,6 +530,7 @@ export class KuriSchemeDetail implements OnInit {
     if (this.drawForm.invalid || this.busy()) return;
     const v = this.drawForm.value;
     this.busy.set(true);
+    this.drawForm.disable({ emitEvent: false });
     try {
       await this.kuri.drawLot(this.schemeId(), v.installmentNo!, v.winnerMemberId!);
       this.notify.success('Lot recorded successfully');
@@ -477,17 +539,20 @@ export class KuriSchemeDetail implements OnInit {
     } catch (err) {
       this.notify.error(err);
     } finally {
+      this.drawForm.enable({ emitEvent: false });
       this.busy.set(false);
     }
   }
 
   protected async markPaid(lot: KuriLot): Promise<void> {
+    if (this.busy()) return;
+    const schemeId = this.schemeId();
     const result = await confirmAction(this.dialog, {
       title: 'Mark Paid?',
       message: `Confirm payout of ${lot.payout_amount} to ${lot.member?.customer?.name}?`,
       confirmLabel: 'Mark Paid',
     });
-    if (!result) return;
+    if (!result || this.busy() || schemeId !== this.schemeId()) return;
     this.busy.set(true);
     try {
       await this.kuri.markPayout(lot.id, isoDate());

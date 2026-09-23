@@ -41,11 +41,10 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
         }
       </app-page-header>
 
-      <div
-        class="filter-row no-print"
-        style="margin-bottom: 20px; display: flex; gap: 16px; align-items: center; flex-wrap: wrap;"
-      >
+      <div class="filter-row no-print">
         <mat-button-toggle-group
+          class="status-filter"
+          hideSingleSelectionIndicator
           [value]="status()"
           (change)="status.set($event.value)"
           aria-label="Filter by status"
@@ -55,7 +54,7 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
           <mat-button-toggle value="active">Active</mat-button-toggle>
           <mat-button-toggle value="completed">Completed</mat-button-toggle>
         </mat-button-toggle-group>
-        <mat-form-field subscriptSizing="dynamic" class="search-field" style="flex: 1 1 240px;">
+        <mat-form-field subscriptSizing="dynamic" class="search-field">
           <mat-label>Search</mat-label>
           <mat-icon matPrefix>search</mat-icon>
           <input
@@ -161,6 +160,16 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
     </div>
   `,
   styles: `
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .search-field {
+      flex: 1 1 240px;
+    }
     .summary-grid {
       margin: 0 0 20px;
     }
@@ -171,6 +180,14 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
       .filter-row {
         flex-direction: column;
         align-items: stretch;
+      }
+      .search-field {
+        flex: none;
+        width: 100%;
+      }
+      .status-filter {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
   `,
