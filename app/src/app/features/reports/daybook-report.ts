@@ -111,9 +111,14 @@ import { EmptyState } from '../../shared/empty-state';
                     </td>
                   </tr>
 
-                  @for (row of day.entries; track row.seq) {
-                    <tr>
-                      <td>{{ row.voucher_ref }}</td>
+                  @for (row of day.entries; track row.seq; let i = $index) {
+                    <!-- A voucher with several accounts reads as one block of rows. -->
+                    @let continued = sameVoucher(day.entries[i - 1], row);
+                    <tr
+                      [class.continued]="continued"
+                      [class.joined]="sameVoucher(row, day.entries[i + 1])"
+                    >
+                      <td>{{ continued ? '' : row.voucher_ref }}</td>
                       <td class="account-name">{{ row.head_name }}</td>
                       <td class="narration">{{ row.narration }}</td>
                       <td class="num">
@@ -202,6 +207,13 @@ import { EmptyState } from '../../shared/empty-state';
       padding-bottom: 14px;
       background: var(--app-surface-sunken);
     }
+    tr.joined td {
+      padding-bottom: 5px;
+      border-bottom-color: transparent;
+    }
+    tr.continued td {
+      padding-top: 5px;
+    }
     @media print {
       .report-table,
       .account-name,
@@ -282,6 +294,10 @@ export class DaybookReport {
       closing: this.rows().at(-1)?.balance ?? 0,
     };
   });
+
+  protected sameVoucher(a: DaybookRow | undefined, b: DaybookRow | undefined): boolean {
+    return !!a?.voucher_ref && a.voucher_ref === b?.voucher_ref;
+  }
 
   private reportRequest = 0;
   protected invalidateReport() {

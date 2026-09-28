@@ -1,4 +1,4 @@
-import { AccountHead } from './models';
+import { AccountHead, VoucherDetail } from './models';
 import { VoucherTypeConfig } from './voucher-types';
 
 /** One row of the entry grid. Simplified mode fills `amount`, advanced fills the sides. */
@@ -145,6 +145,65 @@ export function requestLines(
             description: line.description.trim(),
           },
     );
+}
+
+export interface EditableLines {
+  simplified: boolean;
+  cashAccount: number | null;
+  lines: VoucherEntryLine[];
+}
+
+/**
+ * A posted voucher's lines as the entry grid shows them. A receipt or payment opens in
+ * simplified mode when it has the shape that mode posts: one cash/bank line on the cash
+ * side against other heads on the opposite side. Anything else opens as debit / credit.
+ * A description that only repeats the narration was blank when entered, so it is left blank.
+ */
+export function editableLines(
+  type: VoucherTypeConfig,
+  narration: string,
+  details: readonly Pick<VoucherDetail, 'line_no' | 'head_code' | 'debit' | 'credit' | 'narration'>[],
+  accounts: readonly AccountHead[],
+): EditableLines {
+  const cashCodes = new Set(accounts.filter((a) => a.is_cash_bank).map((a) => a.code));
+  const ordered = [...details].sort((a, b) => a.line_no - b.line_no);
+  const description = (text: string | null) => (!text || text === narration ? '' : text);
+  const side = type.simplifiedSide;
+
+  if (type.simplified && side) {
+    const cashSide = side === 'debit' ? 'credit' : 'debit';
+    const cash = ordered.filter((line) => cashCodes.has(line.head_code));
+    const heads = ordered.filter((line) => !cashCodes.has(line.head_code));
+    if (
+      cash.length === 1 &&
+      Number(cash[0][cashSide]) > 0 &&
+      heads.length > 0 &&
+      heads.every((line) => Number(line[side]) > 0)
+    ) {
+      return {
+        simplified: true,
+        cashAccount: cash[0].head_code,
+        lines: heads.map((line) => ({
+          account: line.head_code,
+          description: description(line.narration),
+          amount: Number(line[side]),
+          debit: null,
+          credit: null,
+        })),
+      };
+    }
+  }
+  return {
+    simplified: false,
+    cashAccount: null,
+    lines: ordered.map((line) => ({
+      account: line.head_code,
+      description: description(line.narration),
+      amount: null,
+      debit: Number(line.debit) || null,
+      credit: Number(line.credit) || null,
+    })),
+  };
 }
 
 /**

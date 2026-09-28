@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { AccountHead, Customer, Voucher } from './models';
+import { AccountHead, Customer, Voucher, VoucherDetail } from './models';
 import { must, SupabaseService } from './supabase.service';
 import { VoucherTypeCode } from './voucher-types';
 
@@ -24,6 +24,14 @@ export interface PostVoucherRequest {
   simplified: boolean;
   /** The same id on a retry returns the first voucher instead of posting twice. */
   requestId: string;
+}
+
+/** An edit keeps the voucher's type, and repeating it is harmless, so it needs no request id. */
+export type UpdateVoucherRequest = Omit<PostVoucherRequest, 'type' | 'requestId'>;
+
+export interface EditableVoucher {
+  voucher: Voucher;
+  lines: VoucherDetail[];
 }
 
 /**
@@ -107,6 +115,39 @@ export class VoucherService {
           p_opening: true,
         }),
       ),
+    );
+  }
+
+  /** A posted voucher with its lines, for editing. */
+  async load(id: number): Promise<EditableVoucher> {
+    const journal = await must(
+      this.sb
+        .from('journals')
+        .select('daybook(id,line_no,head_code,debit,credit,narration,reference_id),voucher:vouchers(*)')
+        .eq('voucher_id', id)
+        .single<{ daybook: VoucherDetail[]; voucher: Voucher }>(),
+    );
+    return { voucher: journal.voucher, lines: journal.daybook };
+  }
+
+  /**
+   * Admins only: replaces a posted voucher's date, header and lines. The voucher keeps its
+   * type and number, and the database keeps the previous version in voucher_revisions.
+   */
+  async update(id: number, request: UpdateVoucherRequest): Promise<Voucher> {
+    return must(
+      this.sb
+        .rpc('update_voucher', {
+          p_id: id,
+          p_date: request.date,
+          p_reference_no: request.referenceNo,
+          p_party_code: request.partyCode,
+          p_narration: request.narration,
+          p_cash_account_code: request.simplified ? request.cashAccount : null,
+          p_lines: request.lines,
+          p_simplified: request.simplified,
+        })
+        .single<Voucher>(),
     );
   }
 
