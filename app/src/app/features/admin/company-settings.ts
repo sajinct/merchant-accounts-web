@@ -74,7 +74,7 @@ import { PageHeader } from '../../shared/page-header';
               <mat-icon>info_outline</mat-icon>
               <span
                 >Off by default, so money moving in or out is entered as a receipt, payment or
-                contra, where it is visible in the cash book.</span
+                transfer, where it is visible in the cash book.</span
               >
             </p>
           </div>

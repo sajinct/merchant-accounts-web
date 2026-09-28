@@ -96,7 +96,11 @@ const STARTING_LINES = 3;
     <div class="page no-print">
       <app-page-header
         eyebrow="Transactions"
-        [heading]="(editMode() ? 'Edit ' + config.label.toLowerCase() : config.label) + ' voucher'"
+        [heading]="
+          config.noun
+            ? (editMode() ? 'Edit ' : 'New ') + config.noun
+            : (editMode() ? 'Edit ' + config.label.toLowerCase() : config.label) + ' voucher'
+        "
         [description]="
           editMode()
             ? 'Correct the posted voucher. It keeps its number and the previous version is kept for audit.'
@@ -431,7 +435,15 @@ const STARTING_LINES = 3;
           <div class="form-actions voucher-actions">
             <button mat-flat-button type="submit" [disabled]="!canSave()">
               <mat-icon>check</mat-icon>
-              {{ saving() ? 'Saving…' : editMode() ? 'Save changes' : 'Save' }}
+              {{
+                saving()
+                  ? 'Saving…'
+                  : editMode()
+                    ? 'Save changes'
+                    : config.noun
+                      ? 'Save ' + config.noun
+                      : 'Save'
+              }}
             </button>
             @if (!editMode()) {
               <button

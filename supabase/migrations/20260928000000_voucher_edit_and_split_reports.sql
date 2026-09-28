@@ -7,7 +7,7 @@
 
 -- Each line: one positive side, two decimals, a classified account and, for new postings,
 -- an active ledger account; and the journal as a whole balances.
-create function public.check_journal_lines(p_kind text, p_lines jsonb) returns void
+create or replace function public.check_journal_lines(p_kind text, p_lines jsonb) returns void
 language plpgsql set search_path = '' as $$
 declare line jsonb; dr numeric; cr numeric; total_dr numeric:=0; total_cr numeric:=0; ac integer;
 begin
@@ -32,7 +32,7 @@ begin
 end $$;
 
 -- Lines of a voucher carry its own reference, so the day book and ledger name it.
-create function public.insert_journal_lines(p_journal bigint, p_date date, p_narration text,
+create or replace function public.insert_journal_lines(p_journal bigint, p_date date, p_narration text,
  p_voucher bigint, p_lines jsonb) returns void
 language plpgsql set search_path = '' as $$
 declare ref text;
@@ -74,7 +74,7 @@ end $$;
 -- `amount`; the single cash/bank counterpart for the total is written here, so the user
 -- never types the cash side. Advanced mode passes explicit `debit`/`credit` per line and
 -- only the voucher-type rules are checked. Returns the debit/credit lines to post.
-create function public.voucher_postings(p_type integer, p_narration text, p_cash_account_code integer,
+create or replace function public.voucher_postings(p_type integer, p_narration text, p_cash_account_code integer,
  p_lines jsonb, p_simplified boolean) returns jsonb
 language plpgsql set search_path = '' as $$
 declare lines jsonb; cash jsonb; total numeric;
@@ -122,12 +122,12 @@ begin
  end if;
  if p_type=3 and exists(select 1 from jsonb_array_elements(lines) as t(x)
       join public.account_heads h on h.code=(x->>'account')::integer where not h.is_cash_bank) then
-   raise exception 'A contra voucher moves money between cash and bank accounts only';
+   raise exception 'A transfer moves money between cash and bank accounts only';
  end if;
  if p_type=4 and not coalesce((select journal_allows_cash from public.company_settings),false)
     and exists(select 1 from jsonb_array_elements(lines) as t(x)
       join public.account_heads h on h.code=(x->>'account')::integer where h.is_cash_bank) then
-   raise exception 'Journal vouchers cannot use cash or bank accounts; use a receipt, payment or contra';
+   raise exception 'Journal vouchers cannot use cash or bank accounts; use a receipt, payment or transfer';
  end if;
  return lines;
 end $$;
@@ -195,17 +195,18 @@ end $$;
 -- ---------------------------------------------------------------------------
 
 -- What a voucher looked like before each edit.
-create table public.voucher_revisions (
+create table if not exists public.voucher_revisions (
   id         bigint generated always as identity primary key,
   voucher_id bigint not null references public.vouchers(id),
   revised_at timestamptz not null default now(),
   revised_by uuid not null default auth.uid() references auth.users(id),
   previous   jsonb not null
 );
-create index voucher_revisions_voucher_idx on public.voucher_revisions(voucher_id);
+create index if not exists voucher_revisions_voucher_idx on public.voucher_revisions(voucher_id);
 alter table public.voucher_revisions enable row level security;
 revoke all on public.voucher_revisions from public, anon, authenticated;
 grant select on public.voucher_revisions to authenticated;
+drop policy if exists voucher_revisions_read on public.voucher_revisions;
 create policy voucher_revisions_read on public.voucher_revisions for select to authenticated
  using ((select public.app_role()) is not null);
 
@@ -225,7 +226,7 @@ end $$;
 -- Replaces a voucher's date, header details and lines, keeping its type and number. The
 -- previous version goes to voucher_revisions. Both the old and the new date must fall in
 -- an open financial year, so closed books never change.
-create function public.update_voucher(
+create or replace function public.update_voucher(
   p_id                bigint,
   p_date              date,
   p_reference_no      text,
@@ -305,7 +306,7 @@ grant execute on function public.update_voucher(bigint,date,text,integer,text,in
 --  * this line alone against several: one row per account, each for its own amount
 --    (a receipt into cash for three income heads reads as three rows);
 --  * several against several: the amounts cannot be paired, so one row naming them all.
-create view public.daybook_counterparts with (security_invoker = true) as
+create or replace view public.daybook_counterparts with (security_invoker = true) as
 select d.id as line_id, d.journal_id, d.head_code, d.tran_date, d.voucher_ref,
        p.part_no, p.contra_code, p.contra_name, p.narration, p.debit, p.credit
   from public.daybook d
@@ -339,6 +340,8 @@ grant select on public.daybook_counterparts to authenticated;
 
 -- Day book: cash and bank lines, named by the account the money came from or went to.
 -- `credit` is money in (receipt) and `debit` money out (payment), as before.
+-- A transfer between two cash/bank accounts (a contra) is two rows of this combined book,
+-- so each row names its own account: Cash -> Bank reads Bank receipt, Cash payment.
 create or replace function public.rpt_daybook(p_from date, p_to date)
 returns table (
   seq         bigint,
@@ -363,16 +366,19 @@ as $$
      where h.is_cash_bank and (d.tran_date < p_from or d.tran_date is null)
   ),
   entries as (
-    select c.*
+    select c.line_id, c.part_no, c.tran_date, c.voucher_ref, c.narration, c.debit, c.credit,
+           case when ch.is_cash_bank then c.head_code else c.contra_code end as label_code,
+           case when ch.is_cash_bank then h.name else c.contra_name end as label_name
       from public.daybook_counterparts c
       join public.account_heads h on h.code = c.head_code
+      left join public.account_heads ch on ch.code = c.contra_code
      where h.is_cash_bank and c.tran_date between p_from and p_to
   )
   select 0::bigint, 'opening', p_from, null, null, null, 'OPENING BALANCE', 0::numeric, 0::numeric, o.amount
     from opening o
   union all
   select row_number() over w,
-         'entry', e.tran_date, e.voucher_ref, e.contra_code, e.contra_name, e.narration,
+         'entry', e.tran_date, e.voucher_ref, e.label_code, e.label_name, e.narration,
          e.credit, e.debit,
          o.amount + sum(e.debit - e.credit) over (w rows between unbounded preceding and current row)
     from entries e

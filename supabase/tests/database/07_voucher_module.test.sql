@@ -64,7 +64,7 @@ select lives_ok($$select post_voucher(3,'2026-09-16',null,null,'Cash deposited',
  '00000000-0000-0000-0000-0000000000a3')$$,'contra transfers cash to bank');
 select throws_ok($$select post_voucher(3,'2026-09-16',null,null,'bad contra',null,
  '[{"account":85002,"debit":100},{"account":85003,"credit":100}]'::jsonb,false,gen_random_uuid())$$,
- 'P0001','A contra voucher moves money between cash and bank accounts only','contra rejects a non-cash head');
+ 'P0001','A transfer moves money between cash and bank accounts only','contra rejects a non-cash head');
 
 -- Journal: general adjustments, and no cash unless an admin allows it.
 select lives_ok($$select post_voucher(4,'2026-09-16',null,null,'Salary accrual',null,
@@ -72,7 +72,7 @@ select lives_ok($$select post_voucher(4,'2026-09-16',null,null,'Salary accrual',
  '00000000-0000-0000-0000-0000000000a4')$$,'journal posts an adjustment');
 select throws_ok($$select post_voucher(4,'2026-09-16',null,null,'cash journal',null,
  '[{"account":85001,"debit":10},{"account":85008,"credit":10}]'::jsonb,false,gen_random_uuid())$$,
- 'P0001','Journal vouchers cannot use cash or bank accounts; use a receipt, payment or contra',
+ 'P0001','Journal vouchers cannot use cash or bank accounts; use a receipt, payment or transfer',
  'journal refuses cash by default');
 update company_settings set journal_allows_cash=true;
 select lives_ok($$select post_voucher(4,'2026-09-16',null,null,'allowed cash journal',null,

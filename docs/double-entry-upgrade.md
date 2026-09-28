@@ -8,7 +8,7 @@ The upgrade starts fresh, as requested: existing financial entries were demo dat
 2. A Cash in hand asset is created by the migration. Add actual bank accounts as assets and select Yes for Cash / bank account.
 3. Enter any real opening balances as an admin in Transactions → Journal → Entry type → Opening balances. Debits and credits must match. Do not enter invented balances just to make totals match.
 4. Enter money received in Transactions → Receipt and money paid in Transactions → Payment. Choose the cash or bank account once, then one line per account head; the cash side is generated. Saving posts both sides immediately. Subscription collection uses the same posting engine.
-5. Move money between your own accounts in Transactions → Contra, and post adjustments with no money moving in Transactions → Journal.
+5. Move money between your own accounts in Transactions → Transfer (a contra voucher, numbered C-1, C-2 …), and post adjustments with no money moving in Transactions → Journal.
 
 ## The voucher module
 

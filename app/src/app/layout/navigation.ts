@@ -37,8 +37,8 @@ export const NAV: NavGroup[] = [
         editorsOnly: true,
       },
       {
-        label: 'Contra',
-        shortcut: 'C',
+        label: 'Transfer',
+        shortcut: 'T',
         link: '/transactions/voucher/contra',
         icon: 'swap_horiz',
         editorsOnly: true,

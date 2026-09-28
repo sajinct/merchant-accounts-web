@@ -150,7 +150,7 @@ A voucher is a header (`vouchers`) and any number of debit/credit lines (`dayboo
 |---|---|---|
 | Receipt (R) | Cash/bank Dr, heads Cr | anything except the cash side itself |
 | Payment (P) | Heads Dr, cash/bank Cr | anything except the cash side itself |
-| Contra (C) | Between your own accounts | cash and bank only |
+| Contra, shown as **Transfer** (C) | Between your own accounts | cash and bank only |
 | Journal (V) | A general adjustment | no cash/bank unless an admin enables it |
 
 **Simplified and advanced entry.** Receipts and payments open in simplified mode: choose the cash or bank account once, then enter one amount per head. A member paying ₹1,000 membership, ₹500 welfare fund, ₹100 late fee and ₹400 donation is four lines and one total; the ₹2,000 cash debit is generated. *Advanced accounting view* shows the same voucher as debit and credit columns with a running difference, and saving is refused until the difference is zero. Contra and journal vouchers always use the debit/credit grid. Amounts typed in one mode carry over to the other.

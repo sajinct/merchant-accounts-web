@@ -12,7 +12,13 @@ export type VoucherSlug = 'receipt' | 'payment' | 'contra' | 'journal';
 export interface VoucherTypeConfig {
   code: VoucherTypeCode;
   slug: VoucherSlug;
+  /** What users see. It can differ from the slug: contra vouchers are shown as Transfer. */
   label: string;
+  /**
+   * Names one voucher of this type in headings and actions ("New transfer", "Cancel
+   * transfer"). Without it the screens say "<label> voucher" and "Cancel voucher".
+   */
+  noun?: string;
   /** Leading letter of the voucher reference (R-14, P-3, C-1, V-9). */
   prefix: 'R' | 'P' | 'C' | 'V';
   icon: string;
@@ -67,7 +73,8 @@ export const VOUCHER_TYPES: readonly VoucherTypeConfig[] = [
   {
     code: 3,
     slug: 'contra',
-    label: 'Contra',
+    label: 'Transfer',
+    noun: 'transfer',
     prefix: 'C',
     icon: 'swap_horiz',
     description: 'A transfer between your own cash and bank accounts.',
