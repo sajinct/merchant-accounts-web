@@ -1,5 +1,6 @@
 import { AccountHead } from './models';
 import {
+  editableLines,
   emptyLine,
   paise,
   previewPostings,
@@ -220,5 +221,58 @@ describe('Accounts offered per voucher type', () => {
       'journal',
     ]);
     expect(new Set(VOUCHER_TYPES.map((type) => type.prefix)).size).toBe(4);
+  });
+});
+
+describe('Editing a posted voucher', () => {
+  const detail = (line_no: number, head_code: number, debit: number, credit: number, narration = 'Dues') => ({
+    line_no,
+    head_code,
+    debit,
+    credit,
+    narration,
+  });
+
+  it('opens a simplified receipt in simplified mode with the cash line in its own field', () => {
+    const grid = editableLines(
+      RECEIPT,
+      'Dues',
+      [detail(1, 1001, 1300, 0), detail(2, 4001, 0, 1000, 'Membership'), detail(3, 4002, 0, 300)],
+      ACCOUNTS,
+    );
+    expect(grid.simplified).toBe(true);
+    expect(grid.cashAccount).toBe(1001);
+    expect(grid.lines).toEqual([
+      line({ account: 4001, description: 'Membership', amount: 1000 }),
+      line({ account: 4002, description: '', amount: 300 }),
+    ]);
+  });
+
+  it('opens a payment with the cash line last in simplified mode too', () => {
+    const grid = editableLines(PAYMENT, '', [detail(2, 1002, 0, 40), detail(1, 5001, 40, 0)], ACCOUNTS);
+    expect(grid.simplified).toBe(true);
+    expect(grid.cashAccount).toBe(1002);
+    expect(grid.lines.map((l) => l.account)).toEqual([5001]);
+  });
+
+  it('falls back to debit / credit when simplified mode could not have posted it', () => {
+    const grid = editableLines(
+      RECEIPT,
+      'Dues',
+      [detail(1, 1001, 500, 0), detail(2, 1002, 500, 0), detail(3, 4001, 0, 1000)],
+      ACCOUNTS,
+    );
+    expect(grid.simplified).toBe(false);
+    expect(grid.lines).toEqual([
+      line({ account: 1001, debit: 500 }),
+      line({ account: 1002, debit: 500 }),
+      line({ account: 4001, credit: 1000 }),
+    ]);
+  });
+
+  it('always uses debit / credit for journals', () => {
+    const grid = editableLines(JOURNAL, 'x', [detail(1, 5001, 10, 0), detail(2, 2001, 0, 10)], ACCOUNTS);
+    expect(grid.simplified).toBe(false);
+    expect(grid.cashAccount).toBeNull();
   });
 });

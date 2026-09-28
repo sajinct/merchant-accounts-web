@@ -802,6 +802,38 @@ export type Database = {
         }
         Relationships: []
       }
+      voucher_revisions: {
+        Row: {
+          id: number
+          previous: Json
+          revised_at: string
+          revised_by: string
+          voucher_id: number
+        }
+        Insert: {
+          id?: never
+          previous: Json
+          revised_at?: string
+          revised_by?: string
+          voucher_id: number
+        }
+        Update: {
+          id?: never
+          previous?: Json
+          revised_at?: string
+          revised_by?: string
+          voucher_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voucher_revisions_voucher_id_fkey"
+            columns: ["voucher_id"]
+            isOneToOne: false
+            referencedRelation: "vouchers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vouchers: {
         Row: {
           branch: number
@@ -885,7 +917,37 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      daybook_counterparts: {
+        Row: {
+          contra_code: number | null
+          contra_name: string | null
+          credit: number | null
+          debit: number | null
+          head_code: number | null
+          journal_id: number | null
+          line_id: number | null
+          narration: string | null
+          part_no: number | null
+          tran_date: string | null
+          voucher_ref: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daybook_head_code_fkey"
+            columns: ["head_code"]
+            isOneToOne: false
+            referencedRelation: "account_heads"
+            referencedColumns: ["code"]
+          },
+          {
+            foreignKeyName: "daybook_journal_id_fkey"
+            columns: ["journal_id"]
+            isOneToOne: false
+            referencedRelation: "journals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       activate_kuri_scheme: {
@@ -1035,6 +1097,10 @@ export type Database = {
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      check_journal_lines: {
+        Args: { p_kind: string; p_lines: Json }
+        Returns: undefined
       }
       close_financial_year: {
         Args: { p_equity_account_code: number; p_start_year: number }
@@ -1194,6 +1260,16 @@ export type Database = {
       }
       fy_label: { Args: { p_fy_start: number }; Returns: string }
       fy_start_of: { Args: { p_date: string }; Returns: number }
+      insert_journal_lines: {
+        Args: {
+          p_date: string
+          p_journal: number
+          p_lines: Json
+          p_narration: string
+          p_voucher: number
+        }
+        Returns: undefined
+      }
       joining_fee_on: {
         Args: { p_on: string }
         Returns: {
@@ -1701,6 +1777,55 @@ export type Database = {
           member_code: number
           paid: number
         }[]
+      }
+      update_voucher: {
+        Args: {
+          p_cash_account_code: number
+          p_date: string
+          p_id: number
+          p_lines: Json
+          p_narration: string
+          p_party_code: number
+          p_reference_no: string
+          p_simplified: boolean
+        }
+        Returns: {
+          branch: number
+          cancel_reason: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string | null
+          fy_start: number
+          id: number
+          is_cancelled: boolean | null
+          modified_at: string | null
+          modified_by: string | null
+          narration: string
+          party_code: number | null
+          reference_no: string | null
+          status: string
+          total_amount: number
+          voucher_date: string
+          voucher_no: number
+          voucher_type: number
+        }
+        SetofOptions: {
+          from: "*"
+          to: "vouchers"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      voucher_postings: {
+        Args: {
+          p_cash_account_code: number
+          p_lines: Json
+          p_narration: string
+          p_simplified: boolean
+          p_type: number
+        }
+        Returns: Json
       }
       write_journal: {
         Args: {

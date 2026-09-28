@@ -143,10 +143,16 @@ const ALL = 0;
                   </tr>
                 </thead>
                 <tbody>
-                  @for (row of group.rows; track row.seq) {
-                    <tr [class.opening]="row.row_kind === 'opening'">
-                      <td>{{ row.tran_date | date: 'dd-MMM-yyyy' }}</td>
-                      <td>{{ row.voucher_ref }}</td>
+                  @for (row of group.rows; track row.seq; let i = $index) {
+                    <!-- A voucher with several accounts reads as one block of rows. -->
+                    @let continued = sameVoucher(group.rows[i - 1], row);
+                    <tr
+                      [class.opening]="row.row_kind === 'opening'"
+                      [class.continued]="continued"
+                      [class.joined]="sameVoucher(row, group.rows[i + 1])"
+                    >
+                      <td>{{ continued ? '' : (row.tran_date | date: 'dd-MMM-yyyy') }}</td>
+                      <td>{{ continued ? '' : row.voucher_ref }}</td>
                       <td class="contra">{{ row.contra_name || '—' }}</td>
                       <td class="narration">{{ row.narration }}</td>
                       <td class="num">
@@ -217,6 +223,13 @@ const ALL = 0;
       max-width: 480px;
       overflow-wrap: anywhere;
     }
+    tr.joined td {
+      padding-bottom: 5px;
+      border-bottom-color: transparent;
+    }
+    tr.continued td {
+      padding-top: 5px;
+    }
     @media print {
       .report-table,
       .contra,
@@ -280,6 +293,10 @@ export class LedgerReport implements OnInit {
     } finally {
       this.loadingHeads.set(false);
     }
+  }
+
+  protected sameVoucher(a: LedgerRow | undefined, b: LedgerRow | undefined): boolean {
+    return a?.row_kind === 'entry' && !!a.voucher_ref && a.voucher_ref === b?.voucher_ref;
   }
 
   private reportRequest = 0;

@@ -31,6 +31,7 @@ import { FinancialYearService } from '../../core/financial-year.service';
 import { AccountHead, Voucher } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import {
+  editableLines,
   emptyLine,
   isBlank,
   previewPostings,
@@ -44,6 +45,7 @@ import {
   postableAccounts,
   voucherRef,
   voucherType,
+  voucherTypeByCode,
   VoucherTypeConfig,
   VOUCHER_TYPES,
 } from '../../core/voucher-types';
@@ -94,29 +96,33 @@ const STARTING_LINES = 3;
     <div class="page no-print">
       <app-page-header
         eyebrow="Transactions"
-        [heading]="config.label + ' voucher'"
-        [description]="config.description"
+        [heading]="(editMode() ? 'Edit ' + config.label.toLowerCase() : config.label) + ' voucher'"
+        [description]="
+          editMode()
+            ? 'Correct the posted voucher. It keeps its number and the previous version is kept for audit.'
+            : config.description
+        "
       >
         <span class="voucher-number" aria-live="polite">
           <span class="hint">Voucher no.</span>
-          <strong>{{
-            opening() || nextNo() === null ? '—' : config.prefix + '-' + nextNo()
-          }}</strong>
+          <strong>{{ numberLabel() }}</strong>
         </span>
       </app-page-header>
 
-      <nav class="type-switch" aria-label="Voucher type">
-        @for (option of allTypes; track option.slug) {
-          <a
-            class="type-link"
-            [class.current]="option.slug === config.slug"
-            [routerLink]="['/transactions/voucher', option.slug]"
-            [attr.aria-current]="option.slug === config.slug ? 'page' : null"
-          >
-            <mat-icon>{{ option.icon }}</mat-icon> {{ option.label }}
-          </a>
-        }
-      </nav>
+      @if (!editMode()) {
+        <nav class="type-switch" aria-label="Voucher type">
+          @for (option of allTypes; track option.slug) {
+            <a
+              class="type-link"
+              [class.current]="option.slug === config.slug"
+              [routerLink]="['/transactions/voucher', option.slug]"
+              [attr.aria-current]="option.slug === config.slug ? 'page' : null"
+            >
+              <mat-icon>{{ option.icon }}</mat-icon> {{ option.label }}
+            </a>
+          }
+        </nav>
+      }
 
       <app-financial-year-notice />
 
@@ -163,7 +169,7 @@ const STARTING_LINES = 3;
               </mat-form-field>
             }
 
-            @if (config.code === 4 && auth.isAdmin()) {
+            @if (config.code === 4 && auth.isAdmin() && !editMode()) {
               <mat-form-field>
                 <mat-label>Entry type</mat-label>
                 <mat-select
@@ -424,11 +430,19 @@ const STARTING_LINES = 3;
 
           <div class="form-actions voucher-actions">
             <button mat-flat-button type="submit" [disabled]="!canSave()">
-              <mat-icon>check</mat-icon> {{ saving() ? 'Saving…' : 'Save' }}
+              <mat-icon>check</mat-icon>
+              {{ saving() ? 'Saving…' : editMode() ? 'Save changes' : 'Save' }}
             </button>
-            <button mat-stroked-button type="button" (click)="save('new')" [disabled]="!canSave()">
-              Save &amp; new
-            </button>
+            @if (!editMode()) {
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="save('new')"
+                [disabled]="!canSave()"
+              >
+                Save &amp; new
+              </button>
+            }
             <button
               mat-stroked-button
               type="button"
@@ -437,18 +451,26 @@ const STARTING_LINES = 3;
             >
               <mat-icon>print</mat-icon> Save &amp; print
             </button>
-            <button
-              class="clear-action"
-              mat-button
-              type="button"
-              (click)="clear()"
-              [disabled]="saving()"
-            >
-              Clear
-            </button>
+            @if (editMode()) {
+              <a class="clear-action" mat-button routerLink="/transactions/vouchers">
+                Back to register
+              </a>
+            } @else {
+              <button
+                class="clear-action"
+                mat-button
+                type="button"
+                (click)="clear()"
+                [disabled]="saving()"
+              >
+                Clear
+              </button>
+            }
           </div>
           @if (!auth.canEdit()) {
             <p class="hint">Your role can view vouchers but not enter them.</p>
+          } @else if (editMode() && !auth.isAdmin()) {
+            <p class="hint">Only an admin can edit a posted voucher.</p>
           } @else {
             <p class="hint shortcut-hint">
               Enter: next control · Shift + Enter: previous · ↑ / ↓: same field in another row · Alt
@@ -902,6 +924,8 @@ const STARTING_LINES = 3;
 export class VoucherEntry {
   /** Route parameter: receipt, payment, contra or journal. */
   readonly typeSlug = input<string>('receipt', { alias: 'type' });
+  /** Query parameter: the id of a posted voucher to edit (admins only). */
+  readonly editId = input<string | undefined>(undefined, { alias: 'edit' });
 
   protected readonly allTypes = VOUCHER_TYPES;
   protected readonly voucherRef = voucherRef;
@@ -927,9 +951,15 @@ export class VoucherEntry {
   private readonly advanced = signal(false);
   /** Journal screen, admins only: opening balances instead of an adjustment voucher. */
   protected readonly opening = signal(false);
+  /** The posted voucher being edited, once loaded. */
+  protected readonly editing = signal<Voucher | null>(null);
+  protected readonly editMode = computed(() => !!this.editId());
   private requestId = crypto.randomUUID();
-  /** The type the grid currently belongs to; see applyType. */
+  /** The type (and voucher, when editing) the grid currently belongs to; see applyType. */
   private applied: string | null = null;
+  /** The edit form as loaded or last saved, to tell whether there is anything unsaved. */
+  private pristine = '';
+  private readonly referenceData = this.loadReferenceData();
 
   protected readonly form = inject(FormBuilder).group({
     date: [this.fy.entryDate(), Validators.required],
@@ -983,11 +1013,20 @@ export class VoucherEntry {
   >([]);
   protected readonly printedParty = signal('');
 
+  protected readonly numberLabel = computed(() => {
+    const voucher = this.editing();
+    if (voucher) return voucherRef(voucher.voucher_type, voucher.voucher_no);
+    const next = this.nextNo();
+    return this.editMode() || this.opening() || next === null
+      ? '—'
+      : `${this.type().prefix}-${next}`;
+  });
+
   constructor() {
-    void this.loadReferenceData();
     effect(() => {
       const type = this.type();
-      untracked(() => void this.applyType(type));
+      const editId = this.editId();
+      untracked(() => void this.applyType(type, editId));
     });
   }
 
@@ -996,21 +1035,72 @@ export class VoucherEntry {
    * rather than destroying the page. Angular's pendingChangesGuard intercept the navigation
    * for us, so we only need to clear the grid and state when the new type is applied.
    */
-  private async applyType(type: VoucherTypeConfig): Promise<void> {
-    const previous = this.applied;
-    if (previous === type.slug) return;
+  private async applyType(type: VoucherTypeConfig, editId: string | undefined): Promise<void> {
+    const key = `${type.slug}:${editId ?? ''}`;
+    if (this.applied === key) return;
 
-    this.applied = type.slug;
+    this.applied = key;
     this.advanced.set(false);
     this.opening.set(false);
     this.saved.set(null);
+    this.editing.set(null);
     this.requestId = crypto.randomUUID();
     this.reset();
-    void this.loadNextNumber(type.code);
+    if (editId) void this.loadForEdit(Number(editId), key);
+    else void this.loadNextNumber(type.code);
+  }
+
+  /** Fills the form from a posted voucher; see editableLines for how the grid mode is chosen. */
+  private async loadForEdit(id: number, key: string): Promise<void> {
+    this.loading.set(true);
+    try {
+      const [{ voucher, lines }] = await Promise.all([this.vouchers.load(id), this.referenceData]);
+      if (this.applied !== key) return;
+      const type = voucherTypeByCode(voucher.voucher_type);
+      if (type && type.slug !== this.type().slug) {
+        // The register links by type; follow a stale or hand-typed link to the right screen.
+        void this.router.navigate(['/transactions/voucher', type.slug], {
+          queryParams: { edit: id },
+          replaceUrl: true,
+        });
+        return;
+      }
+      if (voucher.cancelled_at) {
+        this.notify.error('A cancelled voucher cannot be edited.');
+        return;
+      }
+      const grid = editableLines(this.type(), voucher.narration, lines, this.accounts());
+      this.advanced.set(!grid.simplified);
+      this.form.reset({
+        date: voucher.voucher_date,
+        referenceNo: voucher.reference_no ?? '',
+        partyCode: voucher.party_code,
+        cashAccount: grid.cashAccount,
+        narration: voucher.narration,
+      });
+      // Dirty, so the financial year scope keeps the voucher's own date.
+      this.form.markAsDirty();
+      this.lines.set([...grid.lines, emptyLine()]);
+      this.editing.set(voucher);
+      this.pristine = this.snapshot();
+    } catch (error) {
+      this.notify.error(error);
+    } finally {
+      this.loading.set(false);
+    }
+  }
+
+  private snapshot(): string {
+    return JSON.stringify([
+      this.form.getRawValue(),
+      this.lines().filter((line) => !isBlank(line, this.simplified())),
+      this.simplified(),
+    ]);
   }
 
   hasPendingChanges(): boolean {
     if (this.saving()) return false;
+    if (this.editMode()) return !!this.editing() && this.snapshot() !== this.pristine;
     const { referenceNo, narration } = this.form.getRawValue();
     return (
       !!referenceNo?.trim() ||
@@ -1087,7 +1177,8 @@ export class VoucherEntry {
       this.auth.canEdit() &&
       !this.fy.closed() &&
       !this.form.invalid &&
-      this.problem() === null
+      this.problem() === null &&
+      (!this.editMode() || (this.auth.isAdmin() && this.editing() !== null))
     );
   }
 
@@ -1117,6 +1208,30 @@ export class VoucherEntry {
     const { date, referenceNo, partyCode, cashAccount, narration } = this.form.getRawValue();
     this.saving.set(true);
     try {
+      const editing = this.editing();
+      if (this.editMode() && editing) {
+        const voucher = await this.vouchers.update(editing.id, {
+          date: date!,
+          referenceNo: referenceNo?.trim() || null,
+          partyCode,
+          narration: narration?.trim() ?? '',
+          cashAccount,
+          lines: requestLines(this.lines(), simplified),
+          simplified,
+        });
+        const ref = voucherRef(voucher.voucher_type, voucher.voucher_no);
+        this.notify.success(`${type.label} ${ref} updated`);
+        this.capturePrintable(voucher, simplified);
+        this.editing.set(voucher);
+        this.pristine = this.snapshot();
+        if (then === 'print') {
+          this.saved.set(voucher);
+          afterNextRender(() => window.print(), { injector: this.injector });
+        } else {
+          void this.router.navigateByUrl('/transactions/vouchers');
+        }
+        return;
+      }
       if (this.opening()) {
         const id = await this.vouchers.postOpening(
           date!,

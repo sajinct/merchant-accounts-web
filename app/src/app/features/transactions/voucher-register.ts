@@ -12,7 +12,7 @@ import { FinancialYearService } from '../../core/financial-year.service';
 import { AccountHead } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { must, SupabaseService } from '../../core/supabase.service';
-import { voucherRef, VOUCHER_TYPES } from '../../core/voucher-types';
+import { voucherRef, voucherTypeByCode, VOUCHER_TYPES } from '../../core/voucher-types';
 import { confirmAction } from '../../shared/confirm-dialog';
 import { EmptyState } from '../../shared/empty-state';
 import { FinancialYearNotice } from '../../shared/financial-year-notice';
@@ -44,6 +44,7 @@ interface RegisterEntry {
     status: string;
     cancelled_at: string | null;
     cancel_reason: string | null;
+    modified_at: string | null;
     total_amount: number;
     party: { name: string } | null;
   } | null;
@@ -134,6 +135,8 @@ interface RegisterEntry {
               </p>
               @if (entry.voucher?.cancel_reason) {
                 <p class="hint">Cancelled: {{ entry.voucher?.cancel_reason }}</p>
+              } @else if (entry.voucher?.modified_at) {
+                <p class="hint">Edited {{ entry.voucher?.modified_at | date: 'dd-MMM-yyyy, h:mm a' }}</p>
               }
               <div
                 class="table-wrap"
@@ -166,14 +169,25 @@ interface RegisterEntry {
               </div>
               @if (auth.isAdmin()) {
                 @if (entry.voucher_id && !entry.voucher?.cancelled_at) {
-                  <button
-                    mat-stroked-button
-                    type="button"
-                    (click)="cancel(entry)"
-                    [disabled]="busy()"
-                  >
-                    <mat-icon>block</mat-icon> Cancel voucher
-                  </button>
+                  <div class="entry-actions">
+                    @if (!fy.closed()) {
+                      <a
+                        mat-stroked-button
+                        [routerLink]="['/transactions/voucher', typeSlug(entry)]"
+                        [queryParams]="{ edit: entry.voucher_id }"
+                      >
+                        <mat-icon>edit</mat-icon> Edit voucher
+                      </a>
+                    }
+                    <button
+                      mat-stroked-button
+                      type="button"
+                      (click)="cancel(entry)"
+                      [disabled]="busy()"
+                    >
+                      <mat-icon>block</mat-icon> Cancel voucher
+                    </button>
+                  </div>
                 } @else if (
                   !entry.voucher_id && !entry.reversal_of && entry.kind !== 'year_closing'
                 ) {
@@ -293,7 +307,13 @@ interface RegisterEntry {
     .entry-body .hint {
       margin: 0 0 10px;
     }
-    .entry-body button {
+    .entry-body > button {
+      margin-top: 20px;
+    }
+    .entry-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
       margin-top: 20px;
     }
     .register-footer {
@@ -343,7 +363,7 @@ export class VoucherRegister {
   private readonly notify = inject(NotifyService);
   private readonly dialog = inject(MatDialog);
   private readonly locale = inject(LOCALE_ID);
-  private readonly fy = inject(FinancialYearService);
+  protected readonly fy = inject(FinancialYearService);
 
   protected kind: 'all' | 'other' | string = 'all';
   protected readonly entries = signal<RegisterEntry[]>([]);
@@ -381,6 +401,10 @@ export class VoucherRegister {
       : entry.daybook.reduce((sum, line) => sum + Number(line.debit), 0);
   }
 
+  protected typeSlug(entry: RegisterEntry): string {
+    return voucherTypeByCode(entry.voucher?.voucher_type ?? 0)?.slug ?? 'journal';
+  }
+
   protected kindLabel(entry: RegisterEntry): string {
     const labels: Record<string, string> = {
       receipt: 'Receipt voucher',
@@ -404,7 +428,7 @@ export class VoucherRegister {
       .select(
         'id,entry_date,narration,kind,reversal_of,voucher_id,' +
           'daybook(line_no,head_code,debit,credit,narration),' +
-          'voucher:vouchers(voucher_no,voucher_type,reference_no,status,cancelled_at,cancel_reason,total_amount,party:customers(name))',
+          'voucher:vouchers(voucher_no,voucher_type,reference_no,status,cancelled_at,cancel_reason,modified_at,total_amount,party:customers(name))',
         { count: 'exact' },
       )
       .gte('entry_date', this.fy.start())
