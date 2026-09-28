@@ -13,7 +13,7 @@ insert into account_heads(code,name,account_type,is_cash_bank) values
  (87003,'E membership','income',false),(87004,'E donation','income',false),
  (87005,'E late fee','income',false),(87006,'E salary','expense',false),
  (87007,'E rent','expense',false),(87008,'E salary payable','liability',false),
- (87009,'E rent payable','liability',false);
+ (87009,'E rent payable','liability',false),(87010,'E bank B','asset',true);
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000ed01',true);
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-00000000ed01","role":"authenticated"}',true);
 set local role authenticated;
@@ -54,6 +54,50 @@ select is((select contra_name from rpt_ledger(87006,'2026-09-20','2026-09-20') w
 select is((select debit from rpt_ledger(87006,'2026-09-20','2026-09-20') where row_kind='entry'),
  700::numeric,'many-to-many keeps the line amount');
 
+-- Transfers between cash and bank: each day book row names its own account.
+select lives_ok($$select post_voucher(3,'2026-09-22',null,null,'Cash to bank',null,
+ '[{"account":87002,"debit":100},{"account":87001,"credit":100}]'::jsonb,false,
+ '00000000-0000-0000-0000-0000000000e3')$$,'cash to bank posts');
+select lives_ok($$select post_voucher(3,'2026-09-22',null,null,'Bank to cash',null,
+ '[{"account":87001,"debit":40},{"account":87002,"credit":40}]'::jsonb,false,
+ '00000000-0000-0000-0000-0000000000e4')$$,'bank to cash posts');
+select lives_ok($$select post_voucher(3,'2026-09-22',null,null,'Bank to bank',null,
+ '[{"account":87010,"debit":25},{"account":87002,"credit":25}]'::jsonb,false,
+ '00000000-0000-0000-0000-0000000000e5')$$,'bank to bank posts');
+select lives_ok($$select post_voucher(2,'2026-09-22',null,null,'Rent',87001,
+ '[{"account":87007,"amount":10}]'::jsonb,true,'00000000-0000-0000-0000-0000000000e6')$$,'rent payment posts');
+select results_eq(
+ $$select head_name, credit as receipt, debit as payment from rpt_daybook('2026-09-22','2026-09-22')
+    where voucher_ref=(select d.voucher_ref from daybook d join journals j on j.id=d.journal_id
+                        where j.request_id='00000000-0000-0000-0000-0000000000e3' limit 1) order by seq$$,
+ $$values ('E bank'::text,100::numeric,0::numeric),('E cash',0,100)$$,
+ 'cash to bank: bank receipt, cash payment');
+select results_eq(
+ $$select head_name, credit, debit from rpt_daybook('2026-09-22','2026-09-22')
+    where voucher_ref=(select d.voucher_ref from daybook d join journals j on j.id=d.journal_id
+                        where j.request_id='00000000-0000-0000-0000-0000000000e4' limit 1) order by seq$$,
+ $$values ('E cash'::text,40::numeric,0::numeric),('E bank',0,40)$$,
+ 'bank to cash: cash receipt, bank payment');
+select results_eq(
+ $$select head_name, credit, debit from rpt_daybook('2026-09-22','2026-09-22')
+    where voucher_ref=(select d.voucher_ref from daybook d join journals j on j.id=d.journal_id
+                        where j.request_id='00000000-0000-0000-0000-0000000000e5' limit 1) order by seq$$,
+ $$values ('E bank B'::text,25::numeric,0::numeric),('E bank',0,25)$$,
+ 'bank to bank: receiving bank receipt, paying bank payment');
+select results_eq(
+ $$select head_name, credit, debit from rpt_daybook('2026-09-22','2026-09-22')
+    where voucher_ref=(select d.voucher_ref from daybook d join journals j on j.id=d.journal_id
+                        where j.request_id='00000000-0000-0000-0000-0000000000e6' limit 1) order by seq$$,
+ $$values ('E rent'::text,0::numeric,10::numeric)$$,
+ 'an expense payment still names the expense');
+select is((select sum(credit-debit) from rpt_daybook('2026-09-22','2026-09-22')
+    where voucher_ref in (select d.voucher_ref from daybook d join journals j on j.id=d.journal_id
+                           where j.request_id in ('00000000-0000-0000-0000-0000000000e3',
+                             '00000000-0000-0000-0000-0000000000e4','00000000-0000-0000-0000-0000000000e5'))),
+ 0::numeric,'transfers do not change the combined cash and bank balance');
+select is((select contra_name from rpt_ledger(87010,'2026-09-22','2026-09-22') where row_kind='entry'),
+ 'E bank','a ledger still names the other account');
+
 -- Only admins edit.
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000ed02',true);
 select set_config('request.jwt.claims','{"sub":"00000000-0000-0000-0000-00000000ed02","role":"authenticated"}',true);
@@ -76,8 +120,10 @@ select ok((select modified_at is not null from vouchers where id=(select voucher
 select is((select entry_date from journals where voucher_id=(select voucher_id from journals where request_id='00000000-0000-0000-0000-0000000000e1')),'2026-09-21'::date,'journal date changes');
 select is((select count(*)::integer from daybook d join journals j on j.id=d.journal_id
  where j.voucher_id=(select voucher_id from journals where request_id='00000000-0000-0000-0000-0000000000e1') and d.tran_date='2026-09-21'),3,'lines are rewritten on the new date');
-select is((select coalesce(sum(debit-credit),0) from daybook where head_code=87001),0::numeric,'cash no longer carries the receipt');
-select is((select sum(debit-credit) from daybook where head_code=87002),1250::numeric,'bank carries the new total');
+select is((select coalesce(sum(d.debit-d.credit),0) from daybook d join journals j on j.id=d.journal_id
+ where j.request_id='00000000-0000-0000-0000-0000000000e1' and d.head_code=87001),0::numeric,'cash no longer carries the receipt');
+select is((select sum(d.debit-d.credit) from daybook d join journals j on j.id=d.journal_id
+ where j.request_id='00000000-0000-0000-0000-0000000000e1' and d.head_code=87002),1250::numeric,'bank carries the new total');
 select is((select sum(credit-debit) from daybook where head_code=87004),null::numeric,'the removed head has no lines');
 select is((select narration from daybook where head_code=87005),'Dues corrected','a blank description takes the narration');
 select is((select count(distinct voucher_ref)::integer from daybook d join journals j on j.id=d.journal_id
