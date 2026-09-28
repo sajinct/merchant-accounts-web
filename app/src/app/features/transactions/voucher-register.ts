@@ -70,7 +70,7 @@ interface RegisterEntry {
       <app-page-header
         eyebrow="Transactions"
         heading="Voucher register"
-        description="Every receipt, payment, contra and journal posted in the selected financial year."
+        description="Every receipt, payment, transfer and journal posted in the selected financial year."
       >
         @if (auth.canEdit()) {
           <a mat-flat-button routerLink="/transactions/voucher/receipt">
@@ -176,7 +176,7 @@ interface RegisterEntry {
                         [routerLink]="['/transactions/voucher', typeSlug(entry)]"
                         [queryParams]="{ edit: entry.voucher_id }"
                       >
-                        <mat-icon>edit</mat-icon> Edit voucher
+                        <mat-icon>edit</mat-icon> Edit {{ noun(entry) }}
                       </a>
                     }
                     <button
@@ -185,7 +185,7 @@ interface RegisterEntry {
                       (click)="cancel(entry)"
                       [disabled]="busy()"
                     >
-                      <mat-icon>block</mat-icon> Cancel voucher
+                      <mat-icon>block</mat-icon> Cancel {{ noun(entry) }}
                     </button>
                   </div>
                 } @else if (
@@ -405,11 +405,17 @@ export class VoucherRegister {
     return voucherTypeByCode(entry.voucher?.voucher_type ?? 0)?.slug ?? 'journal';
   }
 
+  /** "transfer" for a contra voucher, "voucher" for the others. */
+  protected noun(entry: RegisterEntry): string {
+    return voucherTypeByCode(entry.voucher?.voucher_type ?? 0)?.noun ?? 'voucher';
+  }
+
   protected kindLabel(entry: RegisterEntry): string {
     const labels: Record<string, string> = {
       receipt: 'Receipt voucher',
       payment: 'Payment voucher',
-      contra: 'Contra voucher',
+      // The stored kind stays 'contra'; users know it as a transfer.
+      contra: 'Transfer voucher',
       journal: 'Journal voucher',
       opening: 'Opening balances',
       reversal: 'Reversal',
@@ -483,8 +489,9 @@ export class VoucherRegister {
 
   protected async cancel(entry: RegisterEntry): Promise<void> {
     const ref = this.reference(entry);
+    const noun = this.noun(entry);
     const result = await confirmAction(this.dialog, {
-      title: `Cancel voucher ${ref}?`,
+      title: `Cancel ${noun} ${ref}?`,
       message: 'A balancing reversal is posted. The original voucher stays in the audit trail.',
       details: [
         { label: 'Date', value: formatDate(entry.entry_date, 'dd-MMM-yyyy', this.locale) },
@@ -492,8 +499,8 @@ export class VoucherRegister {
         { label: 'Amount', value: formatNumber(this.amount(entry), this.locale, '1.2-2') },
       ],
       fields: [{ key: 'reason', label: 'Reason for cancelling', required: true, maxLength: 200 }],
-      confirmLabel: 'Cancel voucher',
-      cancelLabel: 'Keep voucher',
+      confirmLabel: `Cancel ${noun}`,
+      cancelLabel: `Keep ${noun}`,
       destructive: true,
     });
     if (!result) return;
@@ -502,7 +509,9 @@ export class VoucherRegister {
       await must(
         this.sb.rpc('cancel_voucher', { p_id: entry.voucher_id, p_reason: result['reason'] }),
       );
-      this.notify.success(`Voucher ${ref} cancelled with a balancing reversal.`);
+      this.notify.success(
+        `${noun[0].toUpperCase()}${noun.slice(1)} ${ref} cancelled with a balancing reversal.`,
+      );
       await this.load();
     } catch (error) {
       this.notify.error(error);

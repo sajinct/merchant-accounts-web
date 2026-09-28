@@ -73,7 +73,7 @@ describe('Voucher entry', () => {
 
   it('drops the cash and party fields for a contra, which has neither', async () => {
     const { text } = await setup('contra');
-    expect(text()).toContain('Contra voucher');
+    expect(text()).toContain('New transfer');
     expect(text()).not.toContain('Received into');
     expect(text()).toContain('Debit');
     expect(text()).toContain('Credit');
