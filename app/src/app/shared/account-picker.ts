@@ -57,9 +57,9 @@ function isHead(value: unknown): value is AccountHead {
         [matAutocomplete]="auto"
         [matAutocompleteDisabled]="!engaged()"
         [placeholder]="placeholder()"
-        (pointerdown)="engaged.set(true)"
+        (pointerdown)="engage()"
         (input)="onType($any($event.target).value)"
-        (blur)="onTouched?.()"
+        (blur)="onBlur()"
       />
       <mat-autocomplete
         #auto="matAutocomplete"
@@ -67,6 +67,7 @@ function isHead(value: unknown): value is AccountHead {
         autoActiveFirstOption
         requireSelection
         (optionSelected)="select($event.option.value)"
+        (closed)="onPanelClosed()"
       >
         @for (head of matches(); track head.code) {
           <mat-option [value]="head">{{ display(head) }}</mat-option>
@@ -148,7 +149,6 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
     this.search.valueChanges.subscribe((value) => {
       if (isHead(value)) return;
       this.query.set('');
-      if (this.code() !== null) this.update(null);
     });
     // A value written before the accounts load is displayed once they arrive.
     effect(() => {
@@ -165,17 +165,52 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
     const input = this.searchInput().nativeElement;
     // Capture runs before Material's key handler. Updating only the signal in a
     // template listener leaves the trigger disabled for the first arrow press.
+    input.addEventListener('focusin', this.beforeFocus, true);
+    input.addEventListener('focusin', this.afterFocus);
     input.addEventListener('keydown', this.prepareKeyboard, true);
     input.addEventListener('keydown', this.keepPanelKeys);
     input.ownerDocument.addEventListener('keyup', this.clearKeyboardConfirmation, true);
     input.ownerDocument.addEventListener('pointerdown', this.clearKeyboardConfirmation, true);
     this.destroyRef.onDestroy(() => {
+      input.removeEventListener('focusin', this.beforeFocus, true);
+      input.removeEventListener('focusin', this.afterFocus);
       input.removeEventListener('keydown', this.prepareKeyboard, true);
       input.removeEventListener('keydown', this.keepPanelKeys);
       input.ownerDocument.removeEventListener('keyup', this.clearKeyboardConfirmation, true);
       input.ownerDocument.removeEventListener('pointerdown', this.clearKeyboardConfirmation, true);
     });
   }
+
+  private pointerOpening = false;
+
+  protected engage(): void {
+    this.pointerOpening = true;
+    this.engaged.set(true);
+    this.autocompleteTrigger().autocompleteDisabled = false;
+  }
+
+  protected onBlur(): void {
+    this.pointerOpening = false;
+    if (!this.autocompleteTrigger().panelOpen && this.code() !== null) {
+      this.writeValue(this.code());
+    }
+    this.onTouched?.();
+  }
+
+  protected onPanelClosed(): void {
+    if (this.code() !== null) this.writeValue(this.code());
+  }
+
+  private readonly beforeFocus = (): void => {
+    if (!this.pointerOpening) {
+      this.autocompleteTrigger().autocompleteDisabled = true;
+    }
+  };
+
+  private readonly afterFocus = (): void => {
+    this.pointerOpening = false;
+    this.autocompleteTrigger().autocompleteDisabled = !this.engaged();
+  };
 
   private readonly clearKeyboardConfirmation = (): void => {
     this.confirmingWithEnter = false;
@@ -199,16 +234,29 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
       event.stopImmediatePropagation();
       this.confirmingWithEnter = false;
       if (!event.repeat) {
+        const code = this.code();
         trigger.closePanel();
-        this.writeValue(this.code());
+        this.writeValue(code);
         this.searchInput().nativeElement.dispatchEvent(
           new CustomEvent('app-field-back', { bubbles: true }),
         );
       }
       return;
     }
-    this.engaged.set(true);
-    trigger.autocompleteDisabled = false;
+    if (
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey &&
+      (trigger.panelOpen ||
+        event.key === 'ArrowDown' ||
+        event.key === 'ArrowUp' ||
+        event.key === 'Backspace' ||
+        event.key === 'Delete' ||
+        event.key.length === 1)
+    ) {
+      this.engaged.set(true);
+      trigger.autocompleteDisabled = false;
+    }
     this.confirmingWithEnter =
       event.key === 'Enter' &&
       trigger.panelOpen &&
@@ -230,8 +278,9 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
     // The overlay is already gone when Escape bubbles to the shell. Consume the
     // closing key so it cannot also open the navigation menu and steal focus.
     if (this.closingWithEscape && event.key === 'Escape') {
+      const code = this.code();
       this.autocompleteTrigger().closePanel();
-      this.writeValue(this.code());
+      this.writeValue(code);
       event.preventDefault();
       event.stopPropagation();
       return;
@@ -247,6 +296,8 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
   };
 
   protected onType(text: string): void {
+    this.engaged.set(true);
+    this.autocompleteTrigger().autocompleteDisabled = false;
     this.query.set(text);
     if (this.code() !== null) this.update(null);
   }

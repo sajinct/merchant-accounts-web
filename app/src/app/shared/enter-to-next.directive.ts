@@ -136,6 +136,15 @@ export class EnterToNext {
         if (field.matches('button') && !includeActions) {
           return field.matches('[type="submit"], :not([type]), [data-entry-focus]');
         }
+        if (field.matches('summary') && !includeActions) {
+          const details = field.parentElement;
+          if (
+            details instanceof HTMLDetailsElement &&
+            !details.querySelector('input, textarea, select, mat-select, [data-entry-focus]')
+          ) {
+            return false;
+          }
+        }
         return true;
       },
     );

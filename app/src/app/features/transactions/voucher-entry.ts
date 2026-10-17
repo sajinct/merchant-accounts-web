@@ -1254,6 +1254,7 @@ export class VoucherEntry {
         this.notify.success(`Opening balances posted as journal J-${id}`);
         this.requestId = crypto.randomUUID();
         this.saved.set(null);
+        this.saving.set(false);
         this.reset();
         return;
       }
@@ -1275,6 +1276,7 @@ export class VoucherEntry {
       this.saved.set(voucher);
       // A new identity only after the server confirmed; a retry must reuse the old one.
       this.requestId = crypto.randomUUID();
+      this.saving.set(false);
       this.reset({ keepHeader: then !== 'new' });
       void this.loadNextNumber(type.code);
       if (then === 'print') afterNextRender(() => window.print(), { injector: this.injector });
@@ -1325,7 +1327,15 @@ export class VoucherEntry {
 
   private focusGrid(): void {
     afterNextRender(
-      () => this.grid()?.nativeElement.querySelector('input')?.focus({ preventScroll: true }),
+      () => {
+        const focus = () =>
+          this.grid()
+            ?.nativeElement.querySelector<HTMLInputElement>('input:not([disabled])')
+            ?.focus({ preventScroll: true });
+        focus();
+        // NgModel re-enables standalone controls in a microtask after saving() clears.
+        queueMicrotask(focus);
+      },
       { injector: this.injector },
     );
   }
@@ -1333,8 +1343,12 @@ export class VoucherEntry {
   private focusRow(index: number): void {
     afterNextRender(
       () => {
-        const rows = this.grid()?.nativeElement.querySelectorAll<HTMLElement>('[data-entry-row]');
-        rows?.[index]?.querySelector<HTMLInputElement>('input:not([disabled])')?.focus();
+        const focus = () => {
+          const rows = this.grid()?.nativeElement.querySelectorAll<HTMLElement>('[data-entry-row]');
+          rows?.[index]?.querySelector<HTMLInputElement>('input:not([disabled])')?.focus();
+        };
+        focus();
+        queueMicrotask(focus);
       },
       { injector: this.injector },
     );

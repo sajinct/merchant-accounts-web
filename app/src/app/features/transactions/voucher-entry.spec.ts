@@ -168,16 +168,60 @@ describe('Voucher entry', () => {
 
   it('saves with Ctrl+S and clears the lines for the next voucher', async () => {
     const { fixture, page, vouchers } = await setup('receipt');
+    let resolvePost!: (value: unknown) => void;
+    vouchers.post.mockReturnValueOnce(new Promise((resolve) => (resolvePost = resolve)));
     page.form.patchValue({ cashAccount: 1001 });
-    page.patch(0, { account: 4001, amount: 1000 });
+    const firstAccount = fixture.nativeElement.querySelector(
+      '[data-entry-row] [data-entry-column="account"] input',
+    ) as HTMLInputElement;
+    firstAccount.focus();
+    firstAccount.dispatchEvent(
+      new KeyboardEvent('keydown', {
+        key: 'ArrowDown',
+        keyCode: 40,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
     fixture.detectChanges();
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
     await fixture.whenStable();
+    firstAccount.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, bubbles: true, cancelable: true }),
+    );
+    fixture.detectChanges();
+    await fixture.whenStable();
+    page.patch(0, { amount: 1000 });
+    fixture.detectChanges();
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 's', ctrlKey: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(firstAccount.disabled).toBe(true);
+
+    resolvePost({
+      id: 5,
+      voucher_type: 1,
+      voucher_no: 7,
+      voucher_date: '2026-09-16',
+      total_amount: 1000,
+      narration: '',
+      reference_no: null,
+      party_code: null,
+    });
+    await fixture.whenStable();
+    fixture.detectChanges();
+    await fixture.whenStable();
+
     expect(vouchers.post).toHaveBeenCalledTimes(1);
     expect(page.lines().every((line: { account: number | null }) => line.account === null)).toBe(
       true,
     );
     expect(page.hasPendingChanges()).toBe(false);
+    const nextFirstAccount = fixture.nativeElement.querySelector(
+      '[data-entry-row] [data-entry-column="account"] input',
+    ) as HTMLInputElement;
+    expect(document.activeElement).toBe(nextFirstAccount);
+    expect(nextFirstAccount.getAttribute('aria-expanded')).not.toBe('true');
   });
 
   it('moves through line fields with Enter and between amounts with arrows without posting', async () => {
@@ -219,7 +263,24 @@ describe('Voucher entry', () => {
     expect(document.activeElement).toBe(
       rows[1].querySelector('[data-entry-column="account"] input'),
     );
-    expect(page.lines()[0]).toMatchObject({ amount: 1000, description: 'Membership' });
+    // Stepping through the remaining blank rows with Enter reaches Save without getting
+    // caught on the read-only posting preview summary or opening blank account dropdowns.
+    page.patch(1, { account: 4002, amount: 300, description: 'Donation' });
+    fixture.detectChanges();
+    const lastAmount = rows[2].querySelector('[data-entry-column="amount"] input');
+    lastAmount.focus();
+    lastAmount.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+    expect(document.activeElement).toBe(
+      fixture.nativeElement.querySelector('button[type="submit"]'),
+    );
+    expect(page.lines()[0]).toMatchObject({
+      account: 4001,
+      amount: 1000,
+      description: 'Membership',
+    });
+    expect(page.lines()[1]).toMatchObject({ account: 4002, amount: 300, description: 'Donation' });
     expect(page.hasPendingChanges()).toBe(true);
     expect(vouchers.post).not.toHaveBeenCalled();
   });

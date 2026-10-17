@@ -200,4 +200,45 @@ describe('AccountPicker', () => {
       document.removeEventListener('keydown', pageKey);
     }
   });
+
+  it('preserves an existing selection when closing with Escape or Shift+Enter or stepping through with Enter', async () => {
+    const { fixture, host, input } = await setup();
+    host.accounts.set(heads);
+    host.control.setValue(205);
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    input.focus();
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(input.getAttribute('aria-expanded')).toBe('true');
+
+    key(input, 'Escape', 27);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(host.control.value).toBe(205);
+    expect(input.value).toBe('205 – Bank of India');
+    expect(input.getAttribute('aria-expanded')).toBe('false');
+
+    key(input, 'ArrowDown', 40);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    key(input, 'Enter', 13, { shiftKey: true });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(host.control.value).toBe(205);
+    expect(input.value).toBe('205 – Bank of India');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#previous-field'));
+
+    // Re-focusing via Enter must not drop open the list or overwrite the selected account on Enter.
+    key(document.activeElement as HTMLElement, 'Enter', 13);
+    fixture.detectChanges();
+    expect(document.activeElement).toBe(input);
+    expect(input.getAttribute('aria-expanded')).not.toBe('true');
+    key(input, 'Enter', 13);
+    fixture.detectChanges();
+    expect(host.control.value).toBe(205);
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('#next-field'));
+  });
 });
