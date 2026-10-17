@@ -1,8 +1,9 @@
 import { DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
@@ -35,6 +36,10 @@ import {
   ticketHolderPhone,
 } from './kuri.models';
 
+function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
+  return !!value && typeof value === 'object' && 'code' in value && 'name' in value;
+}
+
 @Component({
   selector: 'app-kuri-scheme-detail',
   imports: [
@@ -43,6 +48,7 @@ import {
     TitleCasePipe,
     RouterLink,
     ReactiveFormsModule,
+    MatAutocompleteModule,
     MatButtonModule,
     MatCheckboxModule,
     MatFormFieldModule,
@@ -202,17 +208,69 @@ import {
                     (ngSubmit)="addMember()"
                     class="form-grid"
                   >
-                    <mat-form-field subscriptSizing="dynamic">
-                      <mat-label>Member Code (Linked Member)</mat-label>
+                    <mat-form-field subscriptSizing="dynamic" class="member-search-field">
+                      <mat-label>Find Member (Name, Phone or Code)</mat-label>
+                      <mat-icon matPrefix>search</mat-icon>
                       <input
                         matInput
-                        type="number"
-                        formControlName="customerCode"
-                        min="1"
-                        step="1"
+                        [formControl]="memberSearch"
+                        [matAutocomplete]="memberAuto"
+                        placeholder="Search by member name, phone or code…"
+                        (focus)="onSearchFocus()"
+                        (input)="onSearchInput($any($event.target).value)"
                       />
-                      <mat-error>Enter a positive whole-number member code.</mat-error>
+                      @if (selectedCustomer() || memberSearch.value) {
+                        <button
+                          mat-icon-button
+                          matSuffix
+                          type="button"
+                          aria-label="Clear selected member"
+                          (click)="clearSelectedMember()"
+                        >
+                          <mat-icon>close</mat-icon>
+                        </button>
+                      }
+                      <mat-autocomplete
+                        #memberAuto="matAutocomplete"
+                        [displayWith]="displayCustomer"
+                        autoActiveFirstOption
+                        (optionSelected)="onSelectCustomer($event.option.value)"
+                      >
+                        @for (c of customerResults(); track c.code) {
+                          <mat-option [value]="c">
+                            <span class="member-option-primary"
+                              >#{{ c.code }} — {{ c.name }}</span
+                            >
+                            @if (c.phone || customerAddress(c)) {
+                              <span class="member-option-meta">
+                                @if (c.phone) {
+                                  · {{ c.phone }}
+                                }
+                                @if (customerAddress(c)) {
+                                  · {{ customerAddress(c) }}
+                                }
+                              </span>
+                            }
+                          </mat-option>
+                        } @empty {
+                          <mat-option disabled>
+                            {{
+                              searchingCustomers()
+                                ? 'Searching members…'
+                                : 'No matching members found'
+                            }}
+                          </mat-option>
+                        }
+                      </mat-autocomplete>
+                      <mat-hint>
+                        @if (selectedCustomer(); as sel) {
+                          Linked to Member #{{ sel.code }} ({{ sel.name }})
+                        } @else {
+                          Type a name, phone number, or member ID to select a member
+                        }
+                      </mat-hint>
                     </mat-form-field>
+
                     <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Ticket #</mat-label>
                       <input
@@ -223,10 +281,31 @@ import {
                         [max]="s.num_members"
                         step="1"
                       />
+                      <mat-hint>
+                        {{ availableTickets().length }} of {{ s.num_members }} tickets available
+                      </mat-hint>
                       <mat-error
                         >Enter an available ticket number from 1 to {{ s.num_members }}.</mat-error
                       >
                     </mat-form-field>
+
+                    @if (availableTickets().length > 0) {
+                      <div class="ticket-picker-strip full">
+                        <span class="ticket-picker-label">Quick pick ticket #:</span>
+                        <div class="ticket-chips" role="group" aria-label="Available ticket numbers">
+                          @for (tkt of availableTickets(); track tkt) {
+                            <button
+                              type="button"
+                              class="ticket-chip"
+                              [class.active]="memberForm.controls.ticketNo.value === tkt"
+                              (click)="selectTicketNo(tkt)"
+                            >
+                              #{{ tkt }}
+                            </button>
+                          }
+                        </div>
+                      </div>
+                    }
 
                     @if (selectedCustomer(); as c) {
                       <div class="linked-member-preview full">
@@ -278,7 +357,7 @@ import {
                         type="submit"
                         [disabled]="memberForm.invalid || busy()"
                       >
-                        Add
+                        Assign Ticket
                       </button>
                     </div>
                   </form>
@@ -413,6 +492,50 @@ import {
       color: var(--app-muted);
       padding: 2rem !important;
     }
+    .member-option-primary {
+      font-weight: 500;
+    }
+    .member-option-meta {
+      color: var(--app-muted);
+      font-size: 12px;
+      margin-left: 4px;
+    }
+    .ticket-picker-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .ticket-picker-label {
+      font-size: 12px;
+      color: var(--app-muted);
+      font-weight: 500;
+    }
+    .ticket-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .ticket-chip {
+      appearance: none;
+      border: 1px solid var(--app-border);
+      background: transparent;
+      color: var(--app-ink);
+      border-radius: 6px;
+      padding: 3px 9px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+    }
+    .ticket-chip:hover {
+      border-color: var(--app-primary);
+    }
+    .ticket-chip.active {
+      background: var(--app-primary);
+      border-color: var(--app-primary);
+      color: var(--app-on-primary, #fff);
+    }
     .linked-member-preview {
       display: flex;
       align-items: center;
@@ -435,7 +558,7 @@ import {
     }
   `,
 })
-export class KuriSchemeDetail implements OnInit {
+export class KuriSchemeDetail implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly kuri = inject(KuriService);
@@ -449,18 +572,24 @@ export class KuriSchemeDetail implements OnInit {
   protected readonly slots = signal<KuriPayoutSlot[]>([]);
   protected readonly members = signal<KuriMember[]>([]);
   protected readonly lots = signal<KuriLot[]>([]);
+  protected readonly customerResults = signal<KuriCustomerSummary[]>([]);
+  protected readonly searchingCustomers = signal(false);
   protected readonly selectedCustomer = signal<KuriCustomerSummary | null>(null);
   protected readonly customerLookupFailed = signal(false);
   protected readonly busy = signal(false);
   protected readonly loading = signal(true);
   private loadRequest = 0;
   private customerLookupRequest = 0;
+  private searchRequest = 0;
+  private searchTimer?: ReturnType<typeof setTimeout>;
 
   protected readonly holderName = ticketHolderName;
   protected readonly holderAddress = ticketHolderAddress;
   protected readonly holderPhone = ticketHolderPhone;
   protected readonly customerAddress = formatCustomerAddress;
   protected readonly isCustomHolder = hasCustomHolderName;
+
+  protected readonly memberSearch = new FormControl<KuriCustomerSummary | string>('');
 
   protected readonly memberForm = this.fb.group({
     customerCode: [
@@ -480,6 +609,18 @@ export class KuriSchemeDetail implements OnInit {
   protected readonly drawForm = this.fb.group({
     installmentNo: [null as number | null, Validators.required],
     winnerMemberId: [null as number | null, Validators.required],
+  });
+
+  /** Unassigned ticket numbers in the scheme (1 .. num_members). */
+  protected readonly availableTickets = computed(() => {
+    const s = this.scheme();
+    if (!s) return [];
+    const taken = new Set(this.members().map((m) => Number(m.ticket_no)));
+    const list: number[] = [];
+    for (let i = 1; i <= s.num_members; i++) {
+      if (!taken.has(i)) list.push(i);
+    }
+    return list;
   });
 
   /**
@@ -503,6 +644,12 @@ export class KuriSchemeDetail implements OnInit {
     });
   });
 
+  protected readonly displayCustomer = (value: KuriCustomerSummary | string | null): string => {
+    if (!value) return '';
+    if (typeof value === 'string') return value;
+    return `#${value.code} — ${value.name}`;
+  };
+
   constructor() {
     this.memberForm.controls.useCustomHolder.valueChanges
       .pipe(takeUntilDestroyed())
@@ -510,20 +657,7 @@ export class KuriSchemeDetail implements OnInit {
         const nameCtrl = this.memberForm.controls.holderName;
         if (useCustom) {
           nameCtrl.setValidators([Validators.required, Validators.pattern(/\S/)]);
-          const cust = this.selectedCustomer();
-          if (cust) {
-            if (!nameCtrl.value?.trim()) {
-              nameCtrl.setValue(cust.name, { emitEvent: false });
-            }
-            if (!this.memberForm.controls.holderAddress.value?.trim()) {
-              this.memberForm.controls.holderAddress.setValue(formatCustomerAddress(cust), {
-                emitEvent: false,
-              });
-            }
-            if (!this.memberForm.controls.holderPhone.value?.trim() && cust.phone) {
-              this.memberForm.controls.holderPhone.setValue(cust.phone, { emitEvent: false });
-            }
-          }
+          this.syncHolderFieldsFromCustomer(this.selectedCustomer());
         } else {
           nameCtrl.clearValidators();
           this.memberForm.patchValue(
@@ -537,8 +671,94 @@ export class KuriSchemeDetail implements OnInit {
     this.memberForm.controls.customerCode.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((code) => {
+        if (this.selectedCustomer()?.code === code) return;
         void this.lookupCustomer(code);
       });
+  }
+
+  ngOnDestroy(): void {
+    clearTimeout(this.searchTimer);
+  }
+
+  private syncHolderFieldsFromCustomer(cust: KuriCustomerSummary | null): void {
+    if (!cust || !this.memberForm.controls.useCustomHolder.value) return;
+    const nameCtrl = this.memberForm.controls.holderName;
+    if (!nameCtrl.value?.trim()) {
+      nameCtrl.setValue(cust.name, { emitEvent: false });
+      nameCtrl.updateValueAndValidity({ emitEvent: false });
+    }
+    if (!this.memberForm.controls.holderAddress.value?.trim()) {
+      this.memberForm.controls.holderAddress.setValue(formatCustomerAddress(cust), {
+        emitEvent: false,
+      });
+    }
+    if (!this.memberForm.controls.holderPhone.value?.trim() && cust.phone) {
+      this.memberForm.controls.holderPhone.setValue(cust.phone, { emitEvent: false });
+    }
+  }
+
+  protected onSearchFocus(): void {
+    if (!this.customerResults().length && !this.searchingCustomers()) {
+      void this.runCustomerSearch('');
+    }
+  }
+
+  protected onSearchInput(text: string): void {
+    const trimmed = text.trim();
+    // If the user is typing over a previously selected customer, clear customerCode unless they typed a pure integer code
+    if (/^\d+$/.test(trimmed)) {
+      const code = Number(trimmed);
+      this.memberForm.controls.customerCode.setValue(code);
+    } else {
+      this.selectedCustomer.set(null);
+      this.customerLookupFailed.set(false);
+      this.memberForm.controls.customerCode.setValue(null, { emitEvent: false });
+    }
+    clearTimeout(this.searchTimer);
+    this.searchTimer = setTimeout(() => {
+      void this.runCustomerSearch(trimmed);
+    }, 200);
+  }
+
+  protected onSelectCustomer(customer: KuriCustomerSummary): void {
+    if (!isCustomerSummary(customer)) return;
+    this.selectedCustomer.set(customer);
+    this.customerLookupFailed.set(false);
+    this.memberForm.controls.customerCode.setValue(customer.code, { emitEvent: false });
+    this.memberSearch.setValue(customer, { emitEvent: false });
+    this.syncHolderFieldsFromCustomer(customer);
+  }
+
+  protected clearSelectedMember(): void {
+    this.selectedCustomer.set(null);
+    this.customerLookupFailed.set(false);
+    this.memberSearch.setValue('', { emitEvent: false });
+    this.memberForm.controls.customerCode.setValue(null, { emitEvent: false });
+    void this.runCustomerSearch('');
+  }
+
+  protected selectTicketNo(ticketNo: number): void {
+    this.memberForm.controls.ticketNo.setValue(ticketNo);
+  }
+
+  private async runCustomerSearch(query: string): Promise<void> {
+    if (typeof this.kuri.searchCustomers !== 'function') return;
+    const req = ++this.searchRequest;
+    this.searchingCustomers.set(true);
+    try {
+      const rows = await this.kuri.searchCustomers(query, 30);
+      if (req === this.searchRequest) {
+        this.customerResults.set(rows);
+      }
+    } catch {
+      if (req === this.searchRequest) {
+        this.customerResults.set([]);
+      }
+    } finally {
+      if (req === this.searchRequest) {
+        this.searchingCustomers.set(false);
+      }
+    }
   }
 
   private async lookupCustomer(code: number | null): Promise<void> {
@@ -552,6 +772,10 @@ export class KuriSchemeDetail implements OnInit {
       if (req !== this.customerLookupRequest) return;
       this.selectedCustomer.set(customer);
       this.customerLookupFailed.set(!customer);
+      if (customer) {
+        this.memberSearch.setValue(customer, { emitEvent: false });
+        this.syncHolderFieldsFromCustomer(customer);
+      }
     } catch {
       if (req === this.customerLookupRequest) {
         this.selectedCustomer.set(null);
@@ -598,16 +822,18 @@ export class KuriSchemeDetail implements OnInit {
         this.resetMemberForm();
         this.drawForm.reset();
         void this.loadData();
+        void this.runCustomerSearch('');
       }
     });
   }
 
-  private resetMemberForm(): void {
+  private resetMemberForm(nextTicket: number | null = null): void {
     this.selectedCustomer.set(null);
     this.customerLookupFailed.set(false);
+    this.memberSearch.setValue('', { emitEvent: false });
     this.memberForm.reset({
       customerCode: null,
-      ticketNo: null,
+      ticketNo: nextTicket,
       useCustomHolder: false,
       holderName: '',
       holderAddress: '',
@@ -637,6 +863,10 @@ export class KuriSchemeDetail implements OnInit {
         Validators.max(schemes[0]?.num_members ?? 0),
         Validators.pattern(/^\d+$/),
       ]);
+      const free = this.availableTickets();
+      if (!this.memberForm.controls.ticketNo.value && free.length > 0) {
+        this.memberForm.controls.ticketNo.setValue(free[0], { emitEvent: false });
+      }
       this.memberForm.controls.ticketNo.updateValueAndValidity();
 
       const pending = this.pendingLots();
@@ -672,6 +902,7 @@ export class KuriSchemeDetail implements OnInit {
     const v = this.memberForm.getRawValue();
     this.busy.set(true);
     this.memberForm.disable({ emitEvent: false });
+    this.memberSearch.disable({ emitEvent: false });
     try {
       if (v.useCustomHolder) {
         await this.kuri.addMember(this.schemeId(), v.customerCode!, v.ticketNo!, {
@@ -689,6 +920,7 @@ export class KuriSchemeDetail implements OnInit {
       this.notify.error(err);
     } finally {
       this.memberForm.enable({ emitEvent: false });
+      this.memberSearch.enable({ emitEvent: false });
       this.busy.set(false);
     }
   }

@@ -95,6 +95,26 @@ async function setup<T>(component: Type<T>) {
       addr4: null,
       phone: '9876543210',
     }),
+    searchCustomers: vi.fn().mockResolvedValue([
+      {
+        code: 1,
+        name: 'Test member',
+        addr1: '12 Main St',
+        addr2: 'Kochi',
+        addr3: null,
+        addr4: null,
+        phone: '9876543210',
+      },
+      {
+        code: 5,
+        name: 'Anand Kumar',
+        addr1: 'MG Road',
+        addr2: 'Thrissur',
+        addr3: null,
+        addr4: null,
+        phone: '9447000000',
+      },
+    ]),
   };
   const notify = { error: vi.fn(), success: vi.fn() };
   const auth = { canEdit: () => true, isAdmin: () => true };
@@ -327,6 +347,28 @@ describe('Kuri scheme controls', () => {
       holderAddress: '45 Market Road',
       holderPhone: '9123456789',
     });
+  });
+
+  it('lets the user search and select a member by name and pre-fills the next available ticket number', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    // Ticket #1 is already taken by `member`, so next available ticket is #2
+    expect(component['availableTickets']()).toEqual([2]);
+    expect(component['memberForm'].controls.ticketNo.value).toBe(2);
+
+    component['onSelectCustomer']({
+      code: 5,
+      name: 'Anand Kumar',
+      addr1: 'MG Road',
+      addr2: 'Thrissur',
+      addr3: null,
+      addr4: null,
+      phone: '9447000000',
+    });
+    expect(component['memberForm'].controls.customerCode.value).toBe(5);
+    expect(component['selectedCustomer']()?.name).toBe('Anand Kumar');
+
+    await component['addMember']();
+    expect(kuri.addMember).toHaveBeenCalledWith(1, 5, 2);
   });
 });
 

@@ -61,6 +61,27 @@ export class KuriService {
     return data;
   }
 
+  async searchCustomers(query = '', limit = 30): Promise<KuriCustomerSummary[]> {
+    const q = query.trim();
+    let request = this.sb
+      .from('customers')
+      .select('code, name, addr1, addr2, addr3, addr4, phone')
+      .order('name_sort', { ascending: true, nullsFirst: false })
+      .order('code')
+      .limit(limit);
+    if (q) {
+      const safe = q.replace(/[,()*%\\]/g, ' ').trim();
+      const filters = [`name.ilike.*${safe}*`, `phone.ilike.*${safe}*`];
+      if (/^\d+$/.test(safe)) {
+        filters.push(`code.eq.${safe}`);
+      }
+      request = request.or(filters.join(','));
+    }
+    const { data, error } = await request;
+    if (error) throw error;
+    return data ?? [];
+  }
+
   addMember(
     schemeId: number,
     customerCode: number,
