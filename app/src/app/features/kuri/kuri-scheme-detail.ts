@@ -4,6 +4,7 @@ import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
@@ -22,10 +23,16 @@ import { EntrySelect } from '../../shared/entry-select.directive';
 import { isoDate } from '../../shared/dates';
 import { KuriService } from './kuri.service';
 import {
+  formatCustomerAddress,
+  hasCustomHolderName,
+  KuriCustomerSummary,
   KuriSchemeDetail as KuriSchemeDetailModel,
   KuriPayoutSlot,
   KuriMember,
   KuriLot,
+  ticketHolderAddress,
+  ticketHolderName,
+  ticketHolderPhone,
 } from './kuri.models';
 
 @Component({
@@ -37,6 +44,7 @@ import {
     RouterLink,
     ReactiveFormsModule,
     MatButtonModule,
+    MatCheckboxModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -97,9 +105,14 @@ import {
                             }
                           </td>
                           <td>
-                            @if (slot.lot) {
-                              {{ slot.lot.member?.customer?.name }} (Tkt:
-                              {{ slot.lot.member?.ticket_no }})
+                            @if (slot.lot; as lot) {
+                              {{ holderName(lot.member) }} (Tkt: {{ lot.member?.ticket_no }})
+                              @if (isCustomHolder(lot.member)) {
+                                <div class="table-secondary">
+                                  Member #{{ lot.member?.customer?.code }}:
+                                  {{ lot.member?.customer?.name }}
+                                </div>
+                              }
                             } @else {
                               —
                             }
@@ -130,8 +143,10 @@ import {
                     <thead>
                       <tr>
                         <th scope="col">Ticket #</th>
-                        <th scope="col">Name</th>
+                        <th scope="col">Ticket Holder</th>
+                        <th scope="col">Address</th>
                         <th scope="col">Phone</th>
+                        <th scope="col">Linked Member</th>
                         <th scope="col">Lot Won</th>
                         <th scope="col">Actions</th>
                       </tr>
@@ -140,8 +155,17 @@ import {
                       @for (m of members(); track m.id) {
                         <tr>
                           <td>{{ m.ticket_no }}</td>
-                          <td>{{ m.customer?.name }}</td>
-                          <td>{{ m.customer?.phone || '—' }}</td>
+                          <td>{{ holderName(m) }}</td>
+                          <td class="table-secondary">{{ holderAddress(m) || '—' }}</td>
+                          <td>{{ holderPhone(m) || '—' }}</td>
+                          <td>
+                            <a
+                              class="table-link"
+                              [routerLink]="['/masters/members', m.customer_code]"
+                            >
+                              #{{ m.customer_code }} — {{ m.customer?.name }}
+                            </a>
+                          </td>
                           <td>{{ getMemberWin(m.id) || '—' }}</td>
                           <td>
                             @if (s.status === 'draft' && auth.isAdmin()) {
@@ -161,7 +185,7 @@ import {
                       }
                       @if (members().length === 0) {
                         <tr>
-                          <td colspan="5" class="empty-cell">No members added yet.</td>
+                          <td colspan="7" class="empty-cell">No members added yet.</td>
                         </tr>
                       }
                     </tbody>
@@ -170,7 +194,7 @@ import {
 
                 @if (s.status === 'draft' && auth.canEdit() && members().length < s.num_members) {
                   <div class="panel-header" style="margin-top: 2rem;">
-                    <h2>Add Member</h2>
+                    <h2>Assign Ticket</h2>
                   </div>
                   <form
                     appEnterToNext
@@ -179,7 +203,7 @@ import {
                     class="form-grid"
                   >
                     <mat-form-field subscriptSizing="dynamic">
-                      <mat-label>Customer Code</mat-label>
+                      <mat-label>Member Code (Linked Member)</mat-label>
                       <input
                         matInput
                         type="number"
@@ -187,7 +211,7 @@ import {
                         min="1"
                         step="1"
                       />
-                      <mat-error>Enter a positive whole-number customer code.</mat-error>
+                      <mat-error>Enter a positive whole-number member code.</mat-error>
                     </mat-form-field>
                     <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Ticket #</mat-label>
@@ -203,6 +227,51 @@ import {
                         >Enter an available ticket number from 1 to {{ s.num_members }}.</mat-error
                       >
                     </mat-form-field>
+
+                    @if (selectedCustomer(); as c) {
+                      <div class="linked-member-preview full">
+                        <mat-icon aria-hidden="true">person</mat-icon>
+                        <div>
+                          <strong>Member #{{ c.code }}: {{ c.name }}</strong>
+                          <span class="preview-meta">
+                            @if (customerAddress(c)) {
+                              · {{ customerAddress(c) }}
+                            }
+                            @if (c.phone) {
+                              · {{ c.phone }}
+                            }
+                          </span>
+                        </div>
+                      </div>
+                    } @else if (customerLookupFailed()) {
+                      <div class="linked-member-preview warning full">
+                        <mat-icon aria-hidden="true">warning_amber</mat-icon>
+                        <span>No member found with that code.</span>
+                      </div>
+                    }
+
+                    <div class="custom-holder-toggle full">
+                      <mat-checkbox formControlName="useCustomHolder">
+                        Use different ticket holder details (linked to this member ID)
+                      </mat-checkbox>
+                    </div>
+
+                    @if (memberForm.controls.useCustomHolder.value) {
+                      <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Ticket Holder Name</mat-label>
+                        <input matInput formControlName="holderName" maxlength="100" />
+                        <mat-error>Enter the ticket holder’s name.</mat-error>
+                      </mat-form-field>
+                      <mat-form-field subscriptSizing="dynamic">
+                        <mat-label>Ticket Holder Phone</mat-label>
+                        <input matInput type="tel" formControlName="holderPhone" maxlength="30" />
+                      </mat-form-field>
+                      <mat-form-field subscriptSizing="dynamic" class="full">
+                        <mat-label>Ticket Holder Address</mat-label>
+                        <input matInput formControlName="holderAddress" maxlength="250" />
+                      </mat-form-field>
+                    }
+
                     <div class="form-actions full">
                       <button
                         mat-flat-button
@@ -238,7 +307,13 @@ import {
                         <tr>
                           <td>{{ lot.installment_no }}</td>
                           <td>
-                            {{ lot.member?.customer?.name }} (Tkt: {{ lot.member?.ticket_no }})
+                            {{ holderName(lot.member) }} (Tkt: {{ lot.member?.ticket_no }})
+                            @if (isCustomHolder(lot.member)) {
+                              <div class="table-secondary">
+                                Member #{{ lot.member?.customer?.code }}:
+                                {{ lot.member?.customer?.name }}
+                              </div>
+                            }
                           </td>
                           <td class="num">{{ lot.payout_amount | number: '1.2-2' }}</td>
                           <td>
@@ -296,9 +371,13 @@ import {
                       <mat-label>Winner</mat-label>
                       <mat-select appEntrySelect formControlName="winnerMemberId">
                         @for (m of eligibleMembers(); track m.id) {
-                          <mat-option [value]="m.id"
-                            >{{ m.customer?.name }} (Tkt: {{ m.ticket_no }})</mat-option
-                          >
+                          <mat-option [value]="m.id">
+                            {{ holderName(m) }} (Tkt: {{ m.ticket_no }}
+                            @if (isCustomHolder(m)) {
+                              · Member #{{ m.customer_code }}: {{ m.customer?.name }}
+                            }
+                            )
+                          </mat-option>
                         }
                       </mat-select>
                     </mat-form-field>
@@ -334,6 +413,26 @@ import {
       color: var(--app-muted);
       padding: 2rem !important;
     }
+    .linked-member-preview {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: var(--app-surface-subtle, rgba(0, 0, 0, 0.03));
+      border: 1px solid var(--app-border);
+      font-size: 13px;
+    }
+    .linked-member-preview.warning {
+      color: var(--app-warning-ink);
+    }
+    .preview-meta {
+      color: var(--app-muted);
+      margin-left: 4px;
+    }
+    .custom-holder-toggle {
+      margin: 2px 0;
+    }
   `,
 })
 export class KuriSchemeDetail implements OnInit {
@@ -350,9 +449,18 @@ export class KuriSchemeDetail implements OnInit {
   protected readonly slots = signal<KuriPayoutSlot[]>([]);
   protected readonly members = signal<KuriMember[]>([]);
   protected readonly lots = signal<KuriLot[]>([]);
+  protected readonly selectedCustomer = signal<KuriCustomerSummary | null>(null);
+  protected readonly customerLookupFailed = signal(false);
   protected readonly busy = signal(false);
   protected readonly loading = signal(true);
   private loadRequest = 0;
+  private customerLookupRequest = 0;
+
+  protected readonly holderName = ticketHolderName;
+  protected readonly holderAddress = ticketHolderAddress;
+  protected readonly holderPhone = ticketHolderPhone;
+  protected readonly customerAddress = formatCustomerAddress;
+  protected readonly isCustomHolder = hasCustomHolderName;
 
   protected readonly memberForm = this.fb.group({
     customerCode: [
@@ -363,6 +471,10 @@ export class KuriSchemeDetail implements OnInit {
       null as number | null,
       [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)],
     ],
+    useCustomHolder: [false],
+    holderName: [''],
+    holderAddress: [''],
+    holderPhone: [''],
   });
 
   protected readonly drawForm = this.fb.group({
@@ -390,6 +502,62 @@ export class KuriSchemeDetail implements OnInit {
       };
     });
   });
+
+  constructor() {
+    this.memberForm.controls.useCustomHolder.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((useCustom) => {
+        const nameCtrl = this.memberForm.controls.holderName;
+        if (useCustom) {
+          nameCtrl.setValidators([Validators.required, Validators.pattern(/\S/)]);
+          const cust = this.selectedCustomer();
+          if (cust) {
+            if (!nameCtrl.value?.trim()) {
+              nameCtrl.setValue(cust.name, { emitEvent: false });
+            }
+            if (!this.memberForm.controls.holderAddress.value?.trim()) {
+              this.memberForm.controls.holderAddress.setValue(formatCustomerAddress(cust), {
+                emitEvent: false,
+              });
+            }
+            if (!this.memberForm.controls.holderPhone.value?.trim() && cust.phone) {
+              this.memberForm.controls.holderPhone.setValue(cust.phone, { emitEvent: false });
+            }
+          }
+        } else {
+          nameCtrl.clearValidators();
+          this.memberForm.patchValue(
+            { holderName: '', holderAddress: '', holderPhone: '' },
+            { emitEvent: false },
+          );
+        }
+        nameCtrl.updateValueAndValidity({ emitEvent: false });
+      });
+
+    this.memberForm.controls.customerCode.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((code) => {
+        void this.lookupCustomer(code);
+      });
+  }
+
+  private async lookupCustomer(code: number | null): Promise<void> {
+    const req = ++this.customerLookupRequest;
+    this.selectedCustomer.set(null);
+    this.customerLookupFailed.set(false);
+    if (!code || !Number.isInteger(Number(code)) || Number(code) < 1) return;
+    if (typeof this.kuri.getCustomer !== 'function') return;
+    try {
+      const customer = await this.kuri.getCustomer(Number(code));
+      if (req !== this.customerLookupRequest) return;
+      this.selectedCustomer.set(customer);
+      this.customerLookupFailed.set(!customer);
+    } catch {
+      if (req === this.customerLookupRequest) {
+        this.selectedCustomer.set(null);
+      }
+    }
+  }
 
   /** Maps a scheme or payout status onto the badge tones the global stylesheet defines. */
   protected schemeTone(status: KuriSchemeDetailModel['status']): string {
@@ -427,10 +595,23 @@ export class KuriSchemeDetail implements OnInit {
       if (id) {
         this.schemeId.set(id);
         this.scheme.set(null);
-        this.memberForm.reset();
+        this.resetMemberForm();
         this.drawForm.reset();
         void this.loadData();
       }
+    });
+  }
+
+  private resetMemberForm(): void {
+    this.selectedCustomer.set(null);
+    this.customerLookupFailed.set(false);
+    this.memberForm.reset({
+      customerCode: null,
+      ticketNo: null,
+      useCustomHolder: false,
+      holderName: '',
+      holderAddress: '',
+      holderPhone: '',
     });
   }
 
@@ -488,13 +669,21 @@ export class KuriSchemeDetail implements OnInit {
 
   protected async addMember(): Promise<void> {
     if (this.memberForm.invalid || this.busy()) return;
-    const v = this.memberForm.value;
+    const v = this.memberForm.getRawValue();
     this.busy.set(true);
     this.memberForm.disable({ emitEvent: false });
     try {
-      await this.kuri.addMember(this.schemeId(), v.customerCode!, v.ticketNo!);
+      if (v.useCustomHolder) {
+        await this.kuri.addMember(this.schemeId(), v.customerCode!, v.ticketNo!, {
+          holderName: v.holderName?.trim() || null,
+          holderAddress: v.holderAddress?.trim() || null,
+          holderPhone: v.holderPhone?.trim() || null,
+        });
+      } else {
+        await this.kuri.addMember(this.schemeId(), v.customerCode!, v.ticketNo!);
+      }
       this.notify.success('Member added');
-      this.memberForm.reset();
+      this.resetMemberForm();
       await this.loadData();
     } catch (err) {
       this.notify.error(err);
@@ -509,7 +698,7 @@ export class KuriSchemeDetail implements OnInit {
     const schemeId = this.schemeId();
     const result = await confirmAction(this.dialog, {
       title: 'Remove Member?',
-      message: `Remove ticket #${m.ticket_no} (${m.customer?.name}) from this scheme?`,
+      message: `Remove ticket #${m.ticket_no} (${this.holderName(m)}) from this scheme?`,
       destructive: true,
       confirmLabel: 'Remove',
     });
@@ -549,7 +738,7 @@ export class KuriSchemeDetail implements OnInit {
     const schemeId = this.schemeId();
     const result = await confirmAction(this.dialog, {
       title: 'Mark Paid?',
-      message: `Confirm payout of ${lot.payout_amount} to ${lot.member?.customer?.name}?`,
+      message: `Confirm payout of ${lot.payout_amount} to ${this.holderName(lot.member)}?`,
       confirmLabel: 'Mark Paid',
     });
     if (!result || this.busy() || schemeId !== this.schemeId()) return;

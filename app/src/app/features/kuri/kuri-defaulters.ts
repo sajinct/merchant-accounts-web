@@ -14,7 +14,12 @@ import { EntrySelect } from '../../shared/entry-select.directive';
 import { PageHeader } from '../../shared/page-header';
 import { ReportShell } from '../../shared/report-shell';
 import { KuriService } from './kuri.service';
-import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
+import {
+  hasCustomHolderName,
+  KuriDefaulterRow,
+  KuriSchemeListRow,
+  ticketHolderName,
+} from './kuri.models';
 
 @Component({
   selector: 'app-kuri-defaulters',
@@ -89,6 +94,7 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
                 <tr>
                   <th scope="col">Tkt #</th>
                   <th scope="col">Member</th>
+                  <th scope="col">Address</th>
                   <th scope="col">Phone</th>
                   <th scope="col" class="num">Due</th>
                   <th scope="col" class="num">Paid</th>
@@ -99,7 +105,15 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
                 @for (row of rows(); track row.member_id) {
                   <tr>
                     <td>{{ row.ticket_no }}</td>
-                    <td>{{ row.customer_name }}</td>
+                    <td>
+                      {{ holderName(row) }}
+                      @if (isCustomHolder(row)) {
+                        <div class="table-secondary">
+                          Member #{{ row.customer_code }}: {{ row.customer_name }}
+                        </div>
+                      }
+                    </td>
+                    <td class="table-secondary">{{ row.holder_address || '—' }}</td>
                     <td>{{ row.phone || '—' }}</td>
                     <td class="num">{{ row.amount_due | number: '1.2-2' }}</td>
                     <td class="num">{{ row.amount_paid | number: '1.2-2' }}</td>
@@ -109,7 +123,7 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="3">Total ({{ rows().length }} tickets)</td>
+                  <td colspan="4">Total ({{ rows().length }} tickets)</td>
                   <td class="num">{{ totals().due | number: '1.2-2' }}</td>
                   <td class="num">{{ totals().paid | number: '1.2-2' }}</td>
                   <td class="num">{{ totals().balance | number: '1.2-2' }}</td>
@@ -156,6 +170,9 @@ import { KuriDefaulterRow, KuriSchemeListRow } from './kuri.models';
 export class KuriDefaulters implements OnInit {
   private readonly kuri = inject(KuriService);
   private readonly notify = inject(NotifyService);
+
+  protected readonly holderName = ticketHolderName;
+  protected readonly isCustomHolder = hasCustomHolderName;
 
   protected readonly schemes = signal<KuriSchemeListRow[]>([]);
   protected readonly loadingSchemes = signal(true);
@@ -249,12 +266,14 @@ export class KuriDefaulters implements OnInit {
   protected exportCsv(): void {
     downloadCsv(
       'kuri-defaulters.csv',
-      ['Ticket', 'Member code', 'Member', 'Phone', 'Due', 'Paid', 'Balance'],
+      ['Ticket', 'Ticket holder', 'Address', 'Phone', 'Member code', 'Member', 'Due', 'Paid', 'Balance'],
       this.rows().map((row) => [
         row.ticket_no,
+        this.holderName(row),
+        row.holder_address ?? '',
+        row.phone,
         row.customer_code,
         row.customer_name,
-        row.phone,
         row.amount_due,
         row.amount_paid,
         row.balance,

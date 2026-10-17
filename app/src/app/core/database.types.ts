@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -521,6 +521,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_code: number
+          holder_address: string | null
+          holder_name: string | null
+          holder_phone: string | null
           id: number
           notes: string | null
           scheme_id: number
@@ -530,6 +533,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_code: number
+          holder_address?: string | null
+          holder_name?: string | null
+          holder_phone?: string | null
           id?: never
           notes?: string | null
           scheme_id: number
@@ -539,6 +545,9 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           customer_code?: number
+          holder_address?: string | null
+          holder_name?: string | null
+          holder_phone?: string | null
           id?: never
           notes?: string | null
           scheme_id?: number
@@ -976,6 +985,9 @@ export type Database = {
       add_kuri_member: {
         Args: {
           p_customer_code: number
+          p_holder_address?: string
+          p_holder_name?: string
+          p_holder_phone?: string
           p_notes?: string
           p_scheme_id: number
           p_ticket_no: number
@@ -984,6 +996,9 @@ export type Database = {
           created_at: string
           created_by: string | null
           customer_code: number
+          holder_address: string | null
+          holder_name: string | null
+          holder_phone: string | null
           id: number
           notes: string | null
           scheme_id: number
@@ -1297,6 +1312,8 @@ export type Database = {
           customer_code: number
           customer_name: string
           has_won_lot: boolean
+          holder_address: string
+          holder_name: string
           last_paid_on: string
           member_id: number
           phone: string
@@ -1312,6 +1329,8 @@ export type Database = {
           balance: number
           customer_code: number
           customer_name: string
+          holder_address: string
+          holder_name: string
           member_id: number
           phone: string
           ticket_no: number

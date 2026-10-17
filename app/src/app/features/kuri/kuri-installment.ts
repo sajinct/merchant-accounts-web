@@ -21,7 +21,12 @@ import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { EntrySelect } from '../../shared/entry-select.directive';
 import { isoDate } from '../../shared/dates';
 import { KuriService } from './kuri.service';
-import { KuriCollectionRow, KuriSchemeDetail } from './kuri.models';
+import {
+  hasCustomHolderName,
+  KuriCollectionRow,
+  KuriSchemeDetail,
+  ticketHolderName,
+} from './kuri.models';
 
 @Component({
   selector: 'app-kuri-installment',
@@ -129,8 +134,11 @@ import { KuriCollectionRow, KuriSchemeDetail } from './kuri.models';
                     >
                       @for (member of unpaidMembers(); track member.member_id) {
                         <mat-option [value]="member.member_id">
-                          #{{ member.ticket_no }} — {{ member.customer_name }} (Bal:
-                          {{ member.balance | number: '1.2-2' }})
+                          #{{ member.ticket_no }} — {{ holderName(member) }}
+                          @if (isCustomHolder(member)) {
+                            (Member #{{ member.customer_code }}: {{ member.customer_name }})
+                          }
+                          (Bal: {{ member.balance | number: '1.2-2' }})
                         </mat-option>
                       }
                     </mat-select>
@@ -230,13 +238,18 @@ import { KuriCollectionRow, KuriSchemeDetail } from './kuri.models';
                   <tr>
                     <td>{{ row.ticket_no }}</td>
                     <td>
-                      {{ row.customer_name }}
+                      {{ holderName(row) }}
                       @if (row.has_won_lot) {
                         <mat-icon
                           class="lot-winner"
                           [matTooltip]="'Won lot in installment ' + row.won_installment"
                           >emoji_events</mat-icon
                         >
+                      }
+                      @if (isCustomHolder(row)) {
+                        <div class="table-secondary">
+                          Member #{{ row.customer_code }}: {{ row.customer_name }}
+                        </div>
                       }
                     </td>
                     <td>{{ row.phone || '—' }}</td>
@@ -359,6 +372,9 @@ export class KuriInstallment implements OnInit {
   private readonly notify = inject(NotifyService);
   protected readonly auth = inject(AuthService);
   private readonly dialog = inject(MatDialog);
+
+  protected readonly holderName = ticketHolderName;
+  protected readonly isCustomHolder = hasCustomHolderName;
 
   protected readonly schemeId = signal(0);
   protected readonly installmentNo = signal(0);

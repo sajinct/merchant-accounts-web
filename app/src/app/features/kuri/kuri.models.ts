@@ -1,5 +1,15 @@
 // Row shapes returned by Kuri module RPCs and queries.
 
+export interface KuriCustomerSummary {
+  code: number;
+  name: string;
+  addr1?: string | null;
+  addr2?: string | null;
+  addr3?: string | null;
+  addr4?: string | null;
+  phone: string | null;
+}
+
 export interface KuriSchemeListRow {
   id: number;
   name: string;
@@ -45,9 +55,12 @@ export interface KuriMember {
   scheme_id: number;
   customer_code: number;
   ticket_no: number;
+  holder_name?: string | null;
+  holder_address?: string | null;
+  holder_phone?: string | null;
   notes: string | null;
   created_at: string;
-  customer: { code: number; name: string; phone: string | null } | null;
+  customer: KuriCustomerSummary | null;
 }
 
 export interface KuriLot {
@@ -61,7 +74,10 @@ export interface KuriLot {
   drawn_at: string;
   member: {
     ticket_no: number;
-    customer: { code: number; name: string; phone: string | null } | null;
+    holder_name?: string | null;
+    holder_address?: string | null;
+    holder_phone?: string | null;
+    customer: KuriCustomerSummary | null;
   } | null;
 }
 
@@ -70,6 +86,8 @@ export interface KuriCollectionRow {
   ticket_no: number;
   customer_code: number;
   customer_name: string;
+  holder_name?: string | null;
+  holder_address?: string | null;
   phone: string | null;
   amount_due: number;
   amount_paid: number;
@@ -105,8 +123,77 @@ export interface KuriDefaulterRow {
   ticket_no: number;
   customer_code: number;
   customer_name: string;
+  holder_name?: string | null;
+  holder_address?: string | null;
   phone: string | null;
   amount_due: number;
   amount_paid: number;
   balance: number;
+}
+
+export function formatCustomerAddress(
+  customer: Pick<KuriCustomerSummary, 'addr1' | 'addr2' | 'addr3' | 'addr4'> | null | undefined,
+): string {
+  if (!customer) return '';
+  return [customer.addr1, customer.addr2, customer.addr3, customer.addr4]
+    .map((line) => line?.trim())
+    .filter(Boolean)
+    .join(', ');
+}
+
+export function ticketHolderName(
+  ticket:
+    | {
+        holder_name?: string | null;
+        customer?: { name: string } | null;
+        customer_name?: string | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!ticket) return '';
+  return ticket.holder_name?.trim() || ticket.customer?.name || ticket.customer_name || '';
+}
+
+export function ticketHolderAddress(
+  ticket:
+    | {
+        holder_address?: string | null;
+        customer?: KuriCustomerSummary | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!ticket) return '';
+  return ticket.holder_address?.trim() || formatCustomerAddress(ticket.customer);
+}
+
+export function ticketHolderPhone(
+  ticket:
+    | {
+        holder_phone?: string | null;
+        phone?: string | null;
+        customer?: { phone: string | null } | null;
+      }
+    | null
+    | undefined,
+): string {
+  if (!ticket) return '';
+  return ticket.holder_phone?.trim() || ticket.phone?.trim() || ticket.customer?.phone || '';
+}
+
+export function hasCustomHolderName(
+  ticket:
+    | {
+        holder_name?: string | null;
+        customer?: { name: string } | null;
+        customer_name?: string | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!ticket) return false;
+  const custom = ticket.holder_name?.trim();
+  const base = (ticket.customer?.name ?? ticket.customer_name ?? '').trim();
+  return Boolean(custom && custom !== base);
 }

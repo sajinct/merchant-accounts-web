@@ -18,7 +18,15 @@ import { EntrySelect } from '../../shared/entry-select.directive';
 import { PageHeader } from '../../shared/page-header';
 import { ReportShell } from '../../shared/report-shell';
 import { KuriService } from './kuri.service';
-import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } from './kuri.models';
+import {
+  hasCustomHolderName,
+  KuriMember,
+  KuriMemberLedgerRow,
+  KuriPaymentRow,
+  KuriSchemeListRow,
+  ticketHolderAddress,
+  ticketHolderName,
+} from './kuri.models';
 
 @Component({
   selector: 'app-kuri-member-ledger',
@@ -71,7 +79,10 @@ import { KuriMember, KuriMemberLedgerRow, KuriPaymentRow, KuriSchemeListRow } fr
             <mat-select appEntrySelect formControlName="member">
               @for (member of members(); track member.id) {
                 <mat-option [value]="member.id">
-                  #{{ member.ticket_no }} — {{ member.customer?.name }}
+                  #{{ member.ticket_no }} — {{ holderName(member) }}
+                  @if (isCustomHolder(member)) {
+                    (Member #{{ member.customer_code }}: {{ member.customer?.name }})
+                  }
                 </mat-option>
               }
             </mat-select>
@@ -243,6 +254,9 @@ export class KuriMemberLedger implements OnInit {
   private readonly locale = inject(LOCALE_ID);
   protected readonly auth = inject(AuthService);
 
+  protected readonly holderName = ticketHolderName;
+  protected readonly isCustomHolder = hasCustomHolderName;
+
   protected readonly schemes = signal<KuriSchemeListRow[]>([]);
   protected readonly members = signal<KuriMember[]>([]);
   protected readonly ledger = signal<KuriMemberLedgerRow[]>([]);
@@ -353,8 +367,14 @@ export class KuriMemberLedger implements OnInit {
   private describe(schemeId: number, memberId: number): string {
     const scheme = this.schemes().find((s) => s.id === schemeId);
     const member = this.members().find((m) => m.id === memberId);
-    const who = member ? `ticket #${member.ticket_no} — ${member.customer?.name ?? ''}` : '';
-    return [scheme?.name, who].filter(Boolean).join(' · ');
+    if (!member) return scheme?.name ?? '';
+    const name = this.holderName(member);
+    const address = ticketHolderAddress(member);
+    const linked = this.isCustomHolder(member)
+      ? ` (Member #${member.customer_code}: ${member.customer?.name ?? ''})`
+      : '';
+    const who = `ticket #${member.ticket_no} — ${name}${linked}`;
+    return [scheme?.name, who, address].filter(Boolean).join(' · ');
   }
 
   protected async cancel(payment: KuriPaymentRow): Promise<void> {

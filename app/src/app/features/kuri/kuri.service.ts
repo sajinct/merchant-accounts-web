@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { must, SupabaseService } from '../../core/supabase.service';
 import {
+  KuriCustomerSummary,
   KuriSchemeListRow,
   KuriSchemeDetail,
   KuriPayoutSlot,
@@ -11,6 +12,13 @@ import {
   KuriDefaulterRow,
   KuriPaymentRow,
 } from './kuri.models';
+
+export interface AddKuriMemberOptions {
+  notes?: string;
+  holderName?: string | null;
+  holderAddress?: string | null;
+  holderPhone?: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class KuriService {
@@ -43,20 +51,42 @@ export class KuriService {
     return must(this.sb.rpc('activate_kuri_scheme', { p_scheme_id: schemeId }));
   }
 
+  async getCustomer(code: number): Promise<KuriCustomerSummary | null> {
+    const { data, error } = await this.sb
+      .from('customers')
+      .select('code, name, addr1, addr2, addr3, addr4, phone')
+      .eq('code', code)
+      .maybeSingle();
+    if (error) throw error;
+    return data;
+  }
+
   addMember(
     schemeId: number,
     customerCode: number,
     ticketNo: number,
-    notes?: string,
+    options?: string | AddKuriMemberOptions,
   ): Promise<unknown> {
-    return must(
-      this.sb.rpc('add_kuri_member', {
-        p_scheme_id: schemeId,
-        p_customer_code: customerCode,
-        p_ticket_no: ticketNo,
-        p_notes: notes,
-      }),
-    );
+    const opts: AddKuriMemberOptions =
+      typeof options === 'string' ? { notes: options } : (options ?? {});
+    const payload: {
+      p_scheme_id: number;
+      p_customer_code: number;
+      p_ticket_no: number;
+      p_notes?: string;
+      p_holder_name?: string;
+      p_holder_address?: string;
+      p_holder_phone?: string;
+    } = {
+      p_scheme_id: schemeId,
+      p_customer_code: customerCode,
+      p_ticket_no: ticketNo,
+      p_notes: opts.notes,
+    };
+    if (opts.holderName?.trim()) payload.p_holder_name = opts.holderName.trim();
+    if (opts.holderAddress?.trim()) payload.p_holder_address = opts.holderAddress.trim();
+    if (opts.holderPhone?.trim()) payload.p_holder_phone = opts.holderPhone.trim();
+    return must(this.sb.rpc('add_kuri_member', payload));
   }
 
   removeMember(memberId: number): Promise<unknown> {
@@ -67,7 +97,7 @@ export class KuriService {
     return must(
       this.sb
         .from('kuri_members')
-        .select('*, customer:customers(code, name, phone)')
+        .select('*, customer:customers(code, name, addr1, addr2, addr3, addr4, phone)')
         .eq('scheme_id', schemeId)
         .order('ticket_no'),
     );
@@ -105,7 +135,9 @@ export class KuriService {
     return must(
       this.sb
         .from('kuri_lots')
-        .select('*, member:kuri_members(ticket_no, customer:customers(code, name, phone))')
+        .select(
+          '*, member:kuri_members(ticket_no, holder_name, holder_address, holder_phone, customer:customers(code, name, addr1, addr2, addr3, addr4, phone))',
+        )
         .eq('scheme_id', schemeId)
         .order('installment_no'),
     );

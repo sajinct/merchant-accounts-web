@@ -86,6 +86,15 @@ async function setup<T>(component: Type<T>) {
     recordBulkPayment: vi.fn().mockResolvedValue(1),
     createScheme: vi.fn().mockResolvedValue({}),
     addMember: vi.fn().mockResolvedValue({}),
+    getCustomer: vi.fn().mockResolvedValue({
+      code: 1,
+      name: 'Test member',
+      addr1: '12 Main St',
+      addr2: 'Kochi',
+      addr3: null,
+      addr4: null,
+      phone: '9876543210',
+    }),
   };
   const notify = { error: vi.fn(), success: vi.fn() };
   const auth = { canEdit: () => true, isAdmin: () => true };
@@ -283,6 +292,41 @@ describe('Kuri scheme controls', () => {
       await component['addMember']();
     }
     expect(kuri.addMember).not.toHaveBeenCalled();
+  });
+
+  it('assigns a ticket using the linked member details by default or custom ticket holder details when enabled', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['memberForm'].patchValue({ customerCode: 1, ticketNo: 2 });
+    await vi.waitFor(() => expect(component['selectedCustomer']()?.code).toBe(1));
+
+    await component['addMember']();
+    expect(kuri.addMember).toHaveBeenCalledWith(1, 1, 2);
+
+    component['memberForm'].patchValue({ customerCode: 1, ticketNo: 2 });
+    await vi.waitFor(() => expect(component['selectedCustomer']()?.code).toBe(1));
+    component['memberForm'].controls.useCustomHolder.setValue(true);
+
+    // Pre-fills with the member's details when toggled on
+    expect(component['memberForm'].controls.holderName.value).toBe('Test member');
+    expect(component['memberForm'].controls.holderAddress.value).toBe('12 Main St, Kochi');
+    expect(component['memberForm'].controls.holderPhone.value).toBe('9876543210');
+
+    // Requires a non-empty ticket holder name when custom details are enabled
+    component['memberForm'].controls.holderName.setValue('   ');
+    expect(component['memberForm'].invalid).toBe(true);
+
+    component['memberForm'].patchValue({
+      holderName: 'Ticket Holder B',
+      holderAddress: '45 Market Road',
+      holderPhone: '9123456789',
+    });
+    expect(component['memberForm'].valid).toBe(true);
+    await component['addMember']();
+    expect(kuri.addMember).toHaveBeenLastCalledWith(1, 1, 2, {
+      holderName: 'Ticket Holder B',
+      holderAddress: '45 Market Road',
+      holderPhone: '9123456789',
+    });
   });
 });
 
