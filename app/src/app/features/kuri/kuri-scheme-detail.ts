@@ -14,8 +14,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth.service';
+import { AccountHead } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { PageHeader } from '../../shared/page-header';
+import { AccountPicker } from '../../shared/account-picker';
 import { EmptyState } from '../../shared/empty-state';
 import { StatCard } from '../../shared/stat-card';
 import { confirmAction } from '../../shared/confirm-dialog';
@@ -58,6 +60,7 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
     MatTabsModule,
     MatTooltipModule,
     PageHeader,
+    AccountPicker,
     EmptyState,
     StatCard,
     EnterToNext,
@@ -66,8 +69,21 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
   template: `
     <div class="page">
       @if (scheme(); as s) {
-        <app-page-header eyebrow="Kuri" [heading]="s.name">
+        <app-page-header
+          eyebrow="Kuri"
+          [heading]="s.name"
+          [description]="
+            s.head_code
+              ? 'Linked Account: ' + s.head_code + ' – ' + s.head_name
+              : 'No account head linked yet'
+          "
+        >
           <span class="status-badge {{ schemeTone(s.status) }}">{{ s.status | titlecase }}</span>
+          @if (s.head_code && canChangeAccount() && auth.canEdit() && !editingAccount()) {
+            <button mat-stroked-button type="button" (click)="startEditAccount()">
+              Change Account
+            </button>
+          }
           @if (s.status === 'draft' && s.enrolled_count === s.num_members && auth.canEdit()) {
             <button mat-flat-button [disabled]="busy()" (click)="activateScheme()">Activate</button>
           }
@@ -75,6 +91,44 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
             >Installments</a
           >
         </app-page-header>
+
+        @if (auth.canEdit() && (!s.head_code || editingAccount())) {
+          <div class="panel account-link-panel">
+            <div class="panel-body">
+              <form
+                appEnterToNext
+                [formGroup]="accountForm"
+                (ngSubmit)="saveSchemeAccount()"
+                class="account-link-form"
+              >
+                <app-account-picker
+                  class="account-link-picker"
+                  formControlName="headCode"
+                  label="Scheme Account Head"
+                  placeholder="Search account head by name or code"
+                  hint="All installment collections and lot payouts for this scheme post to this account."
+                  subscriptSizing="dynamic"
+                  [accounts]="nonCashAccounts()"
+                />
+                <div class="account-link-actions">
+                  <button mat-flat-button type="submit" [disabled]="accountForm.invalid || busy()">
+                    Save Account
+                  </button>
+                  @if (s.head_code) {
+                    <button
+                      mat-button
+                      type="button"
+                      [disabled]="busy()"
+                      (click)="editingAccount.set(false)"
+                    >
+                      Cancel
+                    </button>
+                  }
+                </div>
+              </form>
+            </div>
+          </div>
+        }
 
         <div class="summary-grid">
           <app-stat-card label="Total Value" [value]="s.total_value | number: '1.2-2'" />
@@ -238,9 +292,7 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                       >
                         @for (c of customerResults(); track c.code) {
                           <mat-option [value]="c">
-                            <span class="member-option-primary"
-                              >#{{ c.code }} — {{ c.name }}</span
-                            >
+                            <span class="member-option-primary">#{{ c.code }} — {{ c.name }}</span>
                             @if (c.phone || customerAddress(c)) {
                               <span class="member-option-meta">
                                 @if (c.phone) {
@@ -292,7 +344,11 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                     @if (availableTickets().length > 0) {
                       <div class="ticket-picker-strip full">
                         <span class="ticket-picker-label">Quick pick ticket #:</span>
-                        <div class="ticket-chips" role="group" aria-label="Available ticket numbers">
+                        <div
+                          class="ticket-chips"
+                          role="group"
+                          aria-label="Available ticket numbers"
+                        >
                           @for (tkt of availableTickets(); track tkt) {
                             <button
                               type="button"
@@ -369,6 +425,20 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
           <mat-tab label="Lot History">
             <div class="panel">
               <div class="panel-body">
+                @if (hasPendingPayouts() && auth.isAdmin() && cashAccounts().length > 0) {
+                  <div class="payout-account-bar">
+                    <mat-form-field subscriptSizing="dynamic" class="payout-account-field">
+                      <mat-label>Paid from (Cash / Bank)</mat-label>
+                      <mat-select [formControl]="payoutCashControl">
+                        @for (acc of cashAccounts(); track acc.code) {
+                          <mat-option [value]="acc.code"
+                            >{{ acc.code }} – {{ acc.name }}</mat-option
+                          >
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+                }
                 <div class="table-wrap" role="region" tabindex="0" aria-label="Lot history">
                   <table class="data-table">
                     <thead>
@@ -487,6 +557,32 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
     .panel-body > .form-grid {
       margin-top: 16px;
     }
+    .account-link-panel {
+      margin-bottom: 20px;
+    }
+    .account-link-form {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    .account-link-picker {
+      flex: 1 1 320px;
+    }
+    .account-link-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding-top: 4px;
+    }
+    .payout-account-bar {
+      display: flex;
+      justify-content: flex-end;
+      margin-bottom: 12px;
+    }
+    .payout-account-field {
+      min-width: 260px;
+    }
     .empty-cell {
       text-align: center;
       color: var(--app-muted);
@@ -526,7 +622,9 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.15s ease, border-color 0.15s ease;
+      transition:
+        background 0.15s ease,
+        border-color 0.15s ease;
     }
     .ticket-chip:hover {
       border-color: var(--app-primary);
@@ -572,6 +670,8 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   protected readonly slots = signal<KuriPayoutSlot[]>([]);
   protected readonly members = signal<KuriMember[]>([]);
   protected readonly lots = signal<KuriLot[]>([]);
+  protected readonly accounts = signal<AccountHead[]>([]);
+  protected readonly editingAccount = signal(false);
   protected readonly customerResults = signal<KuriCustomerSummary[]>([]);
   protected readonly searchingCustomers = signal(false);
   protected readonly selectedCustomer = signal<KuriCustomerSummary | null>(null);
@@ -588,6 +688,25 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   protected readonly holderPhone = ticketHolderPhone;
   protected readonly customerAddress = formatCustomerAddress;
   protected readonly isCustomHolder = hasCustomHolderName;
+
+  protected readonly nonCashAccounts = computed(() =>
+    this.accounts().filter((a) => !a.is_cash_bank),
+  );
+  protected readonly cashAccounts = computed(() => this.accounts().filter((a) => a.is_cash_bank));
+  protected readonly canChangeAccount = computed(() => {
+    const s = this.scheme();
+    if (!s) return false;
+    return Number(s.total_collected) === 0 && Number(s.total_paid_out) === 0;
+  });
+  protected readonly hasPendingPayouts = computed(() =>
+    this.lots().some((l) => l.payout_status === 'pending'),
+  );
+
+  protected readonly accountForm = this.fb.group({
+    headCode: [null as number | null, Validators.required],
+  });
+
+  protected readonly payoutCashControl = new FormControl<number | null>(null);
 
   protected readonly memberSearch = new FormControl<KuriCustomerSummary | string>('');
 
@@ -814,17 +933,33 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   });
 
   ngOnInit(): void {
+    void this.loadAccounts();
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       const id = Number(params.get('id'));
       if (id) {
         this.schemeId.set(id);
         this.scheme.set(null);
+        this.editingAccount.set(false);
         this.resetMemberForm();
         this.drawForm.reset();
         void this.loadData();
         void this.runCustomerSearch('');
       }
     });
+  }
+
+  private async loadAccounts(): Promise<void> {
+    if (typeof this.kuri.getAccounts !== 'function') return;
+    try {
+      const rows = await this.kuri.getAccounts();
+      this.accounts.set(rows);
+      const cash = rows.filter((a) => a.is_cash_bank);
+      if (this.payoutCashControl.value === null && cash.length > 0) {
+        this.payoutCashControl.setValue(cash[0].code, { emitEvent: false });
+      }
+    } catch {
+      // Non-fatal: backend falls back to default cash account if not loaded.
+    }
   }
 
   private resetMemberForm(nextTicket: number | null = null): void {
@@ -853,14 +988,18 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
         this.kuri.getLots(id),
       ]);
       if (request !== this.loadRequest) return;
-      this.scheme.set(schemes[0] || null);
+      const loadedScheme = schemes[0] || null;
+      this.scheme.set(loadedScheme);
+      this.accountForm.controls.headCode.setValue(loadedScheme?.head_code ?? null, {
+        emitEvent: false,
+      });
       this.slots.set(slots);
       this.members.set(members);
       this.lots.set(lots);
       this.memberForm.controls.ticketNo.setValidators([
         Validators.required,
         Validators.min(1),
-        Validators.max(schemes[0]?.num_members ?? 0),
+        Validators.max(loadedScheme?.num_members ?? 0),
         Validators.pattern(/^\d+$/),
       ]);
       const free = this.availableTickets();
@@ -880,6 +1019,28 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
       }
     } finally {
       if (request === this.loadRequest) this.loading.set(false);
+    }
+  }
+
+  protected startEditAccount(): void {
+    this.accountForm.controls.headCode.setValue(this.scheme()?.head_code ?? null);
+    this.editingAccount.set(true);
+  }
+
+  protected async saveSchemeAccount(): Promise<void> {
+    if (this.accountForm.invalid || this.busy()) return;
+    const headCode = this.accountForm.controls.headCode.value;
+    if (!headCode) return;
+    this.busy.set(true);
+    try {
+      await this.kuri.setSchemeAccount(this.schemeId(), headCode);
+      this.notify.success('Scheme account updated');
+      this.editingAccount.set(false);
+      await this.loadData();
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.busy.set(false);
     }
   }
 
@@ -968,15 +1129,21 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   protected async markPaid(lot: KuriLot): Promise<void> {
     if (this.busy()) return;
     const schemeId = this.schemeId();
+    const cashCode = this.payoutCashControl.value ?? this.cashAccounts()[0]?.code ?? null;
+    const cashAcc = this.cashAccounts().find((a) => a.code === cashCode);
+    const details = cashAcc
+      ? [{ label: 'Paid from', value: `${cashAcc.code} – ${cashAcc.name}` }]
+      : undefined;
     const result = await confirmAction(this.dialog, {
       title: 'Mark Paid?',
       message: `Confirm payout of ${lot.payout_amount} to ${this.holderName(lot.member)}?`,
+      details,
       confirmLabel: 'Mark Paid',
     });
     if (!result || this.busy() || schemeId !== this.schemeId()) return;
     this.busy.set(true);
     try {
-      await this.kuri.markPayout(lot.id, isoDate());
+      await this.kuri.markPayout(lot.id, isoDate(), cashCode);
       this.notify.success('Payout marked as paid');
       await this.loadData();
     } catch (err) {

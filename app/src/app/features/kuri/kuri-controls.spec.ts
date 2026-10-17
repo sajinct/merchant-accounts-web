@@ -28,6 +28,8 @@ const scheme: Scheme = {
   start_date: '2026-09-01',
   status: 'active',
   notes: null,
+  head_code: 205,
+  head_name: 'Kuri Daily 1000',
   enrolled_count: 2,
   lots_drawn: 0,
   lots_paid_out: 0,
@@ -69,6 +71,11 @@ function deferred<T>() {
 async function setup<T>(component: Type<T>) {
   const params = new BehaviorSubject(convertToParamMap({ id: '1', no: '1' }));
   const kuri = {
+    getAccounts: vi.fn().mockResolvedValue([
+      { code: 101, name: 'Cash on Hand', account_type: 'asset', is_cash_bank: true },
+      { code: 102, name: 'SBI Current Account', account_type: 'asset', is_cash_bank: true },
+      { code: 205, name: 'Kuri Daily 1000', account_type: 'liability', is_cash_bank: false },
+    ]),
     listSchemes: vi.fn().mockResolvedValue([scheme, { ...scheme, id: 2, name: 'Other scheme' }]),
     getSchemeDetail: vi.fn().mockResolvedValue([scheme]),
     getCollectionStatus: vi.fn().mockResolvedValue([collection]),
@@ -85,6 +92,8 @@ async function setup<T>(component: Type<T>) {
     recordPayment: vi.fn().mockResolvedValue({}),
     recordBulkPayment: vi.fn().mockResolvedValue(1),
     createScheme: vi.fn().mockResolvedValue({}),
+    setSchemeAccount: vi.fn().mockResolvedValue({}),
+    markPayout: vi.fn().mockResolvedValue({}),
     addMember: vi.fn().mockResolvedValue({}),
     getCustomer: vi.fn().mockResolvedValue({
       code: 1,
@@ -282,9 +291,15 @@ describe('Kuri payment controls', () => {
 });
 
 describe('Kuri scheme controls', () => {
-  it('uses the same day-first ISO date adapter as the rest of the app', async () => {
+  it('uses the same day-first ISO date adapter as the rest of the app and requires an account head', async () => {
     const { component, fixture, host, kuri } = await setup(KuriSchemeForm);
-    component['form'].patchValue({ name: 'Test scheme', installment_amount: 0.5, num_members: 2 });
+    component['form'].patchValue({
+      name: 'Test scheme',
+      installment_amount: 0.5,
+      num_members: 2,
+    });
+    expect(component['form'].valid).toBe(false);
+    component['form'].patchValue({ head_code: 205 });
     const date = host.querySelector<HTMLInputElement>('[formControlName="start_date"]')!;
     date.value = '23/09/2026';
     date.dispatchEvent(new Event('input', { bubbles: true }));
@@ -292,8 +307,21 @@ describe('Kuri scheme controls', () => {
     expect(component['form'].valid).toBe(true);
     await component['save']();
     expect(kuri.createScheme).toHaveBeenCalledWith(
-      expect.objectContaining({ p_start_date: '2026-09-23', p_installment_amount: 0.5 }),
+      expect.objectContaining({
+        p_head_code: 205,
+        p_start_date: '2026-09-23',
+        p_installment_amount: 0.5,
+      }),
     );
+  });
+
+  it('links or updates a scheme account head on the scheme detail page before transactions are posted', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    expect(component['canChangeAccount']()).toBe(true);
+    component['startEditAccount']();
+    component['accountForm'].controls.headCode.setValue(205);
+    await component['saveSchemeAccount']();
+    expect(kuri.setSchemeAccount).toHaveBeenCalledWith(1, 205);
   });
 
   it('rejects fractional ticket counts and overprecise amounts', async () => {

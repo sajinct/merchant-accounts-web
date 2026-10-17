@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { AccountHead } from '../../core/models';
 import { must, SupabaseService } from '../../core/supabase.service';
 import {
   KuriCustomerSummary,
@@ -24,6 +25,18 @@ export interface AddKuriMemberOptions {
 export class KuriService {
   private readonly sb = inject(SupabaseService).client;
 
+  getAccounts(): Promise<AccountHead[]> {
+    return must(
+      this.sb
+        .from('account_heads')
+        .select('code, name, account_type, is_cash_bank')
+        .eq('is_active', true)
+        .eq('is_group', false)
+        .not('account_type', 'is', null)
+        .order('code'),
+    );
+  }
+
   listSchemes(): Promise<KuriSchemeListRow[]> {
     return must(this.sb.rpc('kuri_scheme_list'));
   }
@@ -43,8 +56,18 @@ export class KuriService {
     p_max_deduction_pct?: number;
     p_start_date?: string | null;
     p_notes?: string | null;
+    p_head_code: number;
   }): Promise<unknown> {
     return must(this.sb.rpc('create_kuri_scheme', params));
+  }
+
+  setSchemeAccount(schemeId: number, headCode: number): Promise<unknown> {
+    return must(
+      this.sb.rpc('set_kuri_scheme_account', {
+        p_scheme_id: schemeId,
+        p_head_code: headCode,
+      }),
+    );
   }
 
   activateScheme(schemeId: number): Promise<unknown> {
@@ -172,6 +195,7 @@ export class KuriService {
     p_paid_on: string;
     p_notes?: string;
     p_request_id?: string;
+    p_cash_account_code?: number | null;
   }): Promise<unknown> {
     return must(this.sb.rpc('record_kuri_payment', params));
   }
@@ -181,6 +205,7 @@ export class KuriService {
     installmentNo: number,
     paidOn: string,
     notes?: string,
+    cashAccountCode?: number | null,
   ): Promise<number> {
     return must(
       this.sb.rpc('record_kuri_bulk_payment', {
@@ -188,6 +213,7 @@ export class KuriService {
         p_installment_no: installmentNo,
         p_paid_on: paidOn,
         p_notes: notes,
+        p_cash_account_code: cashAccountCode ?? null,
       }),
     );
   }
@@ -201,11 +227,18 @@ export class KuriService {
     );
   }
 
-  markPayout(lotId: number, payoutDate?: string): Promise<unknown> {
+  markPayout(
+    lotId: number,
+    payoutDate?: string,
+    cashAccountCode?: number | null,
+    notes?: string,
+  ): Promise<unknown> {
     return must(
       this.sb.rpc('mark_kuri_payout', {
         p_lot_id: lotId,
         p_payout_date: payoutDate,
+        p_cash_account_code: cashAccountCode ?? null,
+        p_notes: notes,
       }),
     );
   }

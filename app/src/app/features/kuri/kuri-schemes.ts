@@ -96,6 +96,7 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
             <thead>
               <tr>
                 <th>Name</th>
+                <th>Account</th>
                 <th class="num">Installment</th>
                 <th class="num">Total Value</th>
                 <th class="num">Members</th>
@@ -115,6 +116,13 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
                       >{{ row.name }}</a
                     >
                   </td>
+                  <td>
+                    @if (row.head_code) {
+                      {{ row.head_code }} – {{ row.head_name }}
+                    } @else {
+                      <span class="hint">Not linked</span>
+                    }
+                  </td>
                   <td class="num">{{ row.installment_amount | number: '1.2-2' }}</td>
                   <td class="num">{{ row.total_value | number: '1.2-2' }}</td>
                   <td class="num">{{ row.enrolled_count }} / {{ row.num_members }}</td>
@@ -132,7 +140,7 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
                 </tr>
               } @empty {
                 <tr>
-                  <td colspan="7">
+                  <td colspan="8">
                     <app-empty-state
                       [heading]="loading() ? 'Loading…' : 'No schemes match'"
                       [message]="loading() ? '' : 'Try another status or search.'"
@@ -146,6 +154,7 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
               <tfoot>
                 <tr>
                   <td>Total ({{ filtered().length }} schemes)</td>
+                  <td></td>
                   <td class="num"></td>
                   <td class="num">{{ shownTotals().totalValue | number: '1.2-2' }}</td>
                   <td class="num">{{ shownTotals().enrolled }} / {{ shownTotals().members }}</td>
@@ -208,7 +217,12 @@ export class KuriSchemes implements OnInit {
     const st = this.status();
     return this.rows().filter((row) => {
       if (st !== 'all' && row.status !== st) return false;
-      return !q || row.name.toLowerCase().includes(q);
+      return (
+        !q ||
+        row.name.toLowerCase().includes(q) ||
+        (row.head_name?.toLowerCase().includes(q) ?? false) ||
+        String(row.head_code ?? '').includes(q)
+      );
     });
   });
 

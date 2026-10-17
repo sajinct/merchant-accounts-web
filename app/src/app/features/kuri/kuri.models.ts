@@ -19,6 +19,8 @@ export interface KuriSchemeListRow {
   total_value: number;
   start_date: string | null;
   status: 'draft' | 'active' | 'completed';
+  head_code?: number | null;
+  head_name?: string | null;
   enrolled_count: number;
   lots_drawn: number;
   total_collected: number;
@@ -36,6 +38,8 @@ export interface KuriSchemeDetail {
   start_date: string | null;
   status: 'draft' | 'active' | 'completed';
   notes: string | null;
+  head_code?: number | null;
+  head_name?: string | null;
   enrolled_count: number;
   lots_drawn: number;
   lots_paid_out: number;
@@ -71,6 +75,7 @@ export interface KuriLot {
   payout_amount: number;
   payout_date: string | null;
   payout_status: 'pending' | 'paid';
+  voucher_id?: number | null;
   drawn_at: string;
   member: {
     ticket_no: number;
@@ -113,6 +118,7 @@ export interface KuriPaymentRow {
   amount: number;
   paid_on: string;
   notes: string | null;
+  voucher_id?: number | null;
   cancelled_at: string | null;
   cancel_reason: string | null;
   created_at: string;

@@ -12,6 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth.service';
+import { AccountHead } from '../../core/models';
 import { NotifyService } from '../../core/notify.service';
 import { PageHeader } from '../../shared/page-header';
 import { StatCard } from '../../shared/stat-card';
@@ -53,7 +54,9 @@ import {
         <app-page-header
           eyebrow="Kuri"
           [heading]="'Installment ' + installmentNo()"
-          [description]="s.name"
+          [description]="
+            s.head_code ? s.name + ' · Account ' + s.head_code + ' – ' + s.head_name : s.name
+          "
         >
           <div class="installment-nav">
             <button
@@ -144,6 +147,19 @@ import {
                     </mat-select>
                     <mat-error>Select a member with an outstanding balance.</mat-error>
                   </mat-form-field>
+
+                  @if (cashAccounts().length > 0) {
+                    <mat-form-field subscriptSizing="dynamic">
+                      <mat-label>Received into</mat-label>
+                      <mat-select appEntrySelect formControlName="cash_account_code">
+                        @for (acc of cashAccounts(); track acc.code) {
+                          <mat-option [value]="acc.code"
+                            >{{ acc.code }} – {{ acc.name }}</mat-option
+                          >
+                        }
+                      </mat-select>
+                    </mat-form-field>
+                  }
 
                   <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Amount</mat-label>
@@ -380,6 +396,7 @@ export class KuriInstallment implements OnInit {
   protected readonly installmentNo = signal(0);
   protected readonly scheme = signal<KuriSchemeDetail | null>(null);
   protected readonly collections = signal<KuriCollectionRow[]>([]);
+  protected readonly cashAccounts = signal<AccountHead[]>([]);
   protected readonly showPaymentForm = signal(false);
   protected readonly isSubmitting = signal(false);
   protected readonly loading = signal(true);
@@ -390,6 +407,7 @@ export class KuriInstallment implements OnInit {
   protected readonly paymentForm = this.fb.group({
     // null, not 0: Validators.required treats 0 as a filled-in value.
     member_id: [null as number | null, Validators.required],
+    cash_account_code: [null as number | null],
     amount: [
       null as number | null,
       [Validators.required, Validators.min(0.01), Validators.pattern(/^\d+(\.\d{1,2})?$/)],
@@ -418,6 +436,7 @@ export class KuriInstallment implements OnInit {
   });
 
   ngOnInit(): void {
+    void this.loadAccounts();
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.schemeId.set(Number(params.get('id')));
       this.installmentNo.set(Number(params.get('no')));
@@ -425,6 +444,20 @@ export class KuriInstallment implements OnInit {
       this.showPaymentForm.set(false);
       void this.loadData();
     });
+  }
+
+  private async loadAccounts(): Promise<void> {
+    if (typeof this.kuri.getAccounts !== 'function') return;
+    try {
+      const all = await this.kuri.getAccounts();
+      const cash = all.filter((a) => a.is_cash_bank);
+      this.cashAccounts.set(cash);
+      if (this.paymentForm.controls.cash_account_code.value === null && cash.length > 0) {
+        this.paymentForm.controls.cash_account_code.setValue(cash[0].code, { emitEvent: false });
+      }
+    } catch {
+      // Non-fatal: backend falls back to default cash account if not loaded.
+    }
   }
 
   protected async loadData(): Promise<void> {
@@ -465,7 +498,14 @@ export class KuriInstallment implements OnInit {
 
   protected resetPaymentForm(): void {
     this.paymentRequest = null;
-    this.paymentForm.reset({ member_id: null, amount: null, paid_on: isoDate(), notes: '' });
+    const defaultCash = this.cashAccounts()[0]?.code ?? null;
+    this.paymentForm.reset({
+      member_id: null,
+      cash_account_code: defaultCash,
+      amount: null,
+      paid_on: isoDate(),
+      notes: '',
+    });
   }
 
   protected onMemberSelect(memberId: number): void {
@@ -496,7 +536,15 @@ export class KuriInstallment implements OnInit {
       this.paymentForm.controls.amount.setErrors({ max: true });
       return;
     }
-    const payload = {
+    const payload: {
+      p_scheme_id: number;
+      p_installment_no: number;
+      p_member_id: number;
+      p_amount: number;
+      p_paid_on: string;
+      p_notes?: string;
+      p_cash_account_code?: number | null;
+    } = {
       p_scheme_id: this.schemeId(),
       p_installment_no: this.installmentNo(),
       p_member_id: val.member_id!,
@@ -504,6 +552,9 @@ export class KuriInstallment implements OnInit {
       p_paid_on: val.paid_on!,
       p_notes: val.notes || undefined,
     };
+    if (val.cash_account_code != null) {
+      payload.p_cash_account_code = val.cash_account_code;
+    }
     const key = JSON.stringify(payload);
     if (this.paymentRequest?.payload !== key) {
       this.paymentRequest = { payload: key, id: crypto.randomUUID() };
@@ -530,11 +581,18 @@ export class KuriInstallment implements OnInit {
     const unpaidCount = this.unpaidMembers().length;
     if (unpaidCount === 0) return;
 
+    const cashCode =
+      this.paymentForm.controls.cash_account_code.value ?? this.cashAccounts()[0]?.code ?? null;
+    const cashAcc = this.cashAccounts().find((a) => a.code === cashCode);
     const outstanding = this.pending();
+    const details = [{ label: 'Total to collect', value: outstanding.toFixed(2) }];
+    if (cashAcc) {
+      details.push({ label: 'Received into', value: `${cashAcc.code} – ${cashAcc.name}` });
+    }
     const result = await confirmAction(this.dialog, {
       title: 'Mark All Paid',
       message: `Record the outstanding balance for ${unpaidCount} member(s) in installment ${this.installmentNo()}?`,
-      details: [{ label: 'Total to collect', value: outstanding.toFixed(2) }],
+      details,
       confirmLabel: 'Mark All Paid',
     });
     if (
@@ -548,7 +606,13 @@ export class KuriInstallment implements OnInit {
 
     this.isSubmitting.set(true);
     try {
-      const count = await this.kuri.recordBulkPayment(schemeId, installment, isoDate());
+      const count = await this.kuri.recordBulkPayment(
+        schemeId,
+        installment,
+        isoDate(),
+        undefined,
+        cashCode,
+      );
       this.notify.success(`Recorded payments for ${count} members`);
       await this.loadData();
     } catch (err) {

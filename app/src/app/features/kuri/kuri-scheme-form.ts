@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -9,7 +9,9 @@ import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatIconModule } from '@angular/material/icon';
 import { DecimalPipe } from '@angular/common';
 
+import { AccountHead } from '../../core/models';
 import { PageHeader } from '../../shared/page-header';
+import { AccountPicker } from '../../shared/account-picker';
 import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { HasPendingChanges } from '../../core/pending-changes';
 import { NotifyService } from '../../core/notify.service';
@@ -26,6 +28,7 @@ import { KuriService } from './kuri.service';
     MatIconModule,
     RouterLink,
     PageHeader,
+    AccountPicker,
     EnterToNext,
     DecimalPipe,
   ],
@@ -50,6 +53,17 @@ import { KuriService } from './kuri.service';
               <input matInput formControlName="name" maxlength="80" placeholder="e.g. Daily 1000" />
               <mat-error>Enter a name for the scheme.</mat-error>
             </mat-form-field>
+
+            <app-account-picker
+              class="wide"
+              formControlName="head_code"
+              label="Account Head"
+              placeholder="Search account head by name or code"
+              hint="All installment collections and lot payouts for this scheme post to this account."
+              subscriptSizing="dynamic"
+              [accounts]="accounts()"
+              [loading]="loadingAccounts()"
+            />
 
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>Installment amount</mat-label>
@@ -180,16 +194,19 @@ import { KuriService } from './kuri.service';
     }
   `,
 })
-export class KuriSchemeForm implements HasPendingChanges {
+export class KuriSchemeForm implements OnInit, HasPendingChanges {
   private readonly fb = inject(FormBuilder);
   private readonly kuri = inject(KuriService);
   private readonly router = inject(Router);
   private readonly notify = inject(NotifyService);
 
   protected readonly saving = signal(false);
+  protected readonly accounts = signal<AccountHead[]>([]);
+  protected readonly loadingAccounts = signal(false);
 
   protected readonly form = this.fb.group({
     name: this.fb.nonNullable.control('', [Validators.required, Validators.pattern(/\S/)]),
+    head_code: this.fb.control<number | null>(null, [Validators.required]),
     installment_amount: this.fb.nonNullable.control(0, [
       Validators.required,
       Validators.min(0.01),
@@ -218,6 +235,19 @@ export class KuriSchemeForm implements HasPendingChanges {
     this.form.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => {
       this.formValue.set(this.form.getRawValue());
     });
+  }
+
+  async ngOnInit(): Promise<void> {
+    if (typeof this.kuri.getAccounts !== 'function') return;
+    this.loadingAccounts.set(true);
+    try {
+      const all = await this.kuri.getAccounts();
+      this.accounts.set(all.filter((a) => !a.is_cash_bank));
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.loadingAccounts.set(false);
+    }
   }
 
   protected readonly totalValue = computed(() => {
@@ -257,6 +287,7 @@ export class KuriSchemeForm implements HasPendingChanges {
       const val = this.form.getRawValue();
       await this.kuri.createScheme({
         p_name: val.name,
+        p_head_code: val.head_code!,
         p_installment_amount: val.installment_amount,
         p_num_members: val.num_members,
         p_max_deduction_pct: val.max_deduction_pct,
