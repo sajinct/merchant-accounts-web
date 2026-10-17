@@ -105,6 +105,7 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
 
   private readonly searchInput = viewChild.required<ElementRef<HTMLInputElement>>('searchInput');
   private readonly autocompleteTrigger = viewChild.required(MatAutocompleteTrigger);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
   private readonly destroyRef = inject(DestroyRef);
   private confirmingWithEnter = false;
   private closingWithEscape = false;
@@ -321,11 +322,15 @@ export class AccountPicker implements ControlValueAccessor, AfterViewInit {
 
   private update(code: number | null): void {
     this.code.set(code);
+    this.host.closest('[data-entry-row]')?.toggleAttribute('data-has-account', code !== null);
     this.onChange?.(code);
   }
 
   writeValue(code: number | null): void {
     this.code.set(code ?? null);
+    this.host
+      .closest('[data-entry-row]')
+      ?.toggleAttribute('data-has-account', (code ?? null) !== null);
     this.query.set('');
     const head = this.options().find((h) => h.code === code);
     this.search.setValue(head ?? null, { emitEvent: false });

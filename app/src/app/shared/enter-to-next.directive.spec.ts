@@ -152,19 +152,21 @@ describe('Enter to next field', () => {
     expect(enter(amount, { key: 'ArrowDown', shiftKey: true }).defaultPrevented).toBe(false);
   });
 
-  it('keeps optional sections keyboard reachable while skipping their collapsed fields and read-only previews', async () => {
+  it('skips closed optional sections while visiting opened optional fields and keeping summary native activation', async () => {
     const root = await render(
       '<input id="first"><details><summary>Optional</summary><input id="optional"></details><input id="last"><details><summary>Preview</summary><table><tr><td>100</td></tr></table></details><button type="submit">Save</button>',
     );
     const summary = root.querySelector('summary')!;
     enter(root.querySelector<HTMLInputElement>('#first')!);
-    expect(document.activeElement).toBe(summary);
+    expect(document.activeElement).toBe(root.querySelector('#last'));
     expect(enter(summary).defaultPrevented).toBe(false);
     enter(summary, { key: 'ArrowDown' });
     expect(document.activeElement).toBe(root.querySelector('#last'));
     root.querySelector('details')!.open = true;
-    enter(summary, { key: 'ArrowDown' });
+    enter(root.querySelector<HTMLInputElement>('#first')!);
     expect(document.activeElement).toBe(root.querySelector('#optional'));
+    enter(root.querySelector<HTMLInputElement>('#optional')!);
+    expect(document.activeElement).toBe(root.querySelector('#last'));
     enter(root.querySelector<HTMLInputElement>('#last')!);
     expect(document.activeElement).toBe(root.querySelector('[type="submit"]'));
   });

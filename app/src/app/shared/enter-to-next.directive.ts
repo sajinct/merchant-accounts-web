@@ -2,7 +2,7 @@ import { Directive, ElementRef, inject } from '@angular/core';
 
 const FOCUSABLE =
   'input:not([type="hidden"]):not([readonly]), textarea:not([readonly]), select, mat-select, ' +
-  'button, summary, [data-entry-focus]';
+  'button, [data-entry-focus]';
 
 /** Shared field navigation. Controls retain their own editing and popup keys. */
 @Directive({
@@ -69,20 +69,23 @@ export class EnterToNext {
     }
     const fields = this.fields(event.key !== 'Enter');
     const index = fields.indexOf(target);
+    const direction =
+      event.shiftKey || event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
     if (index < 0) {
-      // Read-only codes can still receive focus through Tab. Enter must move past
-      // them instead of falling through to the browser's implicit form submit.
-      if (event.key === 'Enter' && target.matches('input[readonly]')) {
+      // Read-only codes, skipped inputs and disclosure summaries can still receive
+      // focus through Tab/click. Move past them without implicit form submission.
+      if (
+        (event.key === 'Enter' && target instanceof HTMLInputElement) ||
+        target.matches('input[readonly], summary')
+      ) {
         event.preventDefault();
-        if (!event.repeat) this.adjacent(target, fields, event.shiftKey ? -1 : 1)?.focus();
+        if (!event.repeat) this.adjacent(target, fields, direction)?.focus();
       }
       return;
     }
     // Suppress implicit submission and number spinners even at the form boundary.
     event.preventDefault();
     if (event.repeat) return;
-    const direction =
-      event.shiftKey || event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
     const vertical = event.key === 'ArrowUp' || event.key === 'ArrowDown';
     const next = vertical
       ? this.verticalTarget(target, fields, direction)
@@ -126,26 +129,33 @@ export class EnterToNext {
     const resolved = new Map<HTMLElement, boolean>();
     return Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
       (field) => {
-        if (field.closest('form') !== this.host.nativeElement || !this.canFocus(field, resolved)) {
+        if (field.closest('form') !== this.host.nativeElement) {
           return false;
         }
         // Calendar/password helper buttons remain available through normal Tab navigation.
         if (field.matches('button') && field.closest('mat-form-field, mat-button-toggle-group')) {
           return false;
         }
-        if (field.matches('button') && !includeActions) {
-          return field.matches('[type="submit"], :not([type]), [data-entry-focus]');
+        if (
+          field.matches('button') &&
+          !includeActions &&
+          !field.matches('[type="submit"], :not([type]), [data-entry-focus]')
+        ) {
+          return false;
         }
-        if (field.matches('summary') && !includeActions) {
-          const details = field.parentElement;
+        if (!includeActions) {
+          const row = field.closest<HTMLElement>('[data-entry-row]');
           if (
-            details instanceof HTMLDetailsElement &&
-            !details.querySelector('input, textarea, select, mat-select, [data-entry-focus]')
+            row &&
+            !row.hasAttribute('data-has-account') &&
+            row.querySelector('[data-entry-column="account"] app-account-picker') &&
+            (!field.closest('[data-entry-column="account"]') ||
+              row.previousElementSibling?.matches('[data-entry-row]:not([data-has-account])'))
           ) {
             return false;
           }
         }
-        return true;
+        return this.canFocus(field, resolved);
       },
     );
   }
@@ -193,7 +203,7 @@ export class EnterToNext {
   private canFocus(field: HTMLElement, resolved: Map<HTMLElement, boolean>): boolean {
     if (
       field.matches(':disabled, [aria-disabled="true"], [tabindex="-1"]') ||
-      (field.tabIndex < 0 && !field.matches('summary')) ||
+      field.tabIndex < 0 ||
       field.closest('[hidden], [inert]')
     ) {
       return false;

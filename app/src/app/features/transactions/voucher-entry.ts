@@ -147,6 +147,7 @@ const STARTING_LINES = 3;
             <mat-form-field>
               <mat-label>Voucher date</mat-label>
               <input
+                #dateInput
                 matInput
                 [matDatepicker]="datePicker"
                 formControlName="date"
@@ -275,7 +276,7 @@ const STARTING_LINES = 3;
               </thead>
               <tbody>
                 @for (line of lines(); track $index; let i = $index) {
-                  <tr data-entry-row>
+                  <tr data-entry-row [attr.data-has-account]="line.account !== null ? '' : null">
                     <td class="account-col" data-entry-column="account">
                       <span class="mobile-line-label">Line {{ i + 1 }}</span>
                       <app-account-picker
@@ -949,6 +950,7 @@ export class VoucherEntry {
   private readonly injector = inject(Injector);
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
+  private readonly dateInput = viewChild<ElementRef<HTMLInputElement>>('dateInput');
   private readonly grid = viewChild<ElementRef<HTMLElement>>('grid');
 
   protected readonly type = computed(() => voucherType(this.typeSlug()) ?? VOUCHER_TYPES[0]);
@@ -1305,7 +1307,7 @@ export class VoucherEntry {
     });
     this.form.markAsPristine();
     this.lines.set(startingLines());
-    this.focusGrid();
+    this.focusDate();
   }
 
   private capturePrintable(voucher: Voucher, simplified: boolean): void {
@@ -1325,15 +1327,11 @@ export class VoucherEntry {
     );
   }
 
-  private focusGrid(): void {
+  private focusDate(): void {
     afterNextRender(
       () => {
-        const focus = () =>
-          this.grid()
-            ?.nativeElement.querySelector<HTMLInputElement>('input:not([disabled])')
-            ?.focus({ preventScroll: true });
+        const focus = () => this.dateInput()?.nativeElement.focus({ preventScroll: true });
         focus();
-        // NgModel re-enables standalone controls in a microtask after saving() clears.
         queueMicrotask(focus);
       },
       { injector: this.injector },
