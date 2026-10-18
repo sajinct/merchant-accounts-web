@@ -1177,7 +1177,6 @@ app-report-shell {
 }
 .ledger-group {
   margin-bottom: 24px;
-  break-inside: avoid-page;
 }
 .ledger-group:last-child {
   margin-bottom: 0;
@@ -1495,6 +1494,10 @@ app-report-shell {
   }
   .report-table tr {
     break-inside: avoid;
+  }
+  .ledger-group h3 {
+    // A ledger can span many pages; keep only its heading with the first row.
+    break-after: avoid-page;
   }
   .report-company,
   .report-place,
