@@ -121,6 +121,13 @@ export const NAV: NavGroup[] = [
     shortcut: 'K',
     items: [
       { label: 'Schemes', shortcut: 'S', link: '/kuri/schemes', icon: 'event_note' },
+      {
+        label: 'Installment receipts',
+        shortcut: 'R',
+        link: '/kuri/receipts',
+        icon: 'payments',
+        editorsOnly: true,
+      },
       { label: 'Defaulters', shortcut: 'D', link: '/kuri/defaulters', icon: 'money_off' },
       { label: 'Member Ledger', shortcut: 'L', link: '/kuri/ledger', icon: 'receipt_long' },
     ],

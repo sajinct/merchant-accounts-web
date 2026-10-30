@@ -79,6 +79,11 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
           "
         >
           <span class="status-badge {{ schemeTone(s.status) }}">{{ s.status | titlecase }}</span>
+          @if (auth.canEdit() && s.status !== 'draft' && s.head_code) {
+            <a mat-flat-button routerLink="/kuri/receipts" [queryParams]="{ scheme: s.id }"
+              >Enter receipts</a
+            >
+          }
           @if (s.head_code && canChangeAccount() && auth.canEdit() && !editingAccount()) {
             <button mat-stroked-button type="button" (click)="startEditAccount()">
               Change Account

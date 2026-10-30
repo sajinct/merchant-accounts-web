@@ -1,9 +1,10 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
-import { ActivatedRoute, Router } from '@angular/router';
+import { Component, computed, DestroyRef, inject, OnInit, signal, viewChild } from '@angular/core';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -26,6 +27,7 @@ import {
   hasCustomHolderName,
   KuriCollectionRow,
   KuriSchemeDetail,
+  KuriSchemeListRow,
   ticketHolderName,
 } from './kuri.models';
 
@@ -33,6 +35,8 @@ import {
   selector: 'app-kuri-installment',
   imports: [
     ReactiveFormsModule,
+    RouterLink,
+    MatAutocompleteModule,
     DatePipe,
     DecimalPipe,
     MatButtonModule,
@@ -50,78 +54,140 @@ import {
   ],
   template: `
     <div class="page">
-      @if (scheme(); as s) {
+      @if (receiptEntry) {
         <app-page-header
           eyebrow="Kuri"
-          [heading]="'Installment ' + installmentNo()"
-          [description]="
-            s.head_code ? s.name + ' · Account ' + s.head_code + ' – ' + s.head_name : s.name
-          "
+          heading="Installment receipts"
+          description="Choose a scheme and installment, then enter each ticket receipt."
         >
-          <div class="installment-nav">
-            <button
-              mat-icon-button
-              aria-label="Previous installment"
-              [disabled]="installmentNo() <= 1 || loading() || isSubmitting()"
-              (click)="goToInstallment(installmentNo() - 1)"
-            >
-              <mat-icon>chevron_left</mat-icon>
-            </button>
-            <span class="installment-counter"
-              >{{ installmentNo() }} / {{ s.num_installments }}</span
-            >
-            <button
-              mat-icon-button
-              aria-label="Next installment"
-              [disabled]="installmentNo() >= s.num_installments || loading() || isSubmitting()"
-              (click)="goToInstallment(installmentNo() + 1)"
-            >
-              <mat-icon>chevron_right</mat-icon>
-            </button>
-          </div>
+          <a mat-stroked-button routerLink="/kuri/schemes">All schemes</a>
         </app-page-header>
+        <section class="panel receipt-context" aria-label="Choose scheme and installment">
+          <div class="panel-body filter-row">
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label>Scheme</mat-label>
+              <mat-select
+                [value]="schemeId() || null"
+                [disabled]="isSubmitting() || paymentForm.dirty || loadingSchemes()"
+                (selectionChange)="selectReceiptScheme($event.value)"
+              >
+                @for (row of receiptSchemes(); track row.id) {
+                  <mat-option [value]="row.id">{{ row.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field subscriptSizing="dynamic">
+              <mat-label>Installment</mat-label>
+              <mat-select
+                [value]="installmentNo() || null"
+                [disabled]="!schemeId() || isSubmitting() || paymentForm.dirty"
+                (selectionChange)="selectReceiptInstallment($event.value)"
+              >
+                @for (no of receiptInstallments(); track no) {
+                  <mat-option [value]="no"
+                    >{{ no }} / {{ receiptInstallments().length }}</mat-option
+                  >
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+          @if (paymentForm.dirty) {
+            <p class="hint">
+              Save or clear this receipt before changing the scheme or installment.
+            </p>
+          }
+          @if (schemesFailed()) {
+            <p class="hint">
+              Could not load schemes.
+              <button mat-button (click)="loadReceiptSchemes()">Retry</button>
+            </p>
+          } @else if (!loadingSchemes() && !receiptSchemes().length) {
+            <p class="hint">
+              No schemes are ready for receipts. Enroll all tickets, activate the scheme and link
+              its account in All schemes.
+            </p>
+          }
+        </section>
+      }
+      @if (scheme(); as s) {
+        @if (!receiptEntry) {
+          <app-page-header
+            eyebrow="Kuri"
+            [heading]="'Installment ' + installmentNo()"
+            [description]="
+              s.head_code ? s.name + ' · Account ' + s.head_code + ' – ' + s.head_name : s.name
+            "
+          >
+            <div class="installment-nav">
+              <button
+                mat-icon-button
+                aria-label="Previous installment"
+                [disabled]="installmentNo() <= 1 || loading() || isSubmitting()"
+                (click)="goToInstallment(installmentNo() - 1)"
+              >
+                <mat-icon>chevron_left</mat-icon>
+              </button>
+              <span class="installment-counter"
+                >{{ installmentNo() }} / {{ s.num_installments }}</span
+              >
+              <button
+                mat-icon-button
+                aria-label="Next installment"
+                [disabled]="installmentNo() >= s.num_installments || loading() || isSubmitting()"
+                (click)="goToInstallment(installmentNo() + 1)"
+              >
+                <mat-icon>chevron_right</mat-icon>
+              </button>
+            </div>
+          </app-page-header>
 
-        <div class="summary-grid">
-          <app-stat-card
-            label="Total Due"
-            [value]="totalDue() | number: '1.2-2'"
-            icon="receipt_long"
-          />
-          <app-stat-card
-            label="Collected"
-            [value]="collected() | number: '1.2-2'"
-            icon="payments"
-          />
-          <app-stat-card
-            label="Pending"
-            [value]="pending() | number: '1.2-2'"
-            icon="pending_actions"
-          />
-          <app-stat-card label="Paid" [value]="paidCountText()" icon="group" />
-        </div>
+          <div class="summary-grid">
+            <app-stat-card
+              label="Total Due"
+              [value]="totalDue() | number: '1.2-2'"
+              icon="receipt_long"
+            />
+            <app-stat-card
+              label="Collected"
+              [value]="collected() | number: '1.2-2'"
+              icon="payments"
+            />
+            <app-stat-card
+              label="Pending"
+              [value]="pending() | number: '1.2-2'"
+              icon="pending_actions"
+            />
+            <app-stat-card label="Paid" [value]="paidCountText()" icon="group" />
+          </div>
+        }
 
         @if (auth.canEdit() && s.status !== 'draft' && !loading() && !loadFailed()) {
           <div class="panel" style="margin-bottom: 24px">
             <div class="panel-header">
-              <button
-                mat-button
-                type="button"
-                class="payment-toggle"
-                [attr.aria-expanded]="showPaymentForm()"
-                aria-controls="kuri-payment-form"
-                (click)="showPaymentForm.set(!showPaymentForm())"
-              >
-                <mat-icon>add_circle_outline</mat-icon>
-                Record Payment
-                <mat-icon iconPositionEnd>{{
-                  showPaymentForm() ? 'expand_less' : 'expand_more'
-                }}</mat-icon>
-              </button>
+              @if (receiptEntry) {
+                <h3>New receipt · {{ s.name }} · Installment {{ installmentNo() }}</h3>
+              } @else {
+                <button
+                  mat-button
+                  type="button"
+                  class="payment-toggle"
+                  [attr.aria-expanded]="showPaymentForm()"
+                  aria-controls="kuri-payment-form"
+                  (click)="showPaymentForm.set(!showPaymentForm())"
+                >
+                  <mat-icon>add_circle_outline</mat-icon>
+                  Record Payment
+                  <mat-icon iconPositionEnd>{{
+                    showPaymentForm() ? 'expand_less' : 'expand_more'
+                  }}</mat-icon>
+                </button>
+              }
             </div>
 
             @if (showPaymentForm()) {
               <div class="panel-body">
                 <form
+                  #paymentEntry="ngForm"
                   id="kuri-payment-form"
                   appEnterToNext
                   [formGroup]="paymentForm"
@@ -129,26 +195,51 @@ import {
                   class="form-grid"
                 >
                   <mat-form-field subscriptSizing="dynamic">
-                    <mat-label>Member</mat-label>
-                    <mat-select
-                      appEntrySelect
-                      formControlName="member_id"
-                      (selectionChange)="onMemberSelect($event.value)"
-                    >
-                      @for (member of unpaidMembers(); track member.member_id) {
-                        <mat-option [value]="member.member_id">
-                          #{{ member.ticket_no }} — {{ holderName(member) }}
-                          @if (isCustomHolder(member)) {
-                            (Member #{{ member.customer_code }}: {{ member.customer_name }})
-                          }
-                          (Bal: {{ member.balance | number: '1.2-2' }})
-                        </mat-option>
-                      }
-                    </mat-select>
+                    <mat-label>{{ receiptEntry ? 'Ticket holder' : 'Member' }}</mat-label>
+                    @if (receiptEntry) {
+                      <input
+                        matInput
+                        formControlName="member_id"
+                        [matAutocomplete]="ticketOptions"
+                        placeholder="Search by ticket number or name"
+                        (input)="memberQuery.set($any($event.target).value)"
+                      />
+                      <mat-autocomplete
+                        #ticketOptions="matAutocomplete"
+                        [displayWith]="displayTicket"
+                        requireSelection
+                        (optionSelected)="onMemberSelect($event.option.value)"
+                      >
+                        @for (member of matchingMembers(); track member.member_id) {
+                          <mat-option [value]="member.member_id">
+                            #{{ member.ticket_no }} — {{ holderName(member) }} · Balance
+                            {{ member.balance | number: '1.2-2' }}
+                          </mat-option>
+                        } @empty {
+                          <mat-option disabled>No unpaid tickets match</mat-option>
+                        }
+                      </mat-autocomplete>
+                    } @else {
+                      <mat-select
+                        appEntrySelect
+                        formControlName="member_id"
+                        (selectionChange)="onMemberSelect($event.value)"
+                      >
+                        @for (member of unpaidMembers(); track member.member_id) {
+                          <mat-option [value]="member.member_id">
+                            #{{ member.ticket_no }} — {{ holderName(member) }}
+                            @if (isCustomHolder(member)) {
+                              (Member #{{ member.customer_code }}: {{ member.customer_name }})
+                            }
+                            (Bal: {{ member.balance | number: '1.2-2' }})
+                          </mat-option>
+                        }
+                      </mat-select>
+                    }
                     <mat-error>Select a member with an outstanding balance.</mat-error>
                   </mat-form-field>
 
-                  @if (cashAccounts().length > 0) {
+                  @if (cashAccounts().length > 0 || receiptEntry) {
                     <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Received into</mat-label>
                       <mat-select appEntrySelect formControlName="cash_account_code">
@@ -164,6 +255,12 @@ import {
                   <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Amount</mat-label>
                     <input matInput type="number" formControlName="amount" min="0.01" step="0.01" />
+                    @if (receiptEntry && selectedMember(); as member) {
+                      <mat-hint
+                        >Outstanding: {{ member.balance | number: '1.2-2' }}. Part payments are
+                        allowed.</mat-hint
+                      >
+                    }
                     <mat-error
                       >Enter an amount within the balance, with at most two decimal
                       places.</mat-error
@@ -194,7 +291,9 @@ import {
                       type="submit"
                       [disabled]="paymentForm.invalid || isSubmitting()"
                     >
-                      {{ isSubmitting() ? 'Saving…' : 'Save Payment' }}
+                      {{
+                        isSubmitting() ? 'Saving…' : receiptEntry ? 'Save receipt' : 'Save Payment'
+                      }}
                     </button>
                     <button
                       mat-button
@@ -206,124 +305,149 @@ import {
                     </button>
                   </div>
                 </form>
+                @if (receiptEntry && accountsFailed()) {
+                  <p class="hint">
+                    Could not load cash/bank accounts.
+                    <button mat-button (click)="loadAccounts()">Retry</button>
+                  </p>
+                } @else if (receiptEntry && !loadingAccounts() && !cashAccounts().length) {
+                  <p class="hint">
+                    Create an active cash or bank account before recording receipts.
+                  </p>
+                }
               </div>
             }
           </div>
         }
 
-        <div class="panel">
-          <div class="panel-header">
-            <h3>Collection Status</h3>
-            @if (s.status === 'draft') {
-              <span class="status-badge neutral">Activate the scheme to collect</span>
-            }
-            @if (
-              auth.canEdit() &&
-              s.status !== 'draft' &&
-              unpaidMembers().length > 0 &&
-              !loading() &&
-              !loadFailed()
-            ) {
-              <button mat-stroked-button [disabled]="isSubmitting()" (click)="onBulkPayment()">
-                <mat-icon>done_all</mat-icon> Mark All Paid
-              </button>
-            }
-          </div>
-          <div
-            class="table-wrap"
-            role="region"
-            tabindex="0"
-            aria-label="Installment collection status"
-            [attr.aria-busy]="loading()"
-          >
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th scope="col">Tkt #</th>
-                  <th scope="col">Member</th>
-                  <th scope="col">Phone</th>
-                  <th scope="col" class="num">Due</th>
-                  <th scope="col" class="num">Paid</th>
-                  <th scope="col" class="num">Balance</th>
-                  <th scope="col">Last Paid</th>
-                  <th scope="col">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of collections(); track row.member_id) {
-                  <tr>
-                    <td>{{ row.ticket_no }}</td>
-                    <td>
-                      {{ holderName(row) }}
-                      @if (row.has_won_lot) {
-                        <mat-icon
-                          class="lot-winner"
-                          [matTooltip]="'Won lot in installment ' + row.won_installment"
-                          >emoji_events</mat-icon
-                        >
-                      }
-                      @if (isCustomHolder(row)) {
-                        <div class="table-secondary">
-                          Member #{{ row.customer_code }}: {{ row.customer_name }}
-                        </div>
-                      }
-                    </td>
-                    <td>{{ row.phone || '—' }}</td>
-                    <td class="num">{{ row.amount_due | number: '1.2-2' }}</td>
-                    <td class="num">{{ row.amount_paid | number: '1.2-2' }}</td>
-                    <td class="num" [class.overdue]="row.balance > 0">
-                      {{ row.balance | number: '1.2-2' }}
-                    </td>
-                    <td>{{ row.last_paid_on ? (row.last_paid_on | date: 'dd MMM') : '—' }}</td>
-                    <td>
-                      @if (row.balance <= 0) {
-                        <span class="status-badge success">Paid</span>
-                      } @else if (row.amount_paid > 0) {
-                        <span class="status-badge warning">Part paid</span>
-                      } @else {
-                        <span class="status-badge neutral">Unpaid</span>
-                      }
-                    </td>
-                  </tr>
-                } @empty {
-                  <tr>
-                    <td colspan="8">
-                      <app-empty-state
-                        [heading]="
-                          loading()
-                            ? 'Loading…'
-                            : loadFailed()
-                              ? 'Unable to load collections'
-                              : 'No members'
-                        "
-                        [message]="
-                          loadFailed()
-                            ? 'Try loading the installment again.'
-                            : 'No collection data available.'
-                        "
-                      />
-                    </td>
-                  </tr>
-                }
-              </tbody>
-              @if (collections().length) {
-                <tfoot>
-                  <tr>
-                    <td colspan="3">Total ({{ collections().length }} members)</td>
-                    <td class="num">{{ totalDue() | number: '1.2-2' }}</td>
-                    <td class="num">{{ collected() | number: '1.2-2' }}</td>
-                    <td class="num">{{ pending() | number: '1.2-2' }}</td>
-                    <td colspan="2"></td>
-                  </tr>
-                </tfoot>
+        @if (!receiptEntry) {
+          <div class="panel">
+            <div class="panel-header">
+              <h3>Collection Status</h3>
+              @if (s.status === 'draft') {
+                <span class="status-badge neutral">Activate the scheme to collect</span>
               }
-            </table>
+              @if (
+                auth.canEdit() &&
+                s.status !== 'draft' &&
+                unpaidMembers().length > 0 &&
+                !loading() &&
+                !loadFailed()
+              ) {
+                <button mat-stroked-button [disabled]="isSubmitting()" (click)="onBulkPayment()">
+                  <mat-icon>done_all</mat-icon> Mark All Paid
+                </button>
+              }
+            </div>
+            <div
+              class="table-wrap"
+              role="region"
+              tabindex="0"
+              aria-label="Installment collection status"
+              [attr.aria-busy]="loading()"
+            >
+              <table class="report-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Tkt #</th>
+                    <th scope="col">Member</th>
+                    <th scope="col">Phone</th>
+                    <th scope="col" class="num">Due</th>
+                    <th scope="col" class="num">Paid</th>
+                    <th scope="col" class="num">Balance</th>
+                    <th scope="col">Last Paid</th>
+                    <th scope="col">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of collections(); track row.member_id) {
+                    <tr>
+                      <td>{{ row.ticket_no }}</td>
+                      <td>
+                        {{ holderName(row) }}
+                        @if (row.has_won_lot) {
+                          <mat-icon
+                            class="lot-winner"
+                            [matTooltip]="'Won lot in installment ' + row.won_installment"
+                            >emoji_events</mat-icon
+                          >
+                        }
+                        @if (isCustomHolder(row)) {
+                          <div class="table-secondary">
+                            Member #{{ row.customer_code }}: {{ row.customer_name }}
+                          </div>
+                        }
+                      </td>
+                      <td>{{ row.phone || '—' }}</td>
+                      <td class="num">{{ row.amount_due | number: '1.2-2' }}</td>
+                      <td class="num">{{ row.amount_paid | number: '1.2-2' }}</td>
+                      <td class="num" [class.overdue]="row.balance > 0">
+                        {{ row.balance | number: '1.2-2' }}
+                      </td>
+                      <td>{{ row.last_paid_on ? (row.last_paid_on | date: 'dd MMM') : '—' }}</td>
+                      <td>
+                        @if (row.balance <= 0) {
+                          <span class="status-badge success">Paid</span>
+                        } @else if (row.amount_paid > 0) {
+                          <span class="status-badge warning">Part paid</span>
+                        } @else {
+                          <span class="status-badge neutral">Unpaid</span>
+                        }
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr>
+                      <td colspan="8">
+                        <app-empty-state
+                          [heading]="
+                            loading()
+                              ? 'Loading…'
+                              : loadFailed()
+                                ? 'Unable to load collections'
+                                : 'No members'
+                          "
+                          [message]="
+                            loadFailed()
+                              ? 'Try loading the installment again.'
+                              : 'No collection data available.'
+                          "
+                        />
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+                @if (collections().length) {
+                  <tfoot>
+                    <tr>
+                      <td colspan="3">Total ({{ collections().length }} members)</td>
+                      <td class="num">{{ totalDue() | number: '1.2-2' }}</td>
+                      <td class="num">{{ collected() | number: '1.2-2' }}</td>
+                      <td class="num">{{ pending() | number: '1.2-2' }}</td>
+                      <td colspan="2"></td>
+                    </tr>
+                  </tfoot>
+                }
+              </table>
+            </div>
           </div>
-        </div>
+        } @else if (!loading() && !loadFailed()) {
+          <p class="hint" role="status">
+            Collected {{ collected() | number: '1.2-2' }} · Outstanding
+            {{ pending() | number: '1.2-2' }} · {{ paidCountText() }} tickets paid
+          </p>
+          @if (!unpaidMembers().length) {
+            <p role="status">All tickets are paid for this installment.</p>
+          }
+          <a
+            mat-button
+            [routerLink]="['/kuri/schemes', schemeId(), 'installments', installmentNo()]"
+            >View collection status</a
+          >
+        }
         @if (loadFailed()) {
           <button mat-stroked-button type="button" (click)="loadData()">Retry</button>
         }
-      } @else {
+      } @else if (!receiptEntry || schemeId()) {
         <app-empty-state
           [heading]="loadFailed() ? 'Unable to load installment' : 'Loading'"
           [message]="
@@ -339,6 +463,13 @@ import {
   `,
   styleUrl: './kuri-summary.scss',
   styles: `
+    .receipt-context {
+      margin-bottom: 20px;
+    }
+    .receipt-context .hint {
+      padding: 0 20px 16px;
+      margin: 0;
+    }
     .installment-nav {
       display: flex;
       align-items: center;
@@ -388,6 +519,32 @@ export class KuriInstallment implements OnInit {
   private readonly notify = inject(NotifyService);
   protected readonly auth = inject(AuthService);
   private readonly dialog = inject(MatDialog);
+  private readonly paymentEntry = viewChild<FormGroupDirective>('paymentEntry');
+  protected readonly receiptEntry = this.route.snapshot?.data?.['receiptEntry'] === true;
+  protected readonly receiptSchemes = signal<KuriSchemeListRow[]>([]);
+  protected readonly loadingSchemes = signal(false);
+  protected readonly schemesFailed = signal(false);
+  protected readonly loadingAccounts = signal(false);
+  protected readonly accountsFailed = signal(false);
+  protected readonly memberQuery = signal('');
+  protected readonly receiptInstallments = computed(() => {
+    const row = this.receiptSchemes().find((s) => s.id === this.schemeId());
+    return Array.from({ length: row?.num_installments ?? 0 }, (_, i) => i + 1);
+  });
+  protected readonly matchingMembers = computed(() => {
+    const q = this.memberQuery().trim().toLowerCase().replace(/^#/, '');
+    return this.unpaidMembers().filter((m) =>
+      `${m.ticket_no} ${ticketHolderName(m)} ${m.customer_name}`.toLowerCase().includes(q),
+    );
+  });
+  protected readonly selectedMember = computed(() =>
+    this.collections().find((m) => m.member_id === this.selectedMemberId()),
+  );
+  private readonly selectedMemberId = signal<number | null>(null);
+  protected readonly displayTicket = (id: number | null): string => {
+    const member = this.collections().find((m) => m.member_id === id);
+    return member ? `#${member.ticket_no} — ${ticketHolderName(member)}` : '';
+  };
 
   protected readonly holderName = ticketHolderName;
   protected readonly isCustomHolder = hasCustomHolderName;
@@ -437,6 +594,16 @@ export class KuriInstallment implements OnInit {
 
   ngOnInit(): void {
     void this.loadAccounts();
+    this.paymentForm.controls.member_id.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((id) => this.selectedMemberId.set(id));
+    if (this.receiptEntry) {
+      this.paymentForm.controls.cash_account_code.setValidators(Validators.required);
+      this.paymentForm.controls.cash_account_code.updateValueAndValidity();
+      this.loading.set(false);
+      void this.loadReceiptSchemes();
+      return;
+    }
     this.route.paramMap.pipe(takeUntilDestroyed(this.destroyRef)).subscribe((params) => {
       this.schemeId.set(Number(params.get('id')));
       this.installmentNo.set(Number(params.get('no')));
@@ -446,8 +613,10 @@ export class KuriInstallment implements OnInit {
     });
   }
 
-  private async loadAccounts(): Promise<void> {
+  protected async loadAccounts(): Promise<void> {
     if (typeof this.kuri.getAccounts !== 'function') return;
+    this.loadingAccounts.set(true);
+    this.accountsFailed.set(false);
     try {
       const all = await this.kuri.getAccounts();
       const cash = all.filter((a) => a.is_cash_bank);
@@ -456,8 +625,62 @@ export class KuriInstallment implements OnInit {
         this.paymentForm.controls.cash_account_code.setValue(cash[0].code, { emitEvent: false });
       }
     } catch {
+      this.accountsFailed.set(true);
       // Non-fatal: backend falls back to default cash account if not loaded.
+    } finally {
+      this.loadingAccounts.set(false);
     }
+  }
+
+  protected async loadReceiptSchemes(): Promise<void> {
+    if (this.loadingSchemes()) return;
+    this.loadingSchemes.set(true);
+    this.schemesFailed.set(false);
+    try {
+      const schemes = (await this.kuri.listSchemes()).filter(
+        (s) => s.status !== 'draft' && s.head_code != null,
+      );
+      this.receiptSchemes.set(schemes);
+      const requested = Number(this.route.snapshot.queryParamMap.get('scheme'));
+      const selected =
+        schemes.find((s) => s.id === requested) ?? (schemes.length === 1 ? schemes[0] : null);
+      if (selected) {
+        const no = Number(this.route.snapshot.queryParamMap.get('installment'));
+        await this.selectReceiptScheme(
+          selected.id,
+          Number.isInteger(no) && no >= 1 && no <= selected.num_installments ? no : 1,
+        );
+      }
+    } catch (err) {
+      this.schemesFailed.set(true);
+      this.notify.error(err);
+    } finally {
+      this.loadingSchemes.set(false);
+    }
+  }
+
+  protected async selectReceiptScheme(id: number, installment = 1): Promise<void> {
+    if (
+      this.isSubmitting() ||
+      this.paymentForm.dirty ||
+      !this.receiptSchemes().some((s) => s.id === id)
+    )
+      return;
+    this.schemeId.set(id);
+    this.installmentNo.set(installment);
+    this.scheme.set(null);
+    this.resetPaymentForm();
+    this.showPaymentForm.set(true);
+    await this.loadData();
+  }
+
+  protected async selectReceiptInstallment(no: number): Promise<void> {
+    if (this.isSubmitting() || !this.receiptInstallments().includes(no)) return;
+    await this.selectReceiptScheme(this.schemeId(), no);
+  }
+
+  hasPendingChanges(): boolean {
+    return this.isSubmitting() || this.paymentForm.dirty;
   }
 
   protected async loadData(): Promise<void> {
@@ -498,14 +721,23 @@ export class KuriInstallment implements OnInit {
 
   protected resetPaymentForm(): void {
     this.paymentRequest = null;
-    const defaultCash = this.cashAccounts()[0]?.code ?? null;
-    this.paymentForm.reset({
+    const current = this.paymentForm.getRawValue();
+    const defaultCash =
+      (this.receiptEntry ? current.cash_account_code : null) ??
+      this.cashAccounts()[0]?.code ??
+      null;
+    this.memberQuery.set('');
+    this.selectedMemberId.set(null);
+    const values = {
       member_id: null,
       cash_account_code: defaultCash,
       amount: null,
-      paid_on: isoDate(),
+      paid_on: (this.receiptEntry ? current.paid_on : null) || isoDate(),
       notes: '',
-    });
+    };
+    const entry = this.paymentEntry();
+    if (entry) entry.resetForm(values);
+    else this.paymentForm.reset(values);
   }
 
   protected onMemberSelect(memberId: number): void {
@@ -529,6 +761,8 @@ export class KuriInstallment implements OnInit {
       this.loadFailed() ||
       !this.auth.canEdit()
     )
+      return;
+    if (this.scheme()?.status === 'draft' || (this.receiptEntry && !this.scheme()?.head_code))
       return;
     const val = this.paymentForm.getRawValue();
     const member = this.unpaidMembers().find((row) => row.member_id === val.member_id);
@@ -563,7 +797,11 @@ export class KuriInstallment implements OnInit {
     this.paymentForm.disable({ emitEvent: false });
     try {
       await this.kuri.recordPayment({ ...payload, p_request_id: this.paymentRequest.id });
-      this.notify.success('Payment recorded successfully');
+      this.notify.success(
+        this.receiptEntry
+          ? `Receipt saved for ticket #${member.ticket_no}`
+          : 'Payment recorded successfully',
+      );
       this.resetPaymentForm();
       await this.loadData();
     } catch (err) {

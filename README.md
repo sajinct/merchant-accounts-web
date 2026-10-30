@@ -140,6 +140,21 @@ Database objects: `subscription_years`, `subscription_payments`, `record_subscri
 
 Apply `supabase/migrations/20260920000005_membership_history_without_posting.sql` before deploying this UI. It allows membership payments without vouchers and joining fee rates without account heads, adds payment request IDs, and switches both current and cached payment RPC signatures to membership-only recording. Existing payment rows and their voucher links remain intact.
 
+## Kuri receipts
+
+Open **Kuri → Installment receipts**, or choose **Enter receipts** on a scheme. Select a
+scheme and installment, search for the ticket number or holder name, and save the amount
+received. The outstanding balance is filled in automatically; partial receipts are allowed.
+The payment date and cash/bank account stay selected for the next receipt.
+
+Only activated schemes with a linked account appear in receipt entry. A scheme must have
+all its tickets enrolled before activation. The configured schedule has one more installment
+than tickets: installment 1 is collection only, followed by one lot per ticket.
+
+Each saved receipt uses `record_kuri_payment` to update the ticket balance and post the
+accounting receipt together. Retrying an unchanged failed save reuses its request ID.
+Use the installment's collection-status page or the member ledger to review receipts.
+
 ## Vouchers
 
 Receipt, Payment, Contra and Journal are four menu entries, four routes and **one screen**: `VoucherEntry` at `/transactions/voucher/<type>`. The voucher type decides the headings, which accounts the lines may use, whether simplified entry is offered and which rules apply; everything else — account lookup, numbering, narration, validation, saving, printing, the audit trail — is shared.

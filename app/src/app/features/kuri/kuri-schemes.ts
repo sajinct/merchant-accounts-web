@@ -35,6 +35,9 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
     <div class="page">
       <app-page-header class="no-print" eyebrow="Kuri" heading="Schemes">
         @if (auth.canEdit()) {
+          <a mat-flat-button routerLink="/kuri/receipts"
+            ><mat-icon>payments</mat-icon> Installment receipts</a
+          >
           <a mat-stroked-button routerLink="/kuri/schemes/new"
             ><mat-icon>add</mat-icon> New Scheme</a
           >

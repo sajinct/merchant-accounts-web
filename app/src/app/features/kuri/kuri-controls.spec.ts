@@ -68,7 +68,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-async function setup<T>(component: Type<T>) {
+async function setup<T>(component: Type<T>, receiptEntry = false) {
   const params = new BehaviorSubject(convertToParamMap({ id: '1', no: '1' }));
   const kuri = {
     getAccounts: vi.fn().mockResolvedValue([
@@ -132,7 +132,13 @@ async function setup<T>(component: Type<T>) {
     providers: [
       provideRouter([]),
       provideIsoDateAdapter(),
-      { provide: ActivatedRoute, useValue: { paramMap: params } },
+      {
+        provide: ActivatedRoute,
+        useValue: {
+          paramMap: params,
+          snapshot: { data: { receiptEntry }, queryParamMap: convertToParamMap({ scheme: '1' }) },
+        },
+      },
       { provide: KuriService, useValue: kuri },
       { provide: AuthService, useValue: auth },
       { provide: NotifyService, useValue: notify },
@@ -290,7 +296,132 @@ describe('Kuri payment controls', () => {
   });
 });
 
+describe('Kuri simple receipt entry', () => {
+  it('opens a searchable receipt form directly without the dashboard or disclosure', async () => {
+    const { component, host } = await setup(KuriInstallment, true);
+    expect(host.textContent).toContain('Installment receipts');
+    expect(host.querySelector('#kuri-payment-form')).not.toBeNull();
+    expect(host.querySelector('.payment-toggle')).toBeNull();
+    expect(host.querySelector('.summary-grid')).toBeNull();
+    expect(component['receiptInstallments']()).toEqual([1, 2, 3]);
+    component['collections'].set([
+      { ...collection, holder_name: 'Ticket holder' },
+      { ...collection, member_id: 2, ticket_no: 2, balance: 0 },
+    ]);
+    component['memberQuery'].set('holder');
+    expect(component['matchingMembers']().map((m) => m.member_id)).toEqual([1]);
+  });
+
+  it('prefills the balance and keeps date, bank, scheme and installment after saving', async () => {
+    const { component, kuri } = await setup(KuriInstallment, true);
+    component['paymentForm'].patchValue({
+      member_id: 1,
+      cash_account_code: 102,
+      paid_on: '2026-10-02',
+    });
+    component['onMemberSelect'](1);
+    expect(component['paymentForm'].controls.amount.value).toBe(1000);
+    component['paymentForm'].controls.amount.setValue(400);
+    await component['onSubmitPayment']();
+    expect(kuri.recordPayment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        p_scheme_id: 1,
+        p_installment_no: 1,
+        p_member_id: 1,
+        p_amount: 400,
+        p_cash_account_code: 102,
+        p_paid_on: '2026-10-02',
+        p_request_id: expect.any(String),
+      }),
+    );
+    expect(component['paymentForm'].getRawValue()).toMatchObject({
+      member_id: null,
+      amount: null,
+      paid_on: '2026-10-02',
+      cash_account_code: 102,
+    });
+    expect(component['schemeId']()).toBe(1);
+    expect(component['showPaymentForm']()).toBe(true);
+  });
+
+  it('requires a cash/bank account and refuses overpayments', async () => {
+    const { component, kuri } = await setup(KuriInstallment, true);
+    component['paymentForm'].controls.member_id.setValue(1);
+    component['onMemberSelect'](1);
+    component['paymentForm'].controls.cash_account_code.setValue(null);
+    await component['onSubmitPayment']();
+    component['paymentForm'].controls.cash_account_code.setValue(101);
+    component['paymentForm'].controls.amount.setValue(1001);
+    await component['onSubmitPayment']();
+    expect(kuri.recordPayment).not.toHaveBeenCalled();
+  });
+
+  it('clears submitted validation messages after a successful receipt and protects unfinished entry', async () => {
+    const { component, host, fixture } = await setup(KuriInstallment, true);
+    component['paymentForm'].controls.member_id.setValue(1);
+    component['onMemberSelect'](1);
+    component['paymentForm'].markAsDirty();
+    await component['selectReceiptInstallment'](2);
+    expect(component['installmentNo']()).toBe(1);
+    expect(component.hasPendingChanges()).toBe(true);
+    fixture.detectChanges();
+    host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+    await vi.waitFor(() => expect(component['isSubmitting']()).toBe(false));
+    fixture.detectChanges();
+    expect(component['paymentForm'].pristine).toBe(true);
+    expect(component.hasPendingChanges()).toBe(false);
+    expect(host.querySelector('mat-error')).toBeNull();
+  });
+
+  it('preserves the request ID on retry and prevents duplicate saves and context switches', async () => {
+    const { component, kuri } = await setup(KuriInstallment, true);
+    component['paymentForm'].controls.member_id.setValue(1);
+    component['onMemberSelect'](1);
+    kuri.recordPayment.mockRejectedValueOnce(new Error('Response lost'));
+    await component['onSubmitPayment']();
+    const first = kuri.recordPayment.mock.calls[0][0];
+    const pending = deferred<object>();
+    kuri.recordPayment.mockReturnValueOnce(pending.promise);
+    const saving = component['onSubmitPayment']();
+    await component['onSubmitPayment']();
+    await component['selectReceiptInstallment'](2);
+    expect(component['installmentNo']()).toBe(1);
+    expect(kuri.recordPayment).toHaveBeenCalledTimes(2);
+    expect(kuri.recordPayment.mock.calls[1][0]).toEqual(first);
+    pending.resolve({});
+    await saving;
+  });
+
+  it('discards a slow response when switching installment', async () => {
+    const { component, kuri } = await setup(KuriInstallment, true);
+    const old = deferred<KuriCollectionRow[]>();
+    kuri.getCollectionStatus.mockReturnValueOnce(old.promise);
+    const first = component['selectReceiptInstallment'](2);
+    kuri.getCollectionStatus.mockResolvedValueOnce([{ ...collection, balance: 500 }]);
+    await component['selectReceiptInstallment'](3);
+    old.resolve([collection]);
+    await first;
+    expect(component['installmentNo']()).toBe(3);
+    expect(component['collections']()[0].balance).toBe(500);
+  });
+});
+
 describe('Kuri scheme controls', () => {
+  it('previews the saved PSP7 scheme with 25 tickets and 26 installments correctly', async () => {
+    const { component } = await setup(KuriSchemeForm);
+    component['form'].patchValue({
+      name: 'PSP7',
+      installment_amount: 4000,
+      num_members: 25,
+      max_deduction_pct: 20.4,
+      head_code: 1069,
+    });
+    expect(component['totalValue']()).toBe(100000);
+    expect(component['firstLotPayout']()).toBeCloseTo(79600, 2);
+    expect(component['lastLotPayout']()).toBe(100000);
+    expect(component['incrementPerLot']()).toBeCloseTo(850, 2);
+    expect(component['numInstallments']()).toBe(26);
+  });
   it('uses the same day-first ISO date adapter as the rest of the app and requires an account head', async () => {
     const { component, fixture, host, kuri } = await setup(KuriSchemeForm);
     component['form'].patchValue({

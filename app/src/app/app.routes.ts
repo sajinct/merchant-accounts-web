@@ -137,6 +137,15 @@ export const routes: Routes = [
 
       // Kuri (Chit Fund) Management
       {
+        path: 'kuri/receipts',
+        canActivate: [editors],
+        canDeactivate: [pendingChangesGuard],
+        data: { receiptEntry: true },
+        loadComponent: () =>
+          import('./features/kuri/kuri-installment').then((m) => m.KuriInstallment),
+        title: 'Kuri Installment Receipts',
+      },
+      {
         path: 'kuri/schemes',
         loadComponent: () => import('./features/kuri/kuri-schemes').then((m) => m.KuriSchemes),
         title: 'Kuri Schemes',
