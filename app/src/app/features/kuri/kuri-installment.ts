@@ -1,5 +1,16 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnInit, signal, viewChild } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  Injector,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormGroupDirective, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -10,7 +21,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
+import { MatSelect, MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AuthService } from '../../core/auth.service';
 import { AccountHead } from '../../core/models';
@@ -69,6 +80,9 @@ import {
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>Scheme</mat-label>
               <mat-select
+                #receiptScheme
+                appEntrySelect
+                (app-field-advance)="advanceFromScheme($event)"
                 [value]="schemeId() || null"
                 [disabled]="isSubmitting() || paymentForm.dirty || loadingSchemes()"
                 (selectionChange)="selectReceiptScheme($event.value)"
@@ -184,6 +198,8 @@ import {
                     <mat-label>{{ receiptEntry ? 'Ticket holder' : 'Member' }}</mat-label>
                     @if (receiptEntry) {
                       <input
+                        #receiptTicket
+                        data-kuri-ticket
                         matInput
                         formControlName="member_id"
                         [matAutocomplete]="ticketOptions"
@@ -228,7 +244,7 @@ import {
                   @if (cashAccounts().length > 0 || receiptEntry) {
                     <mat-form-field subscriptSizing="dynamic">
                       <mat-label>Received into</mat-label>
-                      <mat-select appEntrySelect formControlName="cash_account_code">
+                      <mat-select #receiptCash appEntrySelect formControlName="cash_account_code">
                         @for (acc of cashAccounts(); track acc.code) {
                           <mat-option [value]="acc.code"
                             >{{ acc.code }} – {{ acc.name }}</mat-option
@@ -240,7 +256,15 @@ import {
 
                   <mat-form-field subscriptSizing="dynamic">
                     <mat-label>Amount</mat-label>
-                    <input matInput type="number" formControlName="amount" min="0.01" step="0.01" />
+                    <input
+                      matInput
+                      [type]="receiptEntry ? 'text' : 'number'"
+                      inputmode="decimal"
+                      formControlName="amount"
+                      min="0.01"
+                      step="0.01"
+                      (focus)="selectReceiptValue($event)"
+                    />
                     @if (receiptEntry && selectedMember(); as member) {
                       <mat-hint
                         >Remaining across all installments:
@@ -260,6 +284,7 @@ import {
                       matInput
                       [matDatepicker]="picker"
                       formControlName="paid_on"
+                      (focus)="selectReceiptValue($event)"
                       placeholder="dd/mm/yyyy"
                     />
                     <mat-datepicker-toggle matIconSuffix [for]="picker" />
@@ -296,6 +321,7 @@ import {
                       <button
                         mat-button
                         type="button"
+                        tabindex="-1"
                         [disabled]="isSubmitting() || loadingAllocation()"
                         (click)="refreshAllocation()"
                       >
@@ -559,6 +585,13 @@ export class KuriInstallment implements OnInit {
   private readonly notify = inject(NotifyService);
   protected readonly auth = inject(AuthService);
   private readonly dialog = inject(MatDialog);
+  private readonly injector = inject(Injector);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef).nativeElement;
+  private readonly receiptScheme = viewChild<MatSelect>('receiptScheme');
+  private readonly receiptTicket = viewChild<ElementRef<HTMLInputElement>>('receiptTicket');
+  private readonly receiptCash = viewChild<MatSelect>('receiptCash');
+  private advanceAfterScheme = false;
+  private ticketConfirmedWithEnter = false;
   private readonly paymentEntry = viewChild<FormGroupDirective>('paymentEntry');
   protected readonly receiptEntry = this.route.snapshot?.data?.['receiptEntry'] === true;
   protected readonly receiptSchemes = signal<KuriSchemeListRow[]>([]);
@@ -570,7 +603,7 @@ export class KuriInstallment implements OnInit {
   protected readonly loadingAllocation = signal(false);
   protected readonly allocationFailed = signal(false);
   private readonly allocationLedger = signal<KuriMemberLedgerRow[]>([]);
-  private readonly receiptAmount = signal<number | null>(null);
+  private readonly receiptAmount = signal<number | string | null>(null);
   private allocationRequest = 0;
   protected readonly receiptBalance = computed(
     () =>
@@ -615,7 +648,7 @@ export class KuriInstallment implements OnInit {
     member_id: [null as number | null, Validators.required],
     cash_account_code: [null as number | null],
     amount: [
-      null as number | null,
+      null as number | string | null,
       [Validators.required, Validators.min(0.01), Validators.pattern(/^\d+(\.\d{1,2})?$/)],
     ],
     paid_on: [isoDate(), Validators.required],
@@ -640,6 +673,57 @@ export class KuriInstallment implements OnInit {
     const paid = this.collections().filter((r) => r.balance <= 0).length;
     return `${paid} / ${all}`;
   });
+
+  constructor() {
+    const prepareTicket = (event: KeyboardEvent) => {
+      this.ticketConfirmedWithEnter =
+        this.receiptEntry &&
+        event.key === 'Enter' &&
+        !event.shiftKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.metaKey &&
+        !event.isComposing &&
+        !event.repeat &&
+        event.target instanceof HTMLInputElement &&
+        event.target.hasAttribute('data-kuri-ticket') &&
+        event.target.getAttribute('aria-expanded') === 'true';
+    };
+    const clearTicket = () => {
+      this.ticketConfirmedWithEnter = false;
+    };
+    this.host.addEventListener('keydown', prepareTicket, true);
+    this.host.addEventListener('pointerdown', clearTicket, true);
+    this.destroyRef.onDestroy(() => {
+      this.host.removeEventListener('keydown', prepareTicket, true);
+      this.host.removeEventListener('pointerdown', clearTicket, true);
+    });
+  }
+
+  protected selectReceiptValue(event: FocusEvent): void {
+    if (this.receiptEntry && event.target instanceof HTMLInputElement) event.target.select();
+  }
+
+  private focusReceiptField(field: 'scheme' | 'ticket'): void {
+    if (!this.receiptEntry || this.destroyRef.destroyed) return;
+    afterNextRender(
+      () => {
+        if (this.destroyRef.destroyed || this.isSubmitting()) return;
+        if (field === 'scheme') this.receiptScheme()?.focus();
+        else if (!this.loading() && !this.loadFailed()) this.receiptTicket()?.nativeElement.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected advanceFromScheme(event: Event): void {
+    event.stopPropagation();
+    this.advanceAfterScheme = true;
+    if (!this.loading() && !this.loadingSchemes()) {
+      this.advanceAfterScheme = false;
+      this.focusReceiptField('ticket');
+    }
+  }
 
   ngOnInit(): void {
     void this.loadAccounts();
@@ -709,6 +793,7 @@ export class KuriInstallment implements OnInit {
       this.notify.error(err);
     } finally {
       this.loadingSchemes.set(false);
+      this.focusReceiptField('scheme');
     }
   }
 
@@ -725,6 +810,10 @@ export class KuriInstallment implements OnInit {
     this.resetPaymentForm();
     this.showPaymentForm.set(true);
     await this.loadData();
+    if (this.advanceAfterScheme) {
+      this.advanceAfterScheme = false;
+      this.focusReceiptField('ticket');
+    }
   }
 
   hasPendingChanges(): boolean {
@@ -795,10 +884,22 @@ export class KuriInstallment implements OnInit {
   }
 
   protected async onMemberSelect(memberId: number): Promise<void> {
+    const advance = this.ticketConfirmedWithEnter;
+    this.ticketConfirmedWithEnter = false;
     const member = this.collections().find((m) => m.member_id === memberId);
     if (member) {
       if (this.receiptEntry) {
         await this.loadAllocation(memberId, true);
+        if (
+          advance &&
+          !this.destroyRef.destroyed &&
+          !this.loadingAllocation() &&
+          !this.allocationFailed() &&
+          this.paymentForm.controls.member_id.value === memberId &&
+          this.host.ownerDocument.activeElement === this.receiptTicket()?.nativeElement
+        ) {
+          this.receiptCash()?.focus();
+        }
         return;
       }
       this.paymentForm.controls.amount.setValidators([
@@ -886,7 +987,7 @@ export class KuriInstallment implements OnInit {
       p_scheme_id: this.schemeId(),
       p_installment_no: this.installmentNo(),
       p_member_id: val.member_id!,
-      p_amount: val.amount!,
+      p_amount: Number(val.amount),
       p_paid_on: val.paid_on!,
       p_notes: val.notes || undefined,
     };
@@ -901,6 +1002,7 @@ export class KuriInstallment implements OnInit {
     }
     this.isSubmitting.set(true);
     this.paymentForm.disable({ emitEvent: false });
+    let saved = false;
     try {
       if (this.receiptEntry) {
         const { p_installment_no: _installment, ...receipt } = payload;
@@ -919,11 +1021,13 @@ export class KuriInstallment implements OnInit {
       );
       this.resetPaymentForm();
       await this.loadData();
+      saved = true;
     } catch (err) {
       this.notify.error(err);
     } finally {
       this.paymentForm.enable({ emitEvent: false });
       this.isSubmitting.set(false);
+      if (saved) this.focusReceiptField('ticket');
     }
   }
 

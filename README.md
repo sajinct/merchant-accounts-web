@@ -149,6 +149,9 @@ including partial balances, then advance to later installments. Review the alloc
 above Save receipt. For example, if 200 remains from one installment, a 500 receipt clears
 that 200 and applies 300 to the next. Amounts beyond the ticket's full remaining schedule are refused.
 The payment date and cash/bank account stay selected for the next receipt.
+Keyboard entry starts on Scheme and returns to Ticket after each successful save.
+Enter advances through the fields, selecting the amount and date for easy replacement;
+Refresh balances is skipped by Tab and the entry-navigation keys.
 
 Only activated schemes with a linked account appear in receipt entry. A scheme must have
 all its tickets enrolled before activation. The configured schedule has one more installment

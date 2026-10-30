@@ -311,13 +311,82 @@ describe('Kuri simple receipt entry', () => {
     return result;
   }
 
+  it('starts on Scheme and advances to Ticket when Scheme is confirmed', async () => {
+    const { host, fixture } = await setup(KuriInstallment, true);
+    await fixture.whenStable();
+    const scheme = host.querySelector<HTMLElement>('mat-select')!;
+    expect(document.activeElement).toBe(scheme);
+    scheme.dispatchEvent(new CustomEvent('app-field-advance', { bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).toBe(host.querySelector('[data-kuri-ticket]'));
+  });
+
+  it('selects amount and date on Enter navigation and skips Refresh balances', async () => {
+    const { host, fixture } = await choose();
+    fixture.detectChanges();
+    const cash = host.querySelector<HTMLElement>(
+      'mat-select[formControlName="cash_account_code"]',
+    )!;
+    const amount = host.querySelector<HTMLInputElement>('[formControlName="amount"]')!;
+    const date = host.querySelector<HTMLInputElement>('[formControlName="paid_on"]')!;
+    cash.focus();
+    cash.dispatchEvent(new CustomEvent('app-field-advance', { bubbles: true }));
+    expect(document.activeElement).toBe(amount);
+    expect(amount.selectionStart).toBe(0);
+    expect(amount.selectionEnd).toBe(amount.value.length);
+    amount.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }),
+    );
+    expect(document.activeElement).toBe(date);
+    expect(date.selectionStart).toBe(0);
+    expect(date.selectionEnd).toBe(date.value.length);
+    const notes = host.querySelector<HTMLInputElement>('[formControlName="notes"]')!;
+    const refresh = host.querySelector<HTMLButtonElement>('.allocation-preview button')!;
+    expect(refresh.tabIndex).toBe(-1);
+    for (const key of ['Enter', 'ArrowDown']) {
+      notes.focus();
+      notes.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+      expect(document.activeElement).toBe(host.querySelector('button[type="submit"]'));
+    }
+  });
+
+  it('returns to Ticket after saving and posts a typed decimal as a number', async () => {
+    const { component, kuri, fixture, host } = await choose();
+    fixture.detectChanges();
+    const amount = host.querySelector<HTMLInputElement>('[formControlName="amount"]')!;
+    amount.value = '500.25';
+    amount.dispatchEvent(new Event('input', { bubbles: true }));
+    await component['onSubmitPayment']();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(kuri.recordReceipt).toHaveBeenCalledWith(expect.objectContaining({ p_amount: 500.25 }));
+    expect(document.activeElement).toBe(host.querySelector('[data-kuri-ticket]'));
+  });
+
+  it('does not advance to Ticket or clear entry values when saving fails', async () => {
+    const { component, kuri, fixture, host } = await choose();
+    fixture.detectChanges();
+    const amount = host.querySelector<HTMLInputElement>('[formControlName="amount"]')!;
+    amount.focus();
+    kuri.recordReceipt.mockRejectedValueOnce(new Error('Offline'));
+    await component['onSubmitPayment']();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(document.activeElement).not.toBe(host.querySelector('[data-kuri-ticket]'));
+    expect(component['paymentForm'].controls.member_id.value).toBe(1);
+    expect(component['paymentForm'].controls.amount.value).toBe(1000);
+  });
+
   it('opens a searchable form without requiring an installment', async () => {
     const { component, host } = await choose();
     expect(host.textContent).toContain('Installment receipts');
     expect(host.querySelector('#kuri-payment-form')).not.toBeNull();
     expect(host.querySelector('.payment-toggle')).toBeNull();
     expect(host.querySelector('.summary-grid')).toBeNull();
-    expect(Array.from(host.querySelectorAll('mat-label'),el=>el.textContent?.trim())).not.toContain('Installment');
+    expect(
+      Array.from(host.querySelectorAll('mat-label'), (el) => el.textContent?.trim()),
+    ).not.toContain('Installment');
     component['collections'].set([
       { ...collection, holder_name: 'Ticket holder' },
       { ...collection, member_id: 2, ticket_no: 2, balance: 0 },
