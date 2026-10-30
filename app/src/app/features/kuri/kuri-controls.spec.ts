@@ -15,7 +15,12 @@ import { KuriSchemeDetail } from './kuri-scheme-detail';
 import { KuriDefaulters } from './kuri-defaulters';
 import { KuriMemberLedger } from './kuri-member-ledger';
 import { KuriService } from './kuri.service';
-import { KuriCollectionRow, KuriMember, KuriSchemeDetail as Scheme } from './kuri.models';
+import {
+  KuriCollectionRow,
+  KuriMember,
+  KuriMemberLedgerRow,
+  KuriSchemeDetail as Scheme,
+} from './kuri.models';
 
 const scheme: Scheme = {
   id: 1,
@@ -90,6 +95,8 @@ async function setup<T>(component: Type<T>, receiptEntry = false) {
       ]),
     getPaymentHistory: vi.fn().mockResolvedValue([]),
     recordPayment: vi.fn().mockResolvedValue({}),
+    recordReceipt: vi.fn().mockResolvedValue({}),
+    getReceiptTickets: vi.fn().mockResolvedValue([collection]),
     recordBulkPayment: vi.fn().mockResolvedValue(1),
     createScheme: vi.fn().mockResolvedValue({}),
     setSchemeAccount: vi.fn().mockResolvedValue({}),
@@ -297,13 +304,20 @@ describe('Kuri payment controls', () => {
 });
 
 describe('Kuri simple receipt entry', () => {
-  it('opens a searchable receipt form directly without the dashboard or disclosure', async () => {
-    const { component, host } = await setup(KuriInstallment, true);
+  async function choose() {
+    const result = await setup(KuriInstallment, true);
+    result.component['paymentForm'].controls.member_id.setValue(1);
+    await result.component['onMemberSelect'](1);
+    return result;
+  }
+
+  it('opens a searchable form without requiring an installment', async () => {
+    const { component, host } = await choose();
     expect(host.textContent).toContain('Installment receipts');
     expect(host.querySelector('#kuri-payment-form')).not.toBeNull();
     expect(host.querySelector('.payment-toggle')).toBeNull();
     expect(host.querySelector('.summary-grid')).toBeNull();
-    expect(component['receiptInstallments']()).toEqual([1, 2, 3]);
+    expect(Array.from(host.querySelectorAll('mat-label'),el=>el.textContent?.trim())).not.toContain('Installment');
     component['collections'].set([
       { ...collection, holder_name: 'Ticket holder' },
       { ...collection, member_id: 2, ticket_no: 2, balance: 0 },
@@ -312,97 +326,117 @@ describe('Kuri simple receipt entry', () => {
     expect(component['matchingMembers']().map((m) => m.member_id)).toEqual([1]);
   });
 
-  it('prefills the balance and keeps date, bank, scheme and installment after saving', async () => {
-    const { component, kuri } = await setup(KuriInstallment, true);
+  it('splits a 500 receipt into 200 arrears and 300 next installment with one RPC', async () => {
+    const { component, kuri, fixture, host } = await choose();
+    component['collections'].set([{ ...collection, balance: 4200 }]);
+    kuri.getMemberLedger.mockResolvedValueOnce([
+      { installment_no: 1, amount_due: 4000, amount_paid: 3800, balance: 200, last_paid_on: null },
+      { installment_no: 2, amount_due: 4000, amount_paid: 0, balance: 4000, last_paid_on: null },
+    ]);
+    await component['refreshAllocation']();
     component['paymentForm'].patchValue({
-      member_id: 1,
+      amount: 500,
       cash_account_code: 102,
       paid_on: '2026-10-02',
     });
-    component['onMemberSelect'](1);
-    expect(component['paymentForm'].controls.amount.value).toBe(1000);
-    component['paymentForm'].controls.amount.setValue(400);
+    const split = [
+      { installment_no: 1, amount: 200 },
+      { installment_no: 2, amount: 300 },
+    ];
+    expect(component['allocationPreview']()).toEqual(split);
+    fixture.detectChanges();
+    expect(host.querySelector('.allocation-preview')?.textContent).toContain('300.00');
     await component['onSubmitPayment']();
-    expect(kuri.recordPayment).toHaveBeenCalledWith(
+    expect(kuri.recordReceipt).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({
         p_scheme_id: 1,
-        p_installment_no: 1,
         p_member_id: 1,
-        p_amount: 400,
-        p_cash_account_code: 102,
+        p_amount: 500,
         p_paid_on: '2026-10-02',
+        p_cash_account_code: 102,
+        p_expected_allocations: split,
         p_request_id: expect.any(String),
       }),
     );
+    expect(kuri.recordReceipt.mock.calls[0][0]).not.toHaveProperty('p_installment_no');
+    expect(kuri.recordPayment).not.toHaveBeenCalled();
     expect(component['paymentForm'].getRawValue()).toMatchObject({
       member_id: null,
       amount: null,
       paid_on: '2026-10-02',
       cash_account_code: 102,
     });
-    expect(component['schemeId']()).toBe(1);
-    expect(component['showPaymentForm']()).toBe(true);
   });
 
-  it('requires a cash/bank account and refuses overpayments', async () => {
-    const { component, kuri } = await setup(KuriInstallment, true);
-    component['paymentForm'].controls.member_id.setValue(1);
-    component['onMemberSelect'](1);
+  it('requires a bank/cash account and refuses overpayment or excessive decimals', async () => {
+    const { component, kuri } = await choose();
     component['paymentForm'].controls.cash_account_code.setValue(null);
     await component['onSubmitPayment']();
     component['paymentForm'].controls.cash_account_code.setValue(101);
-    component['paymentForm'].controls.amount.setValue(1001);
-    await component['onSubmitPayment']();
-    expect(kuri.recordPayment).not.toHaveBeenCalled();
+    for (const amount of [1001, 0, -1, 1.001]) {
+      component['paymentForm'].controls.amount.setValue(amount);
+      await component['onSubmitPayment']();
+    }
+    expect(kuri.recordReceipt).not.toHaveBeenCalled();
   });
 
-  it('clears submitted validation messages after a successful receipt and protects unfinished entry', async () => {
-    const { component, host, fixture } = await setup(KuriInstallment, true);
-    component['paymentForm'].controls.member_id.setValue(1);
-    component['onMemberSelect'](1);
+  it('keeps an unchanged request ID on retry and prevents duplicate saves', async () => {
+    const { component, kuri } = await choose();
+    kuri.recordReceipt.mockRejectedValueOnce(new Error('Response lost'));
+    await component['onSubmitPayment']();
+    const first = kuri.recordReceipt.mock.calls[0][0];
+    const response = deferred<object>();
+    kuri.recordReceipt.mockReturnValueOnce(response.promise);
+    const saving = component['onSubmitPayment']();
+    await component['onSubmitPayment']();
+    await component['selectReceiptScheme'](2);
+    expect(component['schemeId']()).toBe(1);
+    expect(kuri.recordReceipt).toHaveBeenCalledTimes(2);
+    expect(kuri.recordReceipt.mock.calls[1][0]).toEqual(first);
+    response.resolve({});
+    await saving;
+  });
+
+  it('discards a slow ticket ledger after another ticket is selected', async () => {
+    const { component, kuri } = await choose();
+    component['collections'].set([collection, { ...collection, member_id: 2, ticket_no: 2 }]);
+    const old = deferred<KuriMemberLedgerRow[]>();
+    kuri.getMemberLedger.mockReturnValueOnce(old.promise);
+    const first = component['onMemberSelect'](1);
+    component['paymentForm'].controls.member_id.setValue(2);
+    kuri.getMemberLedger.mockResolvedValueOnce([
+      { installment_no: 2, amount_due: 1000, amount_paid: 500, balance: 500, last_paid_on: null },
+    ]);
+    await component['onMemberSelect'](2);
+    old.resolve([
+      { installment_no: 1, amount_due: 1000, amount_paid: 0, balance: 1000, last_paid_on: null },
+    ]);
+    await first;
+    expect(component['allocationPreview']()).toEqual([{ installment_no: 2, amount: 500 }]);
+  });
+
+  it('blocks saving on a failed balance load and supports refresh', async () => {
+    const { component, kuri } = await choose();
+    kuri.getMemberLedger.mockRejectedValueOnce(new Error('Offline'));
+    await component['refreshAllocation']();
+    await component['onSubmitPayment']();
+    expect(kuri.recordReceipt).not.toHaveBeenCalled();
+    await component['refreshAllocation']();
+    expect(component['allocationFailed']()).toBe(false);
+    expect(component['allocationPreview']().length).toBe(1);
+  });
+
+  it('clears submitted errors after saving and protects unfinished entry', async () => {
+    const { component, host, fixture } = await choose();
     component['paymentForm'].markAsDirty();
-    await component['selectReceiptInstallment'](2);
-    expect(component['installmentNo']()).toBe(1);
-    expect(component.hasPendingChanges()).toBe(true);
+    await component['selectReceiptScheme'](2);
+    expect(component['schemeId']()).toBe(1);
     fixture.detectChanges();
     host.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
     await vi.waitFor(() => expect(component['isSubmitting']()).toBe(false));
     fixture.detectChanges();
-    expect(component['paymentForm'].pristine).toBe(true);
     expect(component.hasPendingChanges()).toBe(false);
     expect(host.querySelector('mat-error')).toBeNull();
-  });
-
-  it('preserves the request ID on retry and prevents duplicate saves and context switches', async () => {
-    const { component, kuri } = await setup(KuriInstallment, true);
-    component['paymentForm'].controls.member_id.setValue(1);
-    component['onMemberSelect'](1);
-    kuri.recordPayment.mockRejectedValueOnce(new Error('Response lost'));
-    await component['onSubmitPayment']();
-    const first = kuri.recordPayment.mock.calls[0][0];
-    const pending = deferred<object>();
-    kuri.recordPayment.mockReturnValueOnce(pending.promise);
-    const saving = component['onSubmitPayment']();
-    await component['onSubmitPayment']();
-    await component['selectReceiptInstallment'](2);
-    expect(component['installmentNo']()).toBe(1);
-    expect(kuri.recordPayment).toHaveBeenCalledTimes(2);
-    expect(kuri.recordPayment.mock.calls[1][0]).toEqual(first);
-    pending.resolve({});
-    await saving;
-  });
-
-  it('discards a slow response when switching installment', async () => {
-    const { component, kuri } = await setup(KuriInstallment, true);
-    const old = deferred<KuriCollectionRow[]>();
-    kuri.getCollectionStatus.mockReturnValueOnce(old.promise);
-    const first = component['selectReceiptInstallment'](2);
-    kuri.getCollectionStatus.mockResolvedValueOnce([{ ...collection, balance: 500 }]);
-    await component['selectReceiptInstallment'](3);
-    old.resolve([collection]);
-    await first;
-    expect(component['installmentNo']()).toBe(3);
-    expect(component['collections']()[0].balance).toBe(500);
   });
 });
 

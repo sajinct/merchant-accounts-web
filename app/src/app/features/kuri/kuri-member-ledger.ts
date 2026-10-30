@@ -161,7 +161,18 @@ import {
                 @for (payment of payments(); track payment.id) {
                   <tr [class.cancelled]="payment.cancelled_at">
                     <td>{{ payment.paid_on | date: 'dd-MMM-yyyy' }}</td>
-                    <td>{{ payment.installment_no }}</td>
+                    <td>
+                      @if (payment.allocations && payment.allocations.length > 1) {
+                        @for (allocation of payment.allocations; track allocation.installment_no) {
+                          <div>
+                            {{ allocation.installment_no }}:
+                            {{ allocation.amount | number: '1.2-2' }}
+                          </div>
+                        }
+                      } @else {
+                        {{ payment.installment_no }}
+                      }
+                    </td>
                     <td class="num">{{ payment.amount | number: '1.2-2' }}</td>
                     <td class="table-secondary">
                       @if (payment.cancelled_at) {
@@ -382,9 +393,18 @@ export class KuriMemberLedger implements OnInit {
     const result = await confirmAction(this.dialog, {
       title: 'Cancel this payment?',
       message:
-        'The amount stops counting towards the installment. The record stays on the ledger with your reason against it.',
+        'The complete receipt and all its installment allocations will be cancelled. The record stays on the ledger with your reason against it.',
       details: [
-        { label: 'Installment', value: String(payment.installment_no) },
+        {
+          label: 'Installments',
+          value:
+            payment.allocations
+              ?.map(
+                (a) =>
+                  `${a.installment_no}: ${formatNumber(Number(a.amount), this.locale, '1.2-2')}`,
+              )
+              .join(', ') || String(payment.installment_no),
+        },
         { label: 'Amount', value: formatNumber(Number(payment.amount), this.locale, '1.2-2') },
       ],
       fields: [{ key: 'reason', label: 'Reason for cancelling', required: true, maxLength: 200 }],

@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { AccountHead } from '../../core/models';
+import { KuriReceiptAllocation } from './kuri-allocation';
 import { must, SupabaseService } from '../../core/supabase.service';
 import {
   KuriCustomerSummary,
@@ -198,6 +199,23 @@ export class KuriService {
     p_cash_account_code?: number | null;
   }): Promise<unknown> {
     return must(this.sb.rpc('record_kuri_payment', params));
+  }
+
+  getReceiptTickets(schemeId: number): Promise<KuriCollectionRow[]> {
+    return must(this.sb.rpc('kuri_receipt_tickets', { p_scheme_id: schemeId }));
+  }
+
+  recordReceipt(params: {
+    p_scheme_id: number;
+    p_member_id: number;
+    p_amount: number;
+    p_paid_on: string;
+    p_notes?: string;
+    p_request_id: string;
+    p_cash_account_code?: number | null;
+    p_expected_allocations: KuriReceiptAllocation[];
+  }): Promise<unknown> {
+    return must(this.sb.rpc('record_kuri_receipt', params));
   }
 
   recordBulkPayment(

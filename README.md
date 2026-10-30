@@ -143,17 +143,25 @@ Apply `supabase/migrations/20260920000005_membership_history_without_posting.sql
 ## Kuri receipts
 
 Open **Kuri → Installment receipts**, or choose **Enter receipts** on a scheme. Select a
-scheme and installment, search for the ticket number or holder name, and save the amount
-received. The outstanding balance is filled in automatically; partial receipts are allowed.
+scheme, search for the ticket number or holder name, and enter the amount received.
+There is no installment to choose: receipts clear the oldest unpaid installments first,
+including partial balances, then advance to later installments. Review the allocation shown
+above Save receipt. For example, if 200 remains from one installment, a 500 receipt clears
+that 200 and applies 300 to the next. Amounts beyond the ticket's full remaining schedule are refused.
 The payment date and cash/bank account stay selected for the next receipt.
 
 Only activated schemes with a linked account appear in receipt entry. A scheme must have
 all its tickets enrolled before activation. The configured schedule has one more installment
 than tickets: installment 1 is collection only, followed by one lot per ticket.
 
-Each saved receipt uses `record_kuri_payment` to update the ticket balance and post the
-accounting receipt together. Retrying an unchanged failed save reuses its request ID.
-Use the installment's collection-status page or the member ledger to review receipts.
+Each saved receipt uses `record_kuri_receipt` to post one accounting receipt and its
+installment allocations atomically. The member ledger shows one receipt with its split;
+cancelling it reverses the whole receipt and all allocations. Retrying an unchanged failed
+save reuses its request ID. The detailed installment page still supports payments for a
+specific installment through `record_kuri_payment`.
+
+Apply `supabase/migrations/20261030000000_kuri_receipt_allocation.sql` before deploying
+this receipt screen. Existing payments and accounting vouchers are preserved.
 
 ## Vouchers
 

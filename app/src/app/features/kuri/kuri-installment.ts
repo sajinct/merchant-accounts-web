@@ -23,11 +23,13 @@ import { EnterToNext } from '../../shared/enter-to-next.directive';
 import { EntrySelect } from '../../shared/entry-select.directive';
 import { isoDate } from '../../shared/dates';
 import { KuriService } from './kuri.service';
+import { allocateKuriReceipt } from './kuri-allocation';
 import {
   hasCustomHolderName,
   KuriCollectionRow,
   KuriSchemeDetail,
   KuriSchemeListRow,
+  KuriMemberLedgerRow,
   ticketHolderName,
 } from './kuri.models';
 
@@ -58,11 +60,11 @@ import {
         <app-page-header
           eyebrow="Kuri"
           heading="Installment receipts"
-          description="Choose a scheme and installment, then enter each ticket receipt."
+          description="Choose a scheme and ticket. Each receipt clears the oldest unpaid installments first."
         >
           <a mat-stroked-button routerLink="/kuri/schemes">All schemes</a>
         </app-page-header>
-        <section class="panel receipt-context" aria-label="Choose scheme and installment">
+        <section class="panel receipt-context" aria-label="Choose scheme">
           <div class="panel-body filter-row">
             <mat-form-field subscriptSizing="dynamic">
               <mat-label>Scheme</mat-label>
@@ -76,25 +78,9 @@ import {
                 }
               </mat-select>
             </mat-form-field>
-            <mat-form-field subscriptSizing="dynamic">
-              <mat-label>Installment</mat-label>
-              <mat-select
-                [value]="installmentNo() || null"
-                [disabled]="!schemeId() || isSubmitting() || paymentForm.dirty"
-                (selectionChange)="selectReceiptInstallment($event.value)"
-              >
-                @for (no of receiptInstallments(); track no) {
-                  <mat-option [value]="no"
-                    >{{ no }} / {{ receiptInstallments().length }}</mat-option
-                  >
-                }
-              </mat-select>
-            </mat-form-field>
           </div>
           @if (paymentForm.dirty) {
-            <p class="hint">
-              Save or clear this receipt before changing the scheme or installment.
-            </p>
+            <p class="hint">Save or clear this receipt before changing the scheme.</p>
           }
           @if (schemesFailed()) {
             <p class="hint">
@@ -165,7 +151,7 @@ import {
           <div class="panel" style="margin-bottom: 24px">
             <div class="panel-header">
               @if (receiptEntry) {
-                <h3>New receipt · {{ s.name }} · Installment {{ installmentNo() }}</h3>
+                <h3>New receipt · {{ s.name }}</h3>
               } @else {
                 <button
                   mat-button
@@ -212,7 +198,7 @@ import {
                       >
                         @for (member of matchingMembers(); track member.member_id) {
                           <mat-option [value]="member.member_id">
-                            #{{ member.ticket_no }} — {{ holderName(member) }} · Balance
+                            #{{ member.ticket_no }} — {{ holderName(member) }} · Remaining
                             {{ member.balance | number: '1.2-2' }}
                           </mat-option>
                         } @empty {
@@ -257,8 +243,9 @@ import {
                     <input matInput type="number" formControlName="amount" min="0.01" step="0.01" />
                     @if (receiptEntry && selectedMember(); as member) {
                       <mat-hint
-                        >Outstanding: {{ member.balance | number: '1.2-2' }}. Part payments are
-                        allowed.</mat-hint
+                        >Remaining across all installments:
+                        {{ receiptBalance() | number: '1.2-2' }}. Part payments and payments towards
+                        future installments are allowed.</mat-hint
                       >
                     }
                     <mat-error
@@ -285,11 +272,49 @@ import {
                     <input matInput formControlName="notes" />
                   </mat-form-field>
 
+                  @if (receiptEntry && selectedMember()) {
+                    <section
+                      class="allocation-preview full"
+                      aria-label="Receipt allocation"
+                      aria-live="polite"
+                    >
+                      @if (loadingAllocation()) {
+                        <p>Loading ticket balances…</p>
+                      } @else if (allocationFailed()) {
+                        <p>Could not load ticket balances. Refresh balances before saving.</p>
+                      } @else {
+                        <h4>How this receipt will be applied</h4>
+                        @for (part of allocationPreview(); track part.installment_no) {
+                          <p>
+                            Installment {{ part.installment_no }}
+                            <strong>{{ part.amount | number: '1.2-2' }}</strong>
+                          </p>
+                        } @empty {
+                          <p>Enter an amount within the ticket's remaining balance.</p>
+                        }
+                      }
+                      <button
+                        mat-button
+                        type="button"
+                        [disabled]="isSubmitting() || loadingAllocation()"
+                        (click)="refreshAllocation()"
+                      >
+                        Refresh balances
+                      </button>
+                    </section>
+                  }
                   <div class="form-actions full">
                     <button
                       mat-flat-button
                       type="submit"
-                      [disabled]="paymentForm.invalid || isSubmitting()"
+                      [disabled]="
+                        paymentForm.invalid ||
+                        isSubmitting() ||
+                        (receiptEntry &&
+                          (loadingAllocation() ||
+                            allocationFailed() ||
+                            !allocationPreview().length))
+                      "
                     >
                       {{
                         isSubmitting() ? 'Saving…' : receiptEntry ? 'Save receipt' : 'Save Payment'
@@ -432,11 +457,11 @@ import {
           </div>
         } @else if (!loading() && !loadFailed()) {
           <p class="hint" role="status">
-            Collected {{ collected() | number: '1.2-2' }} · Outstanding
-            {{ pending() | number: '1.2-2' }} · {{ paidCountText() }} tickets paid
+            Received {{ collected() | number: '1.2-2' }} · Remaining across the full scheme
+            {{ pending() | number: '1.2-2' }}
           </p>
           @if (!unpaidMembers().length) {
-            <p role="status">All tickets are paid for this installment.</p>
+            <p role="status">All tickets are paid for this scheme.</p>
           }
           <a
             mat-button
@@ -463,6 +488,21 @@ import {
   `,
   styleUrl: './kuri-summary.scss',
   styles: `
+    .allocation-preview {
+      margin-top: 20px;
+      padding: 16px;
+      border: 1px solid var(--app-border);
+      border-radius: var(--app-radius);
+    }
+    .allocation-preview h4 {
+      margin: 0 0 12px;
+    }
+    .allocation-preview p {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      margin: 8px 0;
+    }
     .receipt-context {
       margin-bottom: 20px;
     }
@@ -527,10 +567,19 @@ export class KuriInstallment implements OnInit {
   protected readonly loadingAccounts = signal(false);
   protected readonly accountsFailed = signal(false);
   protected readonly memberQuery = signal('');
-  protected readonly receiptInstallments = computed(() => {
-    const row = this.receiptSchemes().find((s) => s.id === this.schemeId());
-    return Array.from({ length: row?.num_installments ?? 0 }, (_, i) => i + 1);
-  });
+  protected readonly loadingAllocation = signal(false);
+  protected readonly allocationFailed = signal(false);
+  private readonly allocationLedger = signal<KuriMemberLedgerRow[]>([]);
+  private readonly receiptAmount = signal<number | null>(null);
+  private allocationRequest = 0;
+  protected readonly receiptBalance = computed(
+    () =>
+      this.allocationLedger().reduce((sum, row) => sum + Math.round(Number(row.balance) * 100), 0) /
+      100,
+  );
+  protected readonly allocationPreview = computed(() =>
+    allocateKuriReceipt(Number(this.receiptAmount()), this.allocationLedger()),
+  );
   protected readonly matchingMembers = computed(() => {
     const q = this.memberQuery().trim().toLowerCase().replace(/^#/, '');
     return this.unpaidMembers().filter((m) =>
@@ -596,7 +645,15 @@ export class KuriInstallment implements OnInit {
     void this.loadAccounts();
     this.paymentForm.controls.member_id.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((id) => this.selectedMemberId.set(id));
+      .subscribe((id) => {
+        this.selectedMemberId.set(id);
+        this.allocationRequest++;
+        this.allocationLedger.set([]);
+        this.loadingAllocation.set(false);
+      });
+    this.paymentForm.controls.amount.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((amount) => this.receiptAmount.set(amount));
     if (this.receiptEntry) {
       this.paymentForm.controls.cash_account_code.setValidators(Validators.required);
       this.paymentForm.controls.cash_account_code.updateValueAndValidity();
@@ -645,11 +702,7 @@ export class KuriInstallment implements OnInit {
       const selected =
         schemes.find((s) => s.id === requested) ?? (schemes.length === 1 ? schemes[0] : null);
       if (selected) {
-        const no = Number(this.route.snapshot.queryParamMap.get('installment'));
-        await this.selectReceiptScheme(
-          selected.id,
-          Number.isInteger(no) && no >= 1 && no <= selected.num_installments ? no : 1,
-        );
+        await this.selectReceiptScheme(selected.id);
       }
     } catch (err) {
       this.schemesFailed.set(true);
@@ -659,7 +712,7 @@ export class KuriInstallment implements OnInit {
     }
   }
 
-  protected async selectReceiptScheme(id: number, installment = 1): Promise<void> {
+  protected async selectReceiptScheme(id: number): Promise<void> {
     if (
       this.isSubmitting() ||
       this.paymentForm.dirty ||
@@ -667,16 +720,11 @@ export class KuriInstallment implements OnInit {
     )
       return;
     this.schemeId.set(id);
-    this.installmentNo.set(installment);
+    this.installmentNo.set(1);
     this.scheme.set(null);
     this.resetPaymentForm();
     this.showPaymentForm.set(true);
     await this.loadData();
-  }
-
-  protected async selectReceiptInstallment(no: number): Promise<void> {
-    if (this.isSubmitting() || !this.receiptInstallments().includes(no)) return;
-    await this.selectReceiptScheme(this.schemeId(), no);
   }
 
   hasPendingChanges(): boolean {
@@ -693,7 +741,9 @@ export class KuriInstallment implements OnInit {
     try {
       const [schemes, rows] = await Promise.all([
         this.kuri.getSchemeDetail(id),
-        this.kuri.getCollectionStatus(id, installment),
+        this.receiptEntry
+          ? this.kuri.getReceiptTickets(id)
+          : this.kuri.getCollectionStatus(id, installment),
       ]);
       if (request !== this.loadRequest) return;
       if (!schemes?.length || installment < 1 || installment > schemes[0].num_installments) {
@@ -728,6 +778,10 @@ export class KuriInstallment implements OnInit {
       null;
     this.memberQuery.set('');
     this.selectedMemberId.set(null);
+    this.allocationRequest++;
+    this.allocationLedger.set([]);
+    this.allocationFailed.set(false);
+    this.loadingAllocation.set(false);
     const values = {
       member_id: null,
       cash_account_code: defaultCash,
@@ -740,9 +794,13 @@ export class KuriInstallment implements OnInit {
     else this.paymentForm.reset(values);
   }
 
-  protected onMemberSelect(memberId: number): void {
+  protected async onMemberSelect(memberId: number): Promise<void> {
     const member = this.collections().find((m) => m.member_id === memberId);
     if (member) {
+      if (this.receiptEntry) {
+        await this.loadAllocation(memberId, true);
+        return;
+      }
       this.paymentForm.controls.amount.setValidators([
         Validators.required,
         Validators.min(0.01),
@@ -750,6 +808,44 @@ export class KuriInstallment implements OnInit {
         Validators.pattern(/^\d+(\.\d{1,2})?$/),
       ]);
       this.paymentForm.patchValue({ amount: member.balance });
+    }
+  }
+
+  protected async refreshAllocation(): Promise<void> {
+    const id = this.paymentForm.controls.member_id.value;
+    if (id && !this.isSubmitting()) await this.loadAllocation(id, false);
+  }
+
+  private async loadAllocation(memberId: number, prefill: boolean): Promise<void> {
+    const request = ++this.allocationRequest;
+    const schemeId = this.schemeId();
+    this.loadingAllocation.set(true);
+    this.allocationFailed.set(false);
+    this.allocationLedger.set([]);
+    try {
+      const rows = await this.kuri.getMemberLedger(schemeId, memberId);
+      if (request !== this.allocationRequest || schemeId !== this.schemeId()) return;
+      this.allocationLedger.set(rows);
+      const balance =
+        rows.reduce((sum, row) => sum + Math.round(Number(row.balance) * 100), 0) / 100;
+      this.paymentForm.controls.amount.setValidators([
+        Validators.required,
+        Validators.min(0.01),
+        Validators.max(Math.min(balance, 9999999999.99)),
+        Validators.pattern(/^\d+(\.\d{1,2})?$/),
+      ]);
+      this.paymentForm.controls.amount.updateValueAndValidity();
+      if (prefill)
+        this.paymentForm.controls.amount.setValue(
+          Number(rows.find((r) => r.balance > 0)?.balance) || null,
+        );
+    } catch (err) {
+      if (request === this.allocationRequest) {
+        this.allocationFailed.set(true);
+        this.notify.error(err);
+      }
+    } finally {
+      if (request === this.allocationRequest) this.loadingAllocation.set(false);
     }
   }
 
@@ -764,9 +860,17 @@ export class KuriInstallment implements OnInit {
       return;
     if (this.scheme()?.status === 'draft' || (this.receiptEntry && !this.scheme()?.head_code))
       return;
+    if (
+      this.receiptEntry &&
+      (this.loadingAllocation() || this.allocationFailed() || !this.allocationPreview().length)
+    )
+      return;
     const val = this.paymentForm.getRawValue();
     const member = this.unpaidMembers().find((row) => row.member_id === val.member_id);
-    if (!member || Number(val.amount) > Number(member.balance)) {
+    if (
+      !member ||
+      Number(val.amount) > (this.receiptEntry ? this.receiptBalance() : Number(member.balance))
+    ) {
       this.paymentForm.controls.amount.setErrors({ max: true });
       return;
     }
@@ -789,6 +893,8 @@ export class KuriInstallment implements OnInit {
     if (val.cash_account_code != null) {
       payload.p_cash_account_code = val.cash_account_code;
     }
+    const allocations = this.receiptEntry ? this.allocationPreview() : undefined;
+    // Refreshing a preview after a lost response must not create another receipt.
     const key = JSON.stringify(payload);
     if (this.paymentRequest?.payload !== key) {
       this.paymentRequest = { payload: key, id: crypto.randomUUID() };
@@ -796,7 +902,16 @@ export class KuriInstallment implements OnInit {
     this.isSubmitting.set(true);
     this.paymentForm.disable({ emitEvent: false });
     try {
-      await this.kuri.recordPayment({ ...payload, p_request_id: this.paymentRequest.id });
+      if (this.receiptEntry) {
+        const { p_installment_no: _installment, ...receipt } = payload;
+        await this.kuri.recordReceipt({
+          ...receipt,
+          p_request_id: this.paymentRequest.id,
+          p_expected_allocations: allocations!,
+        });
+      } else {
+        await this.kuri.recordPayment({ ...payload, p_request_id: this.paymentRequest.id });
+      }
       this.notify.success(
         this.receiptEntry
           ? `Receipt saved for ticket #${member.ticket_no}`

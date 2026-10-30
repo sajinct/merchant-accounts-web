@@ -113,6 +113,8 @@ export interface KuriMemberLedgerRow {
 
 /** Individual payment record (supports partial payments). */
 export interface KuriPaymentRow {
+  receipt_id?: string | null;
+  allocations?: { installment_no: number; amount: number }[];
   id: number;
   installment_no: number;
   amount: number;
