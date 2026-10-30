@@ -194,6 +194,14 @@ import { NAV, NavGroup, NavItem } from './navigation';
             >
               <mat-icon>chat_bubble_outline</mat-icon>WhatsApp · {{ support.phone }}
             </a>
+            <a
+              mat-menu-item
+              [href]="support.rustdeskDownload"
+              download
+              aria-label="Download RustDesk for Windows"
+            >
+              <mat-icon>download</mat-icon>Download RustDesk (Windows)
+            </a>
             <mat-divider />
             <button mat-menu-item type="button" (click)="signOut()">
               <mat-icon>logout</mat-icon> Sign out

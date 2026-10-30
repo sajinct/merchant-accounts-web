@@ -113,6 +113,13 @@ import { SUPPORT } from '../../core/support';
             >
               <mat-icon>chat_bubble_outline</mat-icon>WhatsApp · {{ support.phone }}
             </a>
+            <a
+              [href]="support.rustdeskDownload"
+              download
+              aria-label="Download RustDesk for Windows"
+            >
+              <mat-icon>download</mat-icon>Download RustDesk (Windows)
+            </a>
             <button mat-button type="button" class="update-link" (click)="openUpdates()">
               Check for app updates
             </button>
