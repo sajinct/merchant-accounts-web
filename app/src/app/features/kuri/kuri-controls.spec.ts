@@ -563,12 +563,29 @@ describe('Kuri scheme controls', () => {
     expect(kuri.setInstallmentAmount).toHaveBeenCalledWith(1, 2, null, null, 1250);
   });
 
+  it('saves zero as a custom installment amount and can reset it to the base', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['editInstallmentAmount'](component['installmentAmounts']()[1]);
+    component['installmentAmountForm'].controls.amount.setValue(0);
+    expect(component['installmentAmountForm'].valid).toBe(true);
+    await component['saveInstallmentAmount']();
+    expect(kuri.setInstallmentAmount).toHaveBeenCalledWith(1, 2, 0, null, 1000);
+    component['editInstallmentAmount']({
+      ...component['installmentAmounts']()[1],
+      amount_due: 0,
+      is_custom: true,
+    });
+    expect(component['installmentAmountForm'].controls.amount.value).toBe(0);
+    await component['saveInstallmentAmount'](true);
+    expect(kuri.setInstallmentAmount).toHaveBeenLastCalledWith(1, 2, null, null, 0);
+  });
+
   it('refuses locked installments and invalid custom amounts', async () => {
     const { component, kuri } = await setup(KuriSchemeDetail);
     component['editInstallmentAmount'](component['installmentAmounts']()[0]);
     expect(component['editingInstallment']()).toBeNull();
     component['editInstallmentAmount'](component['installmentAmounts']()[1]);
-    for (const amount of [0, -1, 1.001, 10000000000]) {
+    for (const amount of [-1, 1.001, 10000000000]) {
       component['installmentAmountForm'].controls.amount.setValue(amount);
       await component['saveInstallmentAmount']();
     }

@@ -39,10 +39,10 @@ select is((select balance from kuri_defaulters((select scheme from fixture),2) w
 select is((select amount_due from kuri_receipt_tickets((select scheme from fixture)) where member_id=(select member from fixture)),11000::numeric,'receipt ticket summary totals the custom schedule');
 select throws_ok($$select set_kuri_installment_amount((select scheme from fixture),2,3500,null,4000)$$,
  '22023','Installment amount changed. Reload the schedule before saving.','a stale edit cannot overwrite another amount change');
-select throws_ok($$select set_kuri_installment_amount((select scheme from fixture),2,0)$$,
- '22023','amount must be positive with at most two decimal places','zero amount is refused');
+select throws_ok($$select set_kuri_installment_amount((select scheme from fixture),2,-1)$$,
+ '22023','amount must be zero or positive with at most two decimal places','negative amount is refused');
 select throws_ok($$select set_kuri_installment_amount((select scheme from fixture),2,1.001)$$,
- '22023','amount must be positive with at most two decimal places','fractional paise are refused');
+ '22023','amount must be zero or positive with at most two decimal places','fractional paise are refused');
 select throws_ok($$select set_kuri_installment_amount((select scheme from fixture),4,3000)$$,
  '22023','invalid installment number','out-of-range installments are refused');
 select throws_ok($$select record_kuri_receipt((select scheme from fixture),(select member from fixture),4500,'2026-10-03',null,null,89001,'[{"installment_no":1,"amount":200},{"installment_no":2,"amount":4000},{"installment_no":3,"amount":300}]')$$,

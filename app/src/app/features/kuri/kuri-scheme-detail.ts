@@ -322,12 +322,12 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                         #installmentAmountInput
                         matInput
                         type="number"
-                        min="0.01"
+                        min="0"
                         step="0.01"
                         formControlName="amount"
                       />
                       <mat-error
-                        >Enter a positive amount with at most two decimal places.</mat-error
+                        >Enter zero or a positive amount with at most two decimal places.</mat-error
                       >
                     </mat-form-field>
                     <mat-form-field subscriptSizing="dynamic">
@@ -926,7 +926,7 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
       null as number | null,
       [
         Validators.required,
-        Validators.min(0.01),
+        Validators.min(0),
         Validators.max(9999999999.99),
         Validators.pattern(/^\d+(\.\d{1,2})?$/),
       ],

@@ -169,7 +169,8 @@ this receipt screen. Existing payments and accounting vouchers are preserved.
 ### Custom installment collection amounts
 
 Open a scheme's **Installment amounts** tab to change the amount each ticket holder pays
-for an individual installment. The scheme's base amount remains the default; **Use base
+for an individual installment, including zero when no collection is due. Zero-dues
+installments are skipped by receipt allocation. The scheme's base amount remains the default; **Use base
 amount** removes an override. Lot payouts and the base kuri value do not change.
 
 Draft schemes can customize unused installments. Active schemes can customize installments
@@ -181,6 +182,7 @@ Member ledgers, collection status, defaulters, automatic receipt allocation, bul
 and completion checks use the customized schedule. Amount changes and resets are audited
 with their previous/new values, notes, user and time. Apply
 `supabase/migrations/20261031000000_kuri_installment_amounts.sql` before deploying this UI.
+Apply `supabase/migrations/20261031000200_kuri_zero_installment_amounts.sql` to allow zero collection overrides.
 
 ### Custom payout amounts
 

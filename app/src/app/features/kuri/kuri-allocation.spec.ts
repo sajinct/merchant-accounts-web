@@ -30,6 +30,18 @@ describe('oldest-first Kuri receipt allocation', () => {
     ]);
     expect(allocateKuriReceipt(8200, [row(1, 200), row(2, 4000), row(3, 4000)])).toHaveLength(3);
   });
+  it('skips zero-dues installments when allocating a receipt across installments', () => {
+    expect(
+      allocateKuriReceipt(500, [
+        row(1, 200),
+        { ...row(2, 0), amount_due: 0, amount_paid: 0 },
+        row(3, 4000),
+      ]),
+    ).toEqual([
+      { installment_no: 1, amount: 200 },
+      { installment_no: 3, amount: 300 },
+    ]);
+  });
   it('preserves decimal amounts exactly in paise', () => {
     expect(allocateKuriReceipt(0.3, [row(1, 0.1), row(2, 0.2)])).toEqual([
       { installment_no: 1, amount: 0.1 },
