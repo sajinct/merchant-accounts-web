@@ -166,6 +166,32 @@ specific installment through `record_kuri_payment`.
 Apply `supabase/migrations/20261030000000_kuri_receipt_allocation.sql` before deploying
 this receipt screen. Existing payments and accounting vouchers are preserved.
 
+### Custom installment collection amounts
+
+Open a scheme's **Installment amounts** tab to change the amount each ticket holder pays
+for an individual installment. The scheme's base amount remains the default; **Use base
+amount** removes an override. Lot payouts and the base kuri value do not change.
+
+Draft schemes can customize unused installments. Active schemes can customize installments
+after the highest installment reached by an active receipt allocation or a lot draw. Earlier
+installments, including gaps before that point, and completed schemes are locked. Advance
+receipts therefore lock any future installments they have already been allocated to.
+
+Member ledgers, collection status, defaulters, automatic receipt allocation, bulk collection
+and completion checks use the customized schedule. Amount changes and resets are audited
+with their previous/new values, notes, user and time. Apply
+`supabase/migrations/20261031000000_kuri_installment_amounts.sql` before deploying this UI.
+
+### Custom payout amounts
+
+Open **Payout Schedule** and choose **Edit payout** on a future installment to override
+the lot payout. **Use calculated payout** restores the amount based on the scheme's base
+terms. Collection dues remain independent. Draft and active schemes allow edits after
+the last drawn lot; drawn lots (including pending payouts) and completed schemes stay
+locked. Draws and accounting payments use the saved custom payout. Changes and resets
+are audited, and stale edits are rejected. Apply
+`supabase/migrations/20261031000100_kuri_payout_amounts.sql` before deploying this UI.
+
 ## Vouchers
 
 Receipt, Payment, Contra and Journal are four menu entries, four routes and **one screen**: `VoucherEntry` at `/transactions/voucher/<type>`. The voucher type decides the headings, which accounts the lines may use, whether simplified entry is offered and which rules apply; everything else — account lookup, numbering, narration, validation, saving, printing, the audit trail — is shared.

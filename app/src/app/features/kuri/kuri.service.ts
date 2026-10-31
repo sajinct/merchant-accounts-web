@@ -7,6 +7,7 @@ import {
   KuriSchemeListRow,
   KuriSchemeDetail,
   KuriPayoutSlot,
+  KuriInstallmentAmount,
   KuriMember,
   KuriLot,
   KuriCollectionRow,
@@ -47,7 +48,47 @@ export class KuriService {
   }
 
   getPayoutSchedule(schemeId: number): Promise<KuriPayoutSlot[]> {
-    return must(this.sb.rpc('kuri_payout_schedule', { p_scheme_id: schemeId }));
+    return must(this.sb.rpc('kuri_payout_amount_schedule', { p_scheme_id: schemeId }));
+  }
+
+  setPayoutAmount(
+    schemeId: number,
+    installmentNo: number,
+    amount: number | null,
+    notes: string | null,
+    expectedAmount: number,
+  ): Promise<unknown> {
+    return must(
+      this.sb.rpc('set_kuri_payout_amount', {
+        p_scheme_id: schemeId,
+        p_installment_no: installmentNo,
+        p_amount: amount,
+        p_notes: notes,
+        p_expected_amount: expectedAmount,
+      }),
+    );
+  }
+
+  getInstallmentAmounts(schemeId: number): Promise<KuriInstallmentAmount[]> {
+    return must(this.sb.rpc('kuri_installment_amount_schedule', { p_scheme_id: schemeId }));
+  }
+
+  setInstallmentAmount(
+    schemeId: number,
+    installmentNo: number,
+    amount: number | null,
+    notes: string | null,
+    expectedAmount: number,
+  ): Promise<unknown> {
+    return must(
+      this.sb.rpc('set_kuri_installment_amount', {
+        p_scheme_id: schemeId,
+        p_installment_no: installmentNo,
+        p_amount: amount,
+        p_notes: notes,
+        p_expected_amount: expectedAmount,
+      }),
+    );
   }
 
   createScheme(params: {

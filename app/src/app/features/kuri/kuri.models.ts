@@ -52,6 +52,21 @@ export interface KuriPayoutSlot {
   installment_no: number;
   lot_number: number;
   payout_amount: number;
+  calculated_amount?: number;
+  is_custom?: boolean;
+  can_edit?: boolean;
+  notes?: string | null;
+  updated_at?: string | null;
+}
+
+export interface KuriInstallmentAmount {
+  installment_no: number;
+  base_amount: number;
+  amount_due: number;
+  is_custom: boolean;
+  can_edit: boolean;
+  notes: string | null;
+  updated_at: string | null;
 }
 
 export interface KuriMember {

@@ -100,7 +100,7 @@ type StatusFilter = 'all' | 'draft' | 'active' | 'completed';
               <tr>
                 <th>Name</th>
                 <th>Account</th>
-                <th class="num">Installment</th>
+                <th class="num">Base installment</th>
                 <th class="num">Total Value</th>
                 <th class="num">Members</th>
                 <th class="num">Lots Drawn</th>

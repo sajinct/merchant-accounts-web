@@ -37,7 +37,7 @@ import { KuriService } from './kuri.service';
       <app-page-header
         eyebrow="Kuri"
         heading="New Kuri Scheme"
-        description="The payout schedule below is worked out from these figures and cannot be edited later."
+        description="These are the base terms. Future per-ticket collection amounts and undrawn lot payouts can be customized later."
       >
         <a mat-stroked-button routerLink="/kuri/schemes"
           ><mat-icon>arrow_back</mat-icon> All schemes</a

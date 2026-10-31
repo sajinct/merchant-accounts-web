@@ -1,5 +1,17 @@
 import { DatePipe, DecimalPipe, TitleCasePipe } from '@angular/common';
-import { Component, computed, DestroyRef, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  Injector,
+  OnDestroy,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -31,6 +43,7 @@ import {
   KuriCustomerSummary,
   KuriSchemeDetail as KuriSchemeDetailModel,
   KuriPayoutSlot,
+  KuriInstallmentAmount,
   KuriMember,
   KuriLot,
   ticketHolderAddress,
@@ -146,6 +159,69 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
           <mat-tab label="Payout Schedule">
             <div class="panel">
               <div class="panel-body">
+                <p class="hint">
+                  Future payouts can be customized before their lots are drawn. Drawn lots,
+                  including pending payouts, keep their recorded amounts. Collection dues are
+                  unchanged.
+                </p>
+                @if (editingPayout(); as editing) {
+                  <form
+                    class="form-grid"
+                    appEnterToNext
+                    [formGroup]="payoutAmountForm"
+                    (ngSubmit)="savePayoutAmount()"
+                  >
+                    <h3 class="full">Installment {{ editing.installment_no }} · Payout amount</h3>
+                    <mat-form-field subscriptSizing="dynamic">
+                      <mat-label>Payout amount</mat-label>
+                      <input
+                        #payoutAmountInput
+                        matInput
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        formControlName="amount"
+                      />
+                      <mat-hint
+                        >Calculated: {{ editing.calculated_amount | number: '1.2-2' }}</mat-hint
+                      >
+                      <mat-error
+                        >Enter a positive amount with at most two decimal places.</mat-error
+                      >
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                      <mat-label>Reason / notes (optional)</mat-label>
+                      <input matInput formControlName="notes" maxlength="500" />
+                    </mat-form-field>
+                    <div class="form-actions full">
+                      <button
+                        mat-flat-button
+                        type="submit"
+                        [disabled]="busy() || payoutAmountForm.invalid"
+                      >
+                        Save payout
+                      </button>
+                      @if (editing.is_custom) {
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          [disabled]="busy()"
+                          (click)="savePayoutAmount(true)"
+                        >
+                          Use calculated payout
+                        </button>
+                      }
+                      <button
+                        mat-button
+                        type="button"
+                        [disabled]="busy()"
+                        (click)="editingPayout.set(null)"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                }
                 <div class="table-wrap" role="region" tabindex="0" aria-label="Payout schedule">
                   <table class="data-table">
                     <thead>
@@ -155,6 +231,7 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                         <th scope="col" class="num">Payout Amount</th>
                         <th scope="col">Winner</th>
                         <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -167,6 +244,12 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                               <span class="hint">Collection only (no lot)</span>
                             } @else {
                               {{ slot.payout_amount | number: '1.2-2' }}
+                              @if (slot.is_custom) {
+                                <span class="status-badge neutral">Custom</span>
+                                <div class="table-secondary">
+                                  Calculated: {{ slot.calculated_amount | number: '1.2-2' }}
+                                </div>
+                              }
                             }
                           </td>
                           <td>
@@ -191,6 +274,21 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                               —
                             }
                           </td>
+                          <td>
+                            @if (auth.canEdit() && slot.can_edit) {
+                              <button
+                                mat-button
+                                type="button"
+                                [disabled]="busy() || loading()"
+                                [attr.aria-label]="
+                                  'Edit installment ' + slot.installment_no + ' payout'
+                                "
+                                (click)="editPayoutAmount(slot.installment_no)"
+                              >
+                                <mat-icon>edit</mat-icon>Edit payout
+                              </button>
+                            }
+                          </td>
                         </tr>
                       }
                     </tbody>
@@ -200,6 +298,134 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
             </div>
           </mat-tab>
 
+          <mat-tab label="Installment amounts">
+            <div class="panel">
+              <div class="panel-body">
+                <p class="hint">
+                  Per-ticket collection amounts can be customized for future installments.
+                  Installments already reached by receipts or lot draws are locked. Use Payout
+                  Schedule to customize future lot payouts separately.
+                </p>
+                @if (editingInstallment(); as editing) {
+                  <form
+                    class="form-grid installment-amount-form"
+                    appEnterToNext
+                    [formGroup]="installmentAmountForm"
+                    (ngSubmit)="saveInstallmentAmount()"
+                  >
+                    <h3 class="full">
+                      Installment {{ editing.installment_no }} · Per-ticket amount
+                    </h3>
+                    <mat-form-field subscriptSizing="dynamic">
+                      <mat-label>Amount per ticket</mat-label>
+                      <input
+                        #installmentAmountInput
+                        matInput
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        formControlName="amount"
+                      />
+                      <mat-error
+                        >Enter a positive amount with at most two decimal places.</mat-error
+                      >
+                    </mat-form-field>
+                    <mat-form-field subscriptSizing="dynamic">
+                      <mat-label>Reason / notes (optional)</mat-label>
+                      <input matInput formControlName="notes" maxlength="500" />
+                    </mat-form-field>
+                    <div class="form-actions full">
+                      <button
+                        mat-flat-button
+                        type="submit"
+                        [disabled]="busy() || installmentAmountForm.invalid"
+                      >
+                        Save amount
+                      </button>
+                      @if (editing.is_custom) {
+                        <button
+                          mat-stroked-button
+                          type="button"
+                          [disabled]="busy()"
+                          (click)="saveInstallmentAmount(true)"
+                        >
+                          Use base amount
+                        </button>
+                      }
+                      <button
+                        mat-button
+                        type="button"
+                        [disabled]="busy()"
+                        (click)="editingInstallment.set(null)"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                }
+                <div
+                  class="table-wrap"
+                  role="region"
+                  tabindex="0"
+                  aria-label="Installment collection amounts"
+                >
+                  <table class="report-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Installment</th>
+                        <th scope="col" class="num">Base amount</th>
+                        <th scope="col" class="num">Per-ticket amount</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of installmentAmounts(); track row.installment_no) {
+                        <tr>
+                          <td>{{ row.installment_no }}</td>
+                          <td class="num">{{ row.base_amount | number: '1.2-2' }}</td>
+                          <td class="num">
+                            {{ row.amount_due | number: '1.2-2' }}
+                            @if (row.is_custom) {
+                              <span class="status-badge neutral">Custom</span>
+                            }
+                          </td>
+                          <td>
+                            {{ row.can_edit ? 'Future / unused' : 'Locked' }}
+                            @if (row.notes) {
+                              <div class="table-secondary">{{ row.notes }}</div>
+                            }
+                          </td>
+                          <td>
+                            @if (auth.canEdit() && row.can_edit) {
+                              <button
+                                mat-button
+                                type="button"
+                                [disabled]="busy() || loading()"
+                                [attr.aria-label]="
+                                  'Edit installment ' + row.installment_no + ' amount'
+                                "
+                                (click)="editInstallmentAmount(row)"
+                              >
+                                <mat-icon>edit</mat-icon>Edit
+                              </button>
+                            }
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="2">Total per ticket</td>
+                        <td class="num">{{ installmentTotal() | number: '1.2-2' }}</td>
+                        <td colspan="2"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </mat-tab>
           <mat-tab label="Members ({{ members().length }})">
             <div class="panel">
               <div class="panel-body">
@@ -669,10 +895,44 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   private readonly notify = inject(NotifyService);
   private readonly dialog = inject(MatDialog);
   private readonly fb = inject(FormBuilder);
+  private readonly injector = inject(Injector);
+  private readonly installmentAmountInput =
+    viewChild<ElementRef<HTMLInputElement>>('installmentAmountInput');
+  private readonly payoutAmountInput = viewChild<ElementRef<HTMLInputElement>>('payoutAmountInput');
+  protected readonly editingPayout = signal<KuriPayoutSlot | null>(null);
+  protected readonly payoutAmountForm = this.fb.group({
+    amount: [
+      null as number | null,
+      [
+        Validators.required,
+        Validators.min(0.01),
+        Validators.max(9999999999.99),
+        Validators.pattern(/^\d+(\.\d{1,2})?$/),
+      ],
+    ],
+    notes: ['', Validators.maxLength(500)],
+  });
 
   private readonly schemeId = signal<number>(0);
   protected readonly scheme = signal<KuriSchemeDetailModel | null>(null);
   protected readonly slots = signal<KuriPayoutSlot[]>([]);
+  protected readonly installmentAmounts = signal<KuriInstallmentAmount[]>([]);
+  protected readonly editingInstallment = signal<KuriInstallmentAmount | null>(null);
+  protected readonly installmentTotal = computed(() =>
+    this.installmentAmounts().reduce((sum, row) => sum + Number(row.amount_due), 0),
+  );
+  protected readonly installmentAmountForm = this.fb.group({
+    amount: [
+      null as number | null,
+      [
+        Validators.required,
+        Validators.min(0.01),
+        Validators.max(9999999999.99),
+        Validators.pattern(/^\d+(\.\d{1,2})?$/),
+      ],
+    ],
+    notes: ['', Validators.maxLength(500)],
+  });
   protected readonly members = signal<KuriMember[]>([]);
   protected readonly lots = signal<KuriLot[]>([]);
   protected readonly accounts = signal<AccountHead[]>([]);
@@ -759,11 +1019,15 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
     return Array.from({ length: scheme.num_installments }, (_, i) => {
       const installmentNo = i + 1;
       const slot = slots.find((x) => x.installment_no === installmentNo);
+      const lot = lots.find((l) => l.installment_no === installmentNo);
       return {
         installment_no: installmentNo,
         lot_number: slot?.lot_number ?? null,
-        payout_amount: slot?.payout_amount ?? null,
-        lot: lots.find((l) => l.installment_no === installmentNo),
+        payout_amount: lot?.payout_amount ?? slot?.payout_amount ?? null,
+        calculated_amount: slot?.calculated_amount ?? slot?.payout_amount ?? null,
+        is_custom: slot?.is_custom ?? false,
+        can_edit: slot?.can_edit === true && !lot && scheme.status !== 'completed',
+        lot,
       };
     });
   });
@@ -945,6 +1209,8 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
         this.schemeId.set(id);
         this.scheme.set(null);
         this.editingAccount.set(false);
+        this.editingInstallment.set(null);
+        this.editingPayout.set(null);
         this.resetMemberForm();
         this.drawForm.reset();
         void this.loadData();
@@ -986,11 +1252,12 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
     this.loading.set(true);
     try {
       const id = this.schemeId();
-      const [schemes, slots, members, lots] = await Promise.all([
+      const [schemes, slots, members, lots, amounts] = await Promise.all([
         this.kuri.getSchemeDetail(id),
         this.kuri.getPayoutSchedule(id),
         this.kuri.getMembers(id),
         this.kuri.getLots(id),
+        this.kuri.getInstallmentAmounts(id),
       ]);
       if (request !== this.loadRequest) return;
       const loadedScheme = schemes[0] || null;
@@ -1001,6 +1268,7 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
       this.slots.set(slots);
       this.members.set(members);
       this.lots.set(lots);
+      this.installmentAmounts.set(amounts);
       this.memberForm.controls.ticketNo.setValidators([
         Validators.required,
         Validators.min(1),
@@ -1030,6 +1298,112 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   protected startEditAccount(): void {
     this.accountForm.controls.headCode.setValue(this.scheme()?.head_code ?? null);
     this.editingAccount.set(true);
+  }
+
+  protected editInstallmentAmount(row: KuriInstallmentAmount): void {
+    if (!this.auth.canEdit() || this.busy() || this.loading() || !row.can_edit) return;
+    this.installmentAmountForm.reset({ amount: Number(row.amount_due), notes: '' });
+    this.editingInstallment.set(row);
+    afterNextRender(
+      () => {
+        if (!this.destroyRef.destroyed) this.installmentAmountInput()?.nativeElement.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected editPayoutAmount(installmentNo: number): void {
+    const row = this.slots().find((slot) => slot.installment_no === installmentNo);
+    if (
+      !row ||
+      !row.can_edit ||
+      !this.auth.canEdit() ||
+      this.busy() ||
+      this.loading() ||
+      this.scheme()?.status === 'completed' ||
+      this.lots().some((lot) => lot.installment_no === installmentNo)
+    )
+      return;
+    this.payoutAmountForm.reset({ amount: Number(row.payout_amount), notes: '' });
+    this.editingPayout.set(row);
+    afterNextRender(
+      () => {
+        if (!this.destroyRef.destroyed) this.payoutAmountInput()?.nativeElement.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected async savePayoutAmount(reset = false): Promise<void> {
+    const row = this.editingPayout();
+    if (
+      !row ||
+      !row.can_edit ||
+      !this.auth.canEdit() ||
+      this.busy() ||
+      this.loading() ||
+      (!reset && this.payoutAmountForm.invalid)
+    )
+      return;
+    const schemeId = this.schemeId();
+    this.busy.set(true);
+    this.payoutAmountForm.disable({ emitEvent: false });
+    try {
+      const { amount, notes } = this.payoutAmountForm.getRawValue();
+      await this.kuri.setPayoutAmount(
+        schemeId,
+        row.installment_no,
+        reset ? null : amount!,
+        notes?.trim() || null,
+        Number(row.payout_amount),
+      );
+      if (schemeId !== this.schemeId()) return;
+      this.editingPayout.set(null);
+      this.notify.success(reset ? 'Calculated payout restored' : 'Payout amount updated');
+      await this.loadData();
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.payoutAmountForm.enable({ emitEvent: false });
+      this.busy.set(false);
+    }
+  }
+
+  protected async saveInstallmentAmount(reset = false): Promise<void> {
+    const row = this.editingInstallment();
+    if (
+      !row ||
+      !row.can_edit ||
+      !this.auth.canEdit() ||
+      this.busy() ||
+      this.loading() ||
+      (!reset && this.installmentAmountForm.invalid)
+    )
+      return;
+    this.busy.set(true);
+    this.installmentAmountForm.disable({ emitEvent: false });
+    const schemeId = this.schemeId();
+    try {
+      const { amount, notes } = this.installmentAmountForm.getRawValue();
+      await this.kuri.setInstallmentAmount(
+        schemeId,
+        row.installment_no,
+        reset ? null : amount!,
+        notes?.trim() || null,
+        Number(row.amount_due),
+      );
+      if (schemeId !== this.schemeId()) return;
+      this.editingInstallment.set(null);
+      this.notify.success(
+        reset ? 'Base installment amount restored' : 'Installment amount updated',
+      );
+      await this.loadData();
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.installmentAmountForm.enable({ emitEvent: false });
+      this.busy.set(false);
+    }
   }
 
   protected async saveSchemeAccount(): Promise<void> {

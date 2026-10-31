@@ -86,6 +86,37 @@ async function setup<T>(component: Type<T>, receiptEntry = false) {
     getCollectionStatus: vi.fn().mockResolvedValue([collection]),
     getMembers: vi.fn().mockResolvedValue([member]),
     getPayoutSchedule: vi.fn().mockResolvedValue([]),
+    getInstallmentAmounts: vi.fn().mockResolvedValue([
+      {
+        installment_no: 1,
+        base_amount: 1000,
+        amount_due: 1000,
+        is_custom: false,
+        can_edit: false,
+        notes: null,
+        updated_at: null,
+      },
+      {
+        installment_no: 2,
+        base_amount: 1000,
+        amount_due: 1000,
+        is_custom: false,
+        can_edit: true,
+        notes: null,
+        updated_at: null,
+      },
+      {
+        installment_no: 3,
+        base_amount: 1000,
+        amount_due: 1000,
+        is_custom: false,
+        can_edit: true,
+        notes: null,
+        updated_at: null,
+      },
+    ]),
+    setInstallmentAmount: vi.fn().mockResolvedValue({}),
+    setPayoutAmount: vi.fn().mockResolvedValue({}),
     getLots: vi.fn().mockResolvedValue([]),
     getDefaulters: vi.fn().mockResolvedValue([collection]),
     getMemberLedger: vi
@@ -510,6 +541,149 @@ describe('Kuri simple receipt entry', () => {
 });
 
 describe('Kuri scheme controls', () => {
+  it('edits a future installment without changing the base scheme terms', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    const row = component['installmentAmounts']()[1];
+    component['editInstallmentAmount'](row);
+    component['installmentAmountForm'].patchValue({
+      amount: 1250,
+      notes: '  Adjusted collection  ',
+    });
+    await component['saveInstallmentAmount']();
+    expect(kuri.setInstallmentAmount).toHaveBeenCalledWith(1, 2, 1250, 'Adjusted collection', 1000);
+    expect(component['editingInstallment']()).toBeNull();
+    expect(component['scheme']()?.installment_amount).toBe(1000);
+  });
+
+  it('restores a custom future installment to its base amount', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    const row = { ...component['installmentAmounts']()[1], amount_due: 1250, is_custom: true };
+    component['editInstallmentAmount'](row);
+    await component['saveInstallmentAmount'](true);
+    expect(kuri.setInstallmentAmount).toHaveBeenCalledWith(1, 2, null, null, 1250);
+  });
+
+  it('refuses locked installments and invalid custom amounts', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['editInstallmentAmount'](component['installmentAmounts']()[0]);
+    expect(component['editingInstallment']()).toBeNull();
+    component['editInstallmentAmount'](component['installmentAmounts']()[1]);
+    for (const amount of [0, -1, 1.001, 10000000000]) {
+      component['installmentAmountForm'].controls.amount.setValue(amount);
+      await component['saveInstallmentAmount']();
+    }
+    expect(kuri.setInstallmentAmount).not.toHaveBeenCalled();
+  });
+
+  it('keeps the edit on failure and prevents duplicate saves', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['editInstallmentAmount'](component['installmentAmounts']()[1]);
+    component['installmentAmountForm'].controls.amount.setValue(1250);
+    kuri.setInstallmentAmount.mockRejectedValueOnce(new Error('Balance changed'));
+    await component['saveInstallmentAmount']();
+    expect(component['installmentAmountForm'].controls.amount.value).toBe(1250);
+    expect(component['editingInstallment']()).not.toBeNull();
+    const response = deferred<object>();
+    kuri.setInstallmentAmount.mockReturnValueOnce(response.promise);
+    const saving = component['saveInstallmentAmount']();
+    expect(component['installmentAmountForm'].disabled).toBe(true);
+    await component['saveInstallmentAmount']();
+    expect(kuri.setInstallmentAmount).toHaveBeenCalledTimes(2);
+    response.resolve({});
+    await saving;
+  });
+
+  it('discards an unfinished amount edit when navigating to another scheme', async () => {
+    const { component, params } = await setup(KuriSchemeDetail);
+    component['editInstallmentAmount'](component['installmentAmounts']()[1]);
+    params.next(convertToParamMap({ id: '2' }));
+    expect(component['editingInstallment']()).toBeNull();
+  });
+  it('saves a future payout override with the displayed amount as a concurrency check', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['slots'].set([
+      {
+        installment_no: 2,
+        lot_number: 1,
+        payout_amount: 1592,
+        calculated_amount: 1592,
+        can_edit: true,
+        is_custom: false,
+      },
+    ]);
+    component['editPayoutAmount'](2);
+    component['payoutAmountForm'].patchValue({ amount: 1700, notes: ' Agreed payout ' });
+    await component['savePayoutAmount']();
+    expect(kuri.setPayoutAmount).toHaveBeenCalledWith(1, 2, 1700, 'Agreed payout', 1592);
+    expect(component['editingPayout']()).toBeNull();
+  });
+
+  it('restores a custom payout to its calculated amount', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['slots'].set([
+      {
+        installment_no: 3,
+        lot_number: 2,
+        payout_amount: 1900,
+        calculated_amount: 2000,
+        can_edit: true,
+        is_custom: true,
+      },
+    ]);
+    component['editPayoutAmount'](3);
+    await component['savePayoutAmount'](true);
+    expect(kuri.setPayoutAmount).toHaveBeenCalledWith(1, 3, null, null, 1900);
+  });
+
+  it('rejects invalid payouts and retains the edit when saving fails', async () => {
+    const { component, kuri, notify } = await setup(KuriSchemeDetail);
+    component['slots'].set([
+      { installment_no: 3, lot_number: 2, payout_amount: 2000, can_edit: true },
+    ]);
+    component['editPayoutAmount'](3);
+    for (const amount of [0, -1, 1.001, 10000000000]) {
+      component['payoutAmountForm'].controls.amount.setValue(amount);
+      await component['savePayoutAmount']();
+    }
+    expect(kuri.setPayoutAmount).not.toHaveBeenCalled();
+    kuri.setPayoutAmount.mockRejectedValueOnce(new Error('Payout amount changed'));
+    component['payoutAmountForm'].controls.amount.setValue(2100);
+    await component['savePayoutAmount']();
+    expect(component['editingPayout']()?.installment_no).toBe(3);
+    expect(component['payoutAmountForm'].controls.amount.value).toBe(2100);
+    expect(component['busy']()).toBe(false);
+    expect(notify.error).toHaveBeenCalled();
+  });
+
+  it('locks drawn payouts and displays the recorded award even with a stale schedule', async () => {
+    const { component } = await setup(KuriSchemeDetail);
+    component['slots'].set([
+      { installment_no: 2, lot_number: 1, payout_amount: 1592, can_edit: true },
+    ]);
+    component['lots'].set([
+      {
+        id: 1,
+        scheme_id: 1,
+        installment_no: 2,
+        winner_member_id: 1,
+        payout_amount: 1700,
+        payout_status: 'pending',
+        drawn_at: '',
+        payout_date: null,
+        member: null,
+      },
+    ]);
+    component['editPayoutAmount'](1);
+    component['editPayoutAmount'](2);
+    expect(component['editingPayout']()).toBeNull();
+    expect(component['combinedSchedule']()[1].payout_amount).toBe(1700);
+    expect(component['combinedSchedule']()[1].can_edit).toBe(false);
+    component['lots'].set([]);
+    component['scheme'].set({ ...scheme, status: 'completed' });
+    component['editPayoutAmount'](2);
+    expect(component['editingPayout']()).toBeNull();
+  });
+
   it('previews the saved PSP7 scheme with 25 tickets and 26 installments correctly', async () => {
     const { component } = await setup(KuriSchemeForm);
     component['form'].patchValue({
