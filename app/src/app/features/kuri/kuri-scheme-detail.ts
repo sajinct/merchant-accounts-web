@@ -459,6 +459,17 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                           </td>
                           <td>{{ getMemberWin(m.id) || '—' }}</td>
                           <td>
+                            @if (s.status !== 'completed' && auth.canEdit()) {
+                              <button
+                                mat-button
+                                type="button"
+                                [disabled]="busy() || loading()"
+                                [attr.aria-label]="'Edit ticket ' + m.ticket_no + ' member'"
+                                (click)="editMember(m)"
+                              >
+                                <mat-icon>edit</mat-icon>Edit member
+                              </button>
+                            }
                             @if (s.status === 'draft' && auth.isAdmin()) {
                               <button
                                 mat-icon-button
@@ -483,14 +494,31 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                   </table>
                 </div>
 
-                @if (s.status === 'draft' && auth.canEdit() && members().length < s.num_members) {
+                @if (
+                  auth.canEdit() &&
+                  s.status !== 'completed' &&
+                  (editingMember() || (s.status === 'draft' && members().length < s.num_members))
+                ) {
                   <div class="panel-header" style="margin-top: 2rem;">
-                    <h2>Assign Ticket</h2>
+                    <h2>
+                      {{
+                        editingMember()
+                          ? 'Update Ticket #' + editingMember()!.ticket_no + ' Member'
+                          : 'Assign Ticket'
+                      }}
+                    </h2>
                   </div>
+                  @if (editingMember()) {
+                    <p class="hint">
+                      Receipts, balances and lot wins stay with this ticket. Existing accounting
+                      vouchers keep their recorded member. Future receipts and payouts use the
+                      updated member.
+                    </p>
+                  }
                   <form
                     appEnterToNext
                     [formGroup]="memberForm"
-                    (ngSubmit)="addMember()"
+                    (ngSubmit)="saveMember()"
                     class="form-grid"
                   >
                     <mat-form-field subscriptSizing="dynamic" class="member-search-field">
@@ -498,6 +526,7 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                       <mat-icon matPrefix>search</mat-icon>
                       <input
                         matInput
+                        #memberSearchInput
                         [formControl]="memberSearch"
                         [matAutocomplete]="memberAuto"
                         placeholder="Search by member name, phone or code…"
@@ -560,19 +589,24 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                         matInput
                         type="number"
                         formControlName="ticketNo"
+                        [readonly]="!!editingMember()"
                         min="1"
                         [max]="s.num_members"
                         step="1"
                       />
                       <mat-hint>
-                        {{ availableTickets().length }} of {{ s.num_members }} tickets available
+                        @if (editingMember()) {
+                          Ticket number stays the same.
+                        } @else {
+                          {{ availableTickets().length }} of {{ s.num_members }} tickets available
+                        }
                       </mat-hint>
                       <mat-error
                         >Enter an available ticket number from 1 to {{ s.num_members }}.</mat-error
                       >
                     </mat-form-field>
 
-                    @if (availableTickets().length > 0) {
+                    @if (!editingMember() && availableTickets().length > 0) {
                       <div class="ticket-picker-strip full">
                         <span class="ticket-picker-label">Quick pick ticket #:</span>
                         <div
@@ -644,8 +678,18 @@ function isCustomerSummary(value: unknown): value is KuriCustomerSummary {
                         type="submit"
                         [disabled]="memberForm.invalid || busy()"
                       >
-                        Assign Ticket
+                        {{ editingMember() ? 'Save member' : 'Assign Ticket' }}
                       </button>
+                      @if (editingMember()) {
+                        <button
+                          mat-button
+                          type="button"
+                          [disabled]="busy()"
+                          (click)="cancelEditMember()"
+                        >
+                          Cancel
+                        </button>
+                      }
                     </div>
                   </form>
                 }
@@ -973,6 +1017,9 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
 
   protected readonly payoutCashControl = new FormControl<number | null>(null);
 
+  protected readonly editingMember = signal<KuriMember | null>(null);
+  private readonly memberSearchInput = viewChild<ElementRef<HTMLInputElement>>('memberSearchInput');
+
   protected readonly memberSearch = new FormControl<KuriCustomerSummary | string>('');
 
   protected readonly memberForm = this.fb.group({
@@ -1110,6 +1157,7 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
 
   protected onSelectCustomer(customer: KuriCustomerSummary): void {
     if (!isCustomerSummary(customer)) return;
+    ++this.customerLookupRequest;
     this.selectedCustomer.set(customer);
     this.customerLookupFailed.set(false);
     this.memberForm.controls.customerCode.setValue(customer.code, { emitEvent: false });
@@ -1118,6 +1166,7 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   }
 
   protected clearSelectedMember(): void {
+    ++this.customerLookupRequest;
     this.selectedCustomer.set(null);
     this.customerLookupFailed.set(false);
     this.memberSearch.setValue('', { emitEvent: false });
@@ -1234,6 +1283,8 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
   }
 
   private resetMemberForm(nextTicket: number | null = null): void {
+    this.editingMember.set(null);
+    ++this.customerLookupRequest;
     this.selectedCustomer.set(null);
     this.customerLookupFailed.set(false);
     this.memberSearch.setValue('', { emitEvent: false });
@@ -1433,6 +1484,73 @@ export class KuriSchemeDetail implements OnInit, OnDestroy {
     } catch (err) {
       this.notify.error(err);
     } finally {
+      this.busy.set(false);
+    }
+  }
+
+  protected editMember(member: KuriMember): void {
+    if (
+      !this.auth.canEdit() ||
+      this.busy() ||
+      this.loading() ||
+      this.scheme()?.status === 'completed'
+    )
+      return;
+    this.resetMemberForm();
+    this.editingMember.set(member);
+    const custom = !!(member.holder_name || member.holder_address || member.holder_phone);
+    this.memberForm.patchValue({
+      customerCode: member.customer_code,
+      ticketNo: member.ticket_no,
+      useCustomHolder: custom,
+      holderName: member.holder_name || '',
+      holderAddress: member.holder_address || '',
+      holderPhone: member.holder_phone || '',
+    });
+    if (member.customer) this.onSelectCustomer(member.customer);
+    afterNextRender(
+      () => {
+        if (!this.destroyRef.destroyed) this.memberSearchInput()?.nativeElement.focus();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  protected cancelEditMember(): void {
+    this.resetMemberForm(this.availableTickets()[0] ?? null);
+  }
+
+  protected async saveMember(): Promise<void> {
+    const editing = this.editingMember();
+    if (!editing) return this.addMember();
+    if (
+      this.memberForm.invalid ||
+      this.busy() ||
+      this.loading() ||
+      !this.auth.canEdit() ||
+      this.scheme()?.status === 'completed'
+    )
+      return;
+    const schemeId = this.schemeId();
+    const v = this.memberForm.getRawValue();
+    this.busy.set(true);
+    this.memberForm.disable({ emitEvent: false });
+    this.memberSearch.disable({ emitEvent: false });
+    try {
+      await this.kuri.updateMember(editing.id, v.customerCode!, editing.revision ?? 0, {
+        holderName: v.useCustomHolder ? v.holderName?.trim() || null : null,
+        holderAddress: v.useCustomHolder ? v.holderAddress?.trim() || null : null,
+        holderPhone: v.useCustomHolder ? v.holderPhone?.trim() || null : null,
+      });
+      if (schemeId !== this.schemeId()) return;
+      this.notify.success('Ticket member updated');
+      this.resetMemberForm();
+      await this.loadData();
+    } catch (err) {
+      this.notify.error(err);
+    } finally {
+      this.memberForm.enable({ emitEvent: false });
+      this.memberSearch.enable({ emitEvent: false });
       this.busy.set(false);
     }
   }

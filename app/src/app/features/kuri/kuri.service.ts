@@ -175,6 +175,24 @@ export class KuriService {
     return must(this.sb.rpc('add_kuri_member', payload));
   }
 
+  updateMember(
+    memberId: number,
+    customerCode: number,
+    expectedRevision: number,
+    options: AddKuriMemberOptions,
+  ): Promise<unknown> {
+    return must(
+      this.sb.rpc('update_kuri_member', {
+        p_member_id: memberId,
+        p_customer_code: customerCode,
+        p_expected_revision: expectedRevision,
+        p_holder_name: options.holderName?.trim() || null,
+        p_holder_address: options.holderAddress?.trim() || null,
+        p_holder_phone: options.holderPhone?.trim() || null,
+      }),
+    );
+  }
+
   removeMember(memberId: number): Promise<unknown> {
     return must(this.sb.rpc('remove_kuri_member', { p_member_id: memberId }));
   }

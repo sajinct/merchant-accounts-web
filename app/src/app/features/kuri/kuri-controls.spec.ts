@@ -133,6 +133,7 @@ async function setup<T>(component: Type<T>, receiptEntry = false) {
     setSchemeAccount: vi.fn().mockResolvedValue({}),
     markPayout: vi.fn().mockResolvedValue({}),
     addMember: vi.fn().mockResolvedValue({}),
+    updateMember: vi.fn().mockResolvedValue({}),
     getCustomer: vi.fn().mockResolvedValue({
       code: 1,
       name: 'Test member',
@@ -541,6 +542,110 @@ describe('Kuri simple receipt entry', () => {
 });
 
 describe('Kuri scheme controls', () => {
+  it('opens the member editor from an active ticket and keeps its ticket number read-only', async () => {
+    const { component, fixture, host } = await setup(KuriSchemeDetail);
+    host.querySelector<HTMLElement>('[role="tab"][id$="label-2"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    await vi.waitFor(() => {
+      fixture.detectChanges();
+      expect(host.querySelector('[aria-label="Edit ticket 1 member"]')).not.toBeNull();
+    });
+    host.querySelector<HTMLButtonElement>('[aria-label="Edit ticket 1 member"]')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(component['editingMember']()?.id).toBe(1);
+    expect(host.querySelector<HTMLInputElement>('[formControlName="ticketNo"]')!.readOnly).toBe(
+      true,
+    );
+    expect(host.textContent).toContain('Save member');
+    expect(host.textContent).toContain('Existing accounting vouchers keep their recorded member');
+    component['cancelEditMember']();
+    fixture.detectChanges();
+    expect(component['editingMember']()).toBeNull();
+  });
+
+  it('updates an active ticket member while retaining the ticket identity', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['editMember']({ ...member, revision: 3 });
+    expect(component['memberForm'].controls.ticketNo.value).toBe(1);
+    component['onSelectCustomer']({ code: 5, name: 'New member', phone: null });
+    await component['saveMember']();
+    expect(kuri.updateMember).toHaveBeenCalledWith(1, 5, 3, {
+      holderName: null,
+      holderAddress: null,
+      holderPhone: null,
+    });
+    expect(kuri.addMember).not.toHaveBeenCalled();
+    expect(component['editingMember']()).toBeNull();
+  });
+
+  it('prefills custom ticket holder details and allows clearing them', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['editMember']({
+      ...member,
+      holder_name: 'Ticket holder',
+      holder_phone: '12345',
+      holder_address: 'Kochi',
+    });
+    expect(component['memberForm'].controls.holderName.value).toBe('Ticket holder');
+    expect(component['memberForm'].controls.useCustomHolder.value).toBe(true);
+    await component['saveMember']();
+    expect(kuri.updateMember).toHaveBeenLastCalledWith(1, 1, 0, {
+      holderName: 'Ticket holder',
+      holderAddress: 'Kochi',
+      holderPhone: '12345',
+    });
+    component['editMember']({ ...member, holder_name: 'Ticket holder' });
+    component['memberForm'].controls.useCustomHolder.setValue(false);
+    await component['saveMember']();
+    expect(kuri.updateMember).toHaveBeenLastCalledWith(1, 1, 0, {
+      holderName: null,
+      holderAddress: null,
+      holderPhone: null,
+    });
+  });
+
+  it('keeps a failed member edit and prevents duplicate submissions', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    component['editMember'](member);
+    kuri.updateMember.mockRejectedValueOnce(new Error('Ticket member changed'));
+    await component['saveMember']();
+    expect(component['editingMember']()?.id).toBe(1);
+    const response = deferred<object>();
+    kuri.updateMember.mockReturnValueOnce(response.promise);
+    const saving = component['saveMember']();
+    await component['saveMember']();
+    expect(kuri.updateMember).toHaveBeenCalledTimes(2);
+    response.resolve({});
+    await saving;
+    expect(component['busy']()).toBe(false);
+  });
+
+  it('cancels editing on navigation and blocks completed schemes', async () => {
+    const { component, params, kuri } = await setup(KuriSchemeDetail);
+    component['editMember'](member);
+    params.next(convertToParamMap({ id: '2' }));
+    expect(component['editingMember']()).toBeNull();
+    await vi.waitFor(() => expect(component['loading']()).toBe(false));
+    component['scheme'].set({ ...scheme, status: 'completed' });
+    component['editMember'](member);
+    expect(component['editingMember']()).toBeNull();
+    expect(kuri.updateMember).not.toHaveBeenCalled();
+  });
+
+  it('keeps a newly selected member when an older code lookup finishes', async () => {
+    const { component, kuri } = await setup(KuriSchemeDetail);
+    const response = deferred<{ code: number; name: string; phone: null }>();
+    kuri.getCustomer.mockReturnValueOnce(response.promise);
+    component['editMember'](member);
+    component['onSelectCustomer']({ code: 5, name: 'New member', phone: null });
+    response.resolve({ code: 1, name: 'Old member', phone: null });
+    await Promise.resolve();
+    expect(component['selectedCustomer']()?.code).toBe(5);
+    expect(component['memberForm'].controls.customerCode.value).toBe(5);
+  });
+
   it('edits a future installment without changing the base scheme terms', async () => {
     const { component, kuri } = await setup(KuriSchemeDetail);
     const row = component['installmentAmounts']()[1];

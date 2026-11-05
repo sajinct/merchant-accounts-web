@@ -70,6 +70,7 @@ export interface KuriInstallmentAmount {
 }
 
 export interface KuriMember {
+  revision?: number;
   id: number;
   scheme_id: number;
   customer_code: number;

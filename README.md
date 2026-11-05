@@ -194,6 +194,17 @@ locked. Draws and accounting payments use the saved custom payout. Changes and r
 are audited, and stale edits are rejected. Apply
 `supabase/migrations/20261031000100_kuri_payout_amounts.sql` before deploying this UI.
 
+### Update a ticket's member
+
+Open a scheme's **Members** tab and choose **Edit member** on a ticket. Select the
+replacement member by name, phone or code, adjust optional ticket holder details, and
+choose **Save member**. Draft and active schemes support this; completed schemes are
+locked. Ticket numbers, collections, balances and lot wins stay with the existing ticket.
+Existing accounting vouchers retain their recorded party and narration; future receipts
+and pending payouts use the updated member. Changes are audited with old/new details,
+user and time, and stale edits are rejected. Apply
+`supabase/migrations/20261105000000_kuri_update_ticket_member.sql` before deploying this UI.
+
 ## Vouchers
 
 Receipt, Payment, Contra and Journal are four menu entries, four routes and **one screen**: `VoucherEntry` at `/transactions/voucher/<type>`. The voucher type decides the headings, which accounts the lines may use, whether simplified entry is offered and which rules apply; everything else — account lookup, numbering, narration, validation, saving, printing, the audit trail — is shared.
